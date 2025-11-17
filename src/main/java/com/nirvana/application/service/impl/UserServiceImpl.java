@@ -1,16 +1,16 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.exception.UsernameAlreadyExistsException;
-import edu.sabanciuniv.hotelbookingapp.model.*;
-import edu.sabanciuniv.hotelbookingapp.model.dto.ResetPasswordDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserRegistrationDTO;
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoleType;
-import edu.sabanciuniv.hotelbookingapp.repository.CustomerRepository;
-import edu.sabanciuniv.hotelbookingapp.repository.HotelManagerRepository;
-import edu.sabanciuniv.hotelbookingapp.repository.RoleRepository;
-import edu.sabanciuniv.hotelbookingapp.repository.UserRepository;
-import edu.sabanciuniv.hotelbookingapp.service.UserService;
+import com.nirvana.application.exception.UsernameAlreadyExistsException;
+import com.nirvana.application.model.*;
+import com.nirvana.application.model.dto.ResetPasswordDTO;
+import com.nirvana.application.model.dto.UserDTO;
+import com.nirvana.application.model.dto.UserRegistrationDTO;
+import com.nirvana.application.model.enums.RoleType;
+import com.nirvana.application.repository.CustomerRepository;
+import com.nirvana.application.repository.HotelManagerRepository;
+import com.nirvana.application.repository.RoleRepository;
+import com.nirvana.application.repository.UserRepository;
+import com.nirvana.application.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;

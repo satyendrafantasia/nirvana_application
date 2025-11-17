@@ -1,6 +1,6 @@
 package com.nirvana.application.repository;
 
-import edu.sabanciuniv.hotelbookingapp.model.Admin;
+import com.nirvana.application.model.Admin;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

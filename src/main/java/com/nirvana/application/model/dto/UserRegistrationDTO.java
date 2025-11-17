@@ -1,6 +1,6 @@
 package com.nirvana.application.model.dto;
 
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoleType;
+import com.nirvana.application.model.enums.RoleType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;

@@ -1,8 +1,8 @@
 package com.nirvana.application.controller;
 
-import edu.sabanciuniv.hotelbookingapp.model.dto.BookingDTO;
-import edu.sabanciuniv.hotelbookingapp.service.BookingService;
-import edu.sabanciuniv.hotelbookingapp.service.UserService;
+import com.nirvana.application.model.dto.BookingDTO;
+import com.nirvana.application.service.BookingService;
+import com.nirvana.application.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,8 +1,8 @@
 package com.nirvana.application.model;
 
-import edu.sabanciuniv.hotelbookingapp.model.enums.Currency;
-import edu.sabanciuniv.hotelbookingapp.model.enums.PaymentMethod;
-import edu.sabanciuniv.hotelbookingapp.model.enums.PaymentStatus;
+import com.nirvana.application.model.enums.Currency;
+import com.nirvana.application.model.enums.PaymentMethod;
+import com.nirvana.application.model.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

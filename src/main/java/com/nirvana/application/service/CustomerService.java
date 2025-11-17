@@ -1,6 +1,6 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.Customer;
+import com.nirvana.application.model.Customer;
 
 import java.util.Optional;
 

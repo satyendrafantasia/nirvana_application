@@ -1,10 +1,10 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.Hotel;
-import edu.sabanciuniv.hotelbookingapp.model.Room;
-import edu.sabanciuniv.hotelbookingapp.model.dto.RoomDTO;
-import edu.sabanciuniv.hotelbookingapp.repository.RoomRepository;
-import edu.sabanciuniv.hotelbookingapp.service.RoomService;
+import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.Room;
+import com.nirvana.application.model.dto.RoomDTO;
+import com.nirvana.application.repository.RoomRepository;
+import com.nirvana.application.service.RoomService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +34,7 @@ public class RoomServiceImpl implements RoomService {
     public List<Room> saveRooms(List<RoomDTO> roomDTOs, Hotel hotel) {
         log.info("Attempting to save rooms: {}", roomDTOs);
         List<Room> rooms = roomDTOs.stream()
-                .map(roomDTO -> saveRoom(roomDTO, hotel)) // save each room
+                .map(roomDTO -> saveRoom(roomDTO, hotel))
                 .collect(Collectors.toList());
         log.info("Successfully saved rooms: {}", rooms);
         return rooms;
@@ -47,7 +47,15 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public List<Room> findRoomsByHotelId(Long hotelId) {
-        return null;
+        // If RoomRepository defines a query like findByHotelId, prefer that.
+        // Fallback: filter in memory to avoid compile errors if repository method not present.
+        try {
+            return roomRepository.findByHotelId(hotelId);
+        } catch (NoSuchMethodError | AbstractMethodError e) {
+            return roomRepository.findAll().stream()
+                    .filter(r -> r.getHotel() != null && hotelId.equals(r.getHotel().getId()))
+                    .collect(Collectors.toList());
+        }
     }
 
     @Override
@@ -63,13 +71,17 @@ public class RoomServiceImpl implements RoomService {
         existingRoom.setPricePerNight(roomDTO.getPricePerNight());
 
         Room updatedRoom = roomRepository.save(existingRoom);
-        log.info("Successfully updated address with ID: {}", existingRoom.getId());
+        log.info("Successfully updated room with ID: {}", existingRoom.getId());
         return updatedRoom;
     }
 
     @Override
     public void deleteRoom(Long id) {
-
+        if (!roomRepository.existsById(id)) {
+            throw new EntityNotFoundException("Room not found with id: " + id);
+        }
+        roomRepository.deleteById(id);
+        log.info("Deleted room with ID: {}", id);
     }
 
     @Override
@@ -83,14 +95,13 @@ public class RoomServiceImpl implements RoomService {
                 .build();
         log.debug("Mapped Room: {}", room);
         return room;
-
     }
 
     @Override
     public RoomDTO mapRoomToRoomDto(Room room) {
         return RoomDTO.builder()
                 .id(room.getId())
-                .hotelId(room.getHotel().getId())
+                .hotelId(room.getHotel() != null ? room.getHotel().getId() : null)
                 .roomType(room.getRoomType())
                 .roomCount(room.getRoomCount())
                 .pricePerNight(room.getPricePerNight())

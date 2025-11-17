@@ -1,7 +1,7 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.HotelManager;
-import edu.sabanciuniv.hotelbookingapp.model.User;
+import com.nirvana.application.model.HotelManager;
+import com.nirvana.application.model.User;
 
 public interface HotelManagerService {
 

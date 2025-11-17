@@ -1,10 +1,10 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.exception.HotelAlreadyExistsException;
-import edu.sabanciuniv.hotelbookingapp.model.*;
-import edu.sabanciuniv.hotelbookingapp.model.dto.*;
-import edu.sabanciuniv.hotelbookingapp.repository.HotelRepository;
-import edu.sabanciuniv.hotelbookingapp.service.*;
+import com.nirvana.application.exception.HotelAlreadyExistsException;
+import com.nirvana.application.model.*;
+import com.nirvana.application.model.dto.*;
+import com.nirvana.application.repository.HotelRepository;
+import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;

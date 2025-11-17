@@ -1,6 +1,6 @@
 package com.nirvana.application.model.dto;
 
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoomType;
+import com.nirvana.application.model.enums.RoomType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

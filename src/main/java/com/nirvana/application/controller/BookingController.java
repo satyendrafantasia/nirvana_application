@@ -1,9 +1,9 @@
 package com.nirvana.application.controller;
 
-import edu.sabanciuniv.hotelbookingapp.model.dto.*;
-import edu.sabanciuniv.hotelbookingapp.service.BookingService;
-import edu.sabanciuniv.hotelbookingapp.service.HotelService;
-import edu.sabanciuniv.hotelbookingapp.service.UserService;
+import com.nirvana.application.model.dto.*;
+import com.nirvana.application.service.BookingService;
+import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.UserService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -1,13 +1,13 @@
 package com.nirvana.application.controller;
 
-import edu.sabanciuniv.hotelbookingapp.exception.HotelAlreadyExistsException;
-import edu.sabanciuniv.hotelbookingapp.exception.UsernameAlreadyExistsException;
-import edu.sabanciuniv.hotelbookingapp.model.dto.BookingDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.HotelDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserDTO;
-import edu.sabanciuniv.hotelbookingapp.service.BookingService;
-import edu.sabanciuniv.hotelbookingapp.service.HotelService;
-import edu.sabanciuniv.hotelbookingapp.service.UserService;
+import com.nirvana.application.exception.HotelAlreadyExistsException;
+import com.nirvana.application.exception.UsernameAlreadyExistsException;
+import com.nirvana.application.model.dto.BookingDTO;
+import com.nirvana.application.model.dto.HotelDTO;
+import com.nirvana.application.model.dto.UserDTO;
+import com.nirvana.application.service.BookingService;
+import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

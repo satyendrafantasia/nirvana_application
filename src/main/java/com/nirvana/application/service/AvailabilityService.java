@@ -1,6 +1,6 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.dto.RoomSelectionDTO;
+import com.nirvana.application.model.dto.RoomSelectionDTO;
 
 import java.time.LocalDate;
 import java.util.List;

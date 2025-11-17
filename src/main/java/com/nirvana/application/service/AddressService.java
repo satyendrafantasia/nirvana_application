@@ -1,7 +1,7 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.Address;
-import edu.sabanciuniv.hotelbookingapp.model.dto.AddressDTO;
+import com.nirvana.application.model.Address;
+import com.nirvana.application.model.dto.AddressDTO;
 
 public interface AddressService {
 

@@ -1,8 +1,8 @@
 package com.nirvana.application.controller;
 
-import edu.sabanciuniv.hotelbookingapp.exception.UsernameAlreadyExistsException;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserDTO;
-import edu.sabanciuniv.hotelbookingapp.service.UserService;
+import com.nirvana.application.exception.UsernameAlreadyExistsException;
+import com.nirvana.application.model.dto.UserDTO;
+import com.nirvana.application.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

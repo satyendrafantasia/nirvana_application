@@ -1,8 +1,8 @@
 package com.nirvana.application.controller;
 
-import edu.sabanciuniv.hotelbookingapp.model.dto.HotelAvailabilityDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.HotelSearchDTO;
-import edu.sabanciuniv.hotelbookingapp.service.HotelSearchService;
+import com.nirvana.application.model.dto.HotelAvailabilityDTO;
+import com.nirvana.application.model.dto.HotelSearchDTO;
+import com.nirvana.application.service.HotelSearchService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

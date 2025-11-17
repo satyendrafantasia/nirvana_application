@@ -1,13 +1,13 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.Booking;
-import edu.sabanciuniv.hotelbookingapp.model.Payment;
-import edu.sabanciuniv.hotelbookingapp.model.dto.BookingInitiationDTO;
-import edu.sabanciuniv.hotelbookingapp.model.enums.Currency;
-import edu.sabanciuniv.hotelbookingapp.model.enums.PaymentMethod;
-import edu.sabanciuniv.hotelbookingapp.model.enums.PaymentStatus;
-import edu.sabanciuniv.hotelbookingapp.repository.PaymentRepository;
-import edu.sabanciuniv.hotelbookingapp.service.PaymentService;
+import com.nirvana.application.model.Booking;
+import com.nirvana.application.model.Payment;
+import com.nirvana.application.model.dto.BookingInitiationDTO;
+import com.nirvana.application.model.enums.Currency;
+import com.nirvana.application.model.enums.PaymentMethod;
+import com.nirvana.application.model.enums.PaymentStatus;
+import com.nirvana.application.repository.PaymentRepository;
+import com.nirvana.application.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

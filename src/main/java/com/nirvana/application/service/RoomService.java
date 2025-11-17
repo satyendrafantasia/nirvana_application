@@ -1,8 +1,8 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.Hotel;
-import edu.sabanciuniv.hotelbookingapp.model.Room;
-import edu.sabanciuniv.hotelbookingapp.model.dto.RoomDTO;
+import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.Room;
+import com.nirvana.application.model.dto.RoomDTO;
 
 import java.util.List;
 import java.util.Optional;

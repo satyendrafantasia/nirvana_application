@@ -1,6 +1,6 @@
 package com.nirvana.application.model.dto;
 
-import edu.sabanciuniv.hotelbookingapp.validation.annotation.CardExpiry;
+import com.nirvana.application.validation.annotation.CardExpiry;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;

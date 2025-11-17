@@ -1,6 +1,6 @@
 package com.nirvana.application.repository;
 
-import edu.sabanciuniv.hotelbookingapp.model.Hotel;
+import com.nirvana.application.model.Hotel;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

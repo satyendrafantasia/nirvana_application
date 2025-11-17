@@ -1,9 +1,9 @@
 package com.nirvana.application.initialize;
 
-import edu.sabanciuniv.hotelbookingapp.model.*;
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoleType;
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoomType;
-import edu.sabanciuniv.hotelbookingapp.repository.*;
+import com.nirvana.application.model.*;
+import com.nirvana.application.model.enums.RoleType;
+import com.nirvana.application.model.enums.RoomType;
+import com.nirvana.application.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

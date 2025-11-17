@@ -1,6 +1,6 @@
 package com.nirvana.application.model;
 
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoomType;
+import com.nirvana.application.model.enums.RoomType;
 import jakarta.persistence.*;
 import lombok.*;
 

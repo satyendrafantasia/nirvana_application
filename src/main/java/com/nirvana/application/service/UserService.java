@@ -1,9 +1,9 @@
 package com.nirvana.application.service;
 
-import edu.sabanciuniv.hotelbookingapp.model.User;
-import edu.sabanciuniv.hotelbookingapp.model.dto.ResetPasswordDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.UserRegistrationDTO;
+import com.nirvana.application.model.User;
+import com.nirvana.application.model.dto.ResetPasswordDTO;
+import com.nirvana.application.model.dto.UserDTO;
+import com.nirvana.application.model.dto.UserRegistrationDTO;
 
 import java.util.List;
 

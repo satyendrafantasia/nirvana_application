@@ -1,6 +1,6 @@
 package com.nirvana.application.validation.annotation;
 
-import edu.sabanciuniv.hotelbookingapp.validation.validator.CardExpiryValidator;
+import com.nirvana.application.validation.validator.CardExpiryValidator;
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 

@@ -1,7 +1,7 @@
 package com.nirvana.application.repository;
 
-import edu.sabanciuniv.hotelbookingapp.model.Role;
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoleType;
+import com.nirvana.application.model.Role;
+import com.nirvana.application.model.enums.RoleType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

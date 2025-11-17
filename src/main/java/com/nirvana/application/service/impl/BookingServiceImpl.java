@@ -1,12 +1,12 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.*;
-import edu.sabanciuniv.hotelbookingapp.model.dto.AddressDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.BookingDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.BookingInitiationDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.RoomSelectionDTO;
-import edu.sabanciuniv.hotelbookingapp.repository.BookingRepository;
-import edu.sabanciuniv.hotelbookingapp.service.*;
+import com.nirvana.application.model.*;
+import com.nirvana.application.model.dto.AddressDTO;
+import com.nirvana.application.model.dto.BookingDTO;
+import com.nirvana.application.model.dto.BookingInitiationDTO;
+import com.nirvana.application.model.dto.RoomSelectionDTO;
+import com.nirvana.application.repository.BookingRepository;
+import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
