@@ -1,12 +1,12 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.Hotel;
-import edu.sabanciuniv.hotelbookingapp.model.dto.AddressDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.HotelAvailabilityDTO;
-import edu.sabanciuniv.hotelbookingapp.model.dto.RoomDTO;
-import edu.sabanciuniv.hotelbookingapp.model.enums.RoomType;
-import edu.sabanciuniv.hotelbookingapp.repository.HotelRepository;
-import edu.sabanciuniv.hotelbookingapp.service.*;
+import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.dto.AddressDTO;
+import com.nirvana.application.model.dto.HotelAvailabilityDTO;
+import com.nirvana.application.model.dto.RoomDTO;
+import com.nirvana.application.model.enums.RoomType;
+import com.nirvana.application.repository.HotelRepository;
+import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

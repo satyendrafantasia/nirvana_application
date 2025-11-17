@@ -1,9 +1,9 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.HotelManager;
-import edu.sabanciuniv.hotelbookingapp.model.User;
-import edu.sabanciuniv.hotelbookingapp.repository.HotelManagerRepository;
-import edu.sabanciuniv.hotelbookingapp.service.HotelManagerService;
+import com.nirvana.application.model.HotelManager;
+import com.nirvana.application.model.User;
+import com.nirvana.application.repository.HotelManagerRepository;
+import com.nirvana.application.service.HotelManagerService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

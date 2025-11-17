@@ -1,8 +1,9 @@
 package com.nirvana.application.service.impl;
 
-import edu.sabanciuniv.hotelbookingapp.model.Customer;
-import edu.sabanciuniv.hotelbookingapp.repository.CustomerRepository;
-import edu.sabanciuniv.hotelbookingapp.service.CustomerService;
+
+import com.nirvana.application.model.Customer;
+import com.nirvana.application.repository.CustomerRepository;
+import com.nirvana.application.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

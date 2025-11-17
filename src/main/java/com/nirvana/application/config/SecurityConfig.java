@@ -1,6 +1,7 @@
 package com.nirvana.application.config;
 
-import edu.sabanciuniv.hotelbookingapp.security.CustomAuthenticationSuccessHandler;
+
+import com.nirvana.application.security.CustomAuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
