@@ -11,12 +11,12 @@ import java.util.List;
 
 @Data
 @Builder
-public class HotelDTO {
+public class SpaDTO {
 
     private Long id;
 
-    @NotBlank(message = "Hotel name cannot be empty")
-    @Pattern(regexp = "^(?!\\s*$)[A-Za-z0-9 ]+$", message = "Hotel name must only contain letters and numbers")
+    @NotBlank(message = "Spa name cannot be empty")
+    @Pattern(regexp = "^(?!\\s*$)[A-Za-z0-9 ]+$", message = "Spa name must only contain letters and numbers")
     private String name;
 
     @Valid

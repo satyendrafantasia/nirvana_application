@@ -24,10 +24,10 @@ public class TestDataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final AdminRepository adminRepository;
     private final CustomerRepository customerRepository;
-    private final HotelManagerRepository hotelManagerRepository;
+    private final SpaManagerRepository SpaManagerRepository;
     private final PasswordEncoder passwordEncoder;
     private final AddressRepository addressRepository;
-    private final HotelRepository hotelRepository;
+    private final SpaRepository SpaRepository;
     private final AvailabilityRepository availabilityRepository;
 
     @Override
@@ -42,17 +42,17 @@ public class TestDataInitializer implements CommandLineRunner {
 
                 Role adminRole = new Role(RoleType.ADMIN);
                 Role customerRole = new Role(RoleType.CUSTOMER);
-                Role hotelManagerRole = new Role(RoleType.HOTEL_MANAGER);
+                Role SpaManagerRole = new Role(RoleType.Spa_MANAGER);
 
                 roleRepository.save(adminRole);
                 roleRepository.save(customerRole);
-                roleRepository.save(hotelManagerRole);
+                roleRepository.save(SpaManagerRole);
                 log.info("Role data persisted");
 
-                User user1 = User.builder().username("admin@hotel.com").password(passwordEncoder.encode("1")).name("Admin").lastName("Admin").role(adminRole).build();
-                User user2 = User.builder().username("customer1@hotel.com").password(passwordEncoder.encode("1")).name("Kaya Alp").lastName("Koker").role(customerRole).build();
-                User user3 = User.builder().username("manager1@hotel.com").password(passwordEncoder.encode("1")).name("John").lastName("Doe").role(hotelManagerRole).build();
-                User user4 = User.builder().username("manager2@hotel.com").password(passwordEncoder.encode("1")).name("Max").lastName("Mustermann").role(hotelManagerRole).build();
+                User user1 = User.builder().username("admin@Spa.com").password(passwordEncoder.encode("1")).name("Admin").lastName("Admin").role(adminRole).build();
+                User user2 = User.builder().username("customer1@Spa.com").password(passwordEncoder.encode("1")).name("Kaya Alp").lastName("Koker").role(customerRole).build();
+                User user3 = User.builder().username("manager1@Spa.com").password(passwordEncoder.encode("1")).name("John").lastName("Doe").role(SpaManagerRole).build();
+                User user4 = User.builder().username("manager2@Spa.com").password(passwordEncoder.encode("1")).name("Max").lastName("Mustermann").role(SpaManagerRole).build();
 
                 userRepository.save(user1);
                 userRepository.save(user2);
@@ -61,13 +61,13 @@ public class TestDataInitializer implements CommandLineRunner {
 
                 Admin admin1 = Admin.builder().user(user1).build();
                 Customer c1 = Customer.builder().user(user2).build();
-                HotelManager hm1 = HotelManager.builder().user(user3).build();
-                HotelManager hm2 = HotelManager.builder().user(user4).build();
+                SpaManager hm1 = SpaManager.builder().user(user3).build();
+                SpaManager hm2 = SpaManager.builder().user(user4).build();
 
                 adminRepository.save(admin1);
                 customerRepository.save(c1);
-                hotelManagerRepository.save(hm1);
-                hotelManagerRepository.save(hm2);
+                SpaManagerRepository.save(hm1);
+                SpaManagerRepository.save(hm2);
                 log.info("User data persisted");
 
                 Address addressIst1 = Address.builder().addressLine("Acısu Sokağı No:19, 34357").city("Istanbul")
@@ -91,68 +91,68 @@ public class TestDataInitializer implements CommandLineRunner {
                 addressRepository.save(addressBerlin2);
                 addressRepository.save(addressBerlin3);
 
-                Hotel hotelIst1 = Hotel.builder().name("Swissotel The Bosphorus Istanbul")
-                        .address(addressIst1).hotelManager(hm1).build();
-                Hotel hotelIst2 = Hotel.builder().name("Four Seasons Hotel Istanbul")
-                        .address(addressIst2).hotelManager(hm1).build();
-                Hotel hotelIst3 = Hotel.builder().name("Ciragan Palace Kempinski Istanbul")
-                        .address(addressIst3).hotelManager(hm1).build();
+                Spa SpaIst1 = Spa.builder().name("Swissotel The Bosphorus Istanbul")
+                        .address(addressIst1).SpaManager(hm1).build();
+                Spa SpaIst2 = Spa.builder().name("Four Seasons Spa Istanbul")
+                        .address(addressIst2).SpaManager(hm1).build();
+                Spa SpaIst3 = Spa.builder().name("Ciragan Palace Kempinski Istanbul")
+                        .address(addressIst3).SpaManager(hm1).build();
 
-                Hotel hotelBerlin1 = Hotel.builder().name("Hotel Adlon Kempinski Berlin")
-                        .address(addressBerlin1).hotelManager(hm2).build();
-                Hotel hotelBerlin2 = Hotel.builder().name("The Ritz-Carlton Berlin")
-                        .address(addressBerlin2).hotelManager(hm2).build();
-                Hotel hotelBerlin3 = Hotel.builder().name("InterContinental Berlin")
-                        .address(addressBerlin3).hotelManager(hm2).build();
+                Spa SpaBerlin1 = Spa.builder().name("Spa Adlon Kempinski Berlin")
+                        .address(addressBerlin1).SpaManager(hm2).build();
+                Spa SpaBerlin2 = Spa.builder().name("The Ritz-Carlton Berlin")
+                        .address(addressBerlin2).SpaManager(hm2).build();
+                Spa SpaBerlin3 = Spa.builder().name("InterContinental Berlin")
+                        .address(addressBerlin3).SpaManager(hm2).build();
 
                 Room singleRoomIst1 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(370).roomCount(35).hotel(hotelIst1).build();
+                        .pricePerNight(370).roomCount(35).Spa(SpaIst1).build();
                 Room doubleRoomIst1 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(459).roomCount(45).hotel(hotelIst1).build();
+                        .pricePerNight(459).roomCount(45).Spa(SpaIst1).build();
 
                 Room singleRoomIst2 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(700).roomCount(25).hotel(hotelIst2).build();
+                        .pricePerNight(700).roomCount(25).Spa(SpaIst2).build();
                 Room doubleRoomIst2 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(890).roomCount(30).hotel(hotelIst2).build();
+                        .pricePerNight(890).roomCount(30).Spa(SpaIst2).build();
 
                 Room singleRoomIst3 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(691).roomCount(30).hotel(hotelIst3).build();
+                        .pricePerNight(691).roomCount(30).Spa(SpaIst3).build();
                 Room doubleRoomIst3 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(800).roomCount(75).hotel(hotelIst3).build();
+                        .pricePerNight(800).roomCount(75).Spa(SpaIst3).build();
 
                 Room singleRoomBerlin1 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(120.0).roomCount(25).hotel(hotelBerlin1).build();
+                        .pricePerNight(120.0).roomCount(25).Spa(SpaBerlin1).build();
                 Room doubleRoomBerlin1 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(250.0).roomCount(15).hotel(hotelBerlin1).build();
+                        .pricePerNight(250.0).roomCount(15).Spa(SpaBerlin1).build();
 
                 Room singleRoomBerlin2 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(300).roomCount(50).hotel(hotelBerlin2).build();
+                        .pricePerNight(300).roomCount(50).Spa(SpaBerlin2).build();
                 Room doubleRoomBerlin2 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(400).roomCount(50).hotel(hotelBerlin2).build();
+                        .pricePerNight(400).roomCount(50).Spa(SpaBerlin2).build();
 
                 Room singleRoomBerlin3 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(179).roomCount(45).hotel(hotelBerlin3).build();
+                        .pricePerNight(179).roomCount(45).Spa(SpaBerlin3).build();
                 Room doubleRoomBerlin3 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(256).roomCount(25).hotel(hotelBerlin3).build();
+                        .pricePerNight(256).roomCount(25).Spa(SpaBerlin3).build();
 
-                hotelIst1.getRooms().addAll(Arrays.asList(singleRoomIst1,doubleRoomIst1));
-                hotelIst2.getRooms().addAll(Arrays.asList(singleRoomIst2,doubleRoomIst2));
-                hotelIst3.getRooms().addAll(Arrays.asList(singleRoomIst3,doubleRoomIst3));
-                hotelBerlin1.getRooms().addAll(Arrays.asList(singleRoomBerlin1,doubleRoomBerlin1));
-                hotelBerlin2.getRooms().addAll(Arrays.asList(singleRoomBerlin2,doubleRoomBerlin2));
-                hotelBerlin3.getRooms().addAll(Arrays.asList(singleRoomBerlin3,doubleRoomBerlin3));
+                SpaIst1.getRooms().addAll(Arrays.asList(singleRoomIst1,doubleRoomIst1));
+                SpaIst2.getRooms().addAll(Arrays.asList(singleRoomIst2,doubleRoomIst2));
+                SpaIst3.getRooms().addAll(Arrays.asList(singleRoomIst3,doubleRoomIst3));
+                SpaBerlin1.getRooms().addAll(Arrays.asList(singleRoomBerlin1,doubleRoomBerlin1));
+                SpaBerlin2.getRooms().addAll(Arrays.asList(singleRoomBerlin2,doubleRoomBerlin2));
+                SpaBerlin3.getRooms().addAll(Arrays.asList(singleRoomBerlin3,doubleRoomBerlin3));
 
-                hotelRepository.save(hotelIst1);
-                hotelRepository.save(hotelIst2);
-                hotelRepository.save(hotelIst3);
-                hotelRepository.save(hotelBerlin1);
-                hotelRepository.save(hotelBerlin2);
-                hotelRepository.save(hotelBerlin3);
-                log.info("Hotel data persisted");
+                SpaRepository.save(SpaIst1);
+                SpaRepository.save(SpaIst2);
+                SpaRepository.save(SpaIst3);
+                SpaRepository.save(SpaBerlin1);
+                SpaRepository.save(SpaBerlin2);
+                SpaRepository.save(SpaBerlin3);
+                log.info("Spa data persisted");
 
-                Availability av1Berlin1 = Availability.builder().hotel(hotelBerlin1)
+                Availability av1Berlin1 = Availability.builder().Spa(SpaBerlin1)
                         .date(LocalDate.of(2023,9,1)).room(singleRoomBerlin1).availableRooms(5).build();
-                Availability av2Berlin1 = Availability.builder().hotel(hotelBerlin1)
+                Availability av2Berlin1 = Availability.builder().Spa(SpaBerlin1)
                         .date(LocalDate.of(2023,9,2)).room(doubleRoomBerlin1).availableRooms(7).build();
 
                 availabilityRepository.save(av1Berlin1);

@@ -11,7 +11,7 @@ import java.time.LocalDate;
 
 @Data
 @Builder
-public class HotelSearchDTO {
+public class SpaSearchDTO {
 
     @NotBlank(message = "City cannot be empty")
     @Pattern(regexp = "^(?!\\s*$)[A-Za-z '-]+$", message = "City must only contain letters, apostrophes('), or hyphens(-)")

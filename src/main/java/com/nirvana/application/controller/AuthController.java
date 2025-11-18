@@ -64,7 +64,7 @@ public class AuthController {
     @PostMapping("/register/manager")
     public String registerManagerAccount(@Valid @ModelAttribute("user") UserRegistrationDTO registrationDTO, BindingResult result) {
         log.info("Attempting to register manager account: {}", registrationDTO.getUsername());
-        registrationDTO.setRoleType(RoleType.HOTEL_MANAGER);
+        registrationDTO.setRoleType(RoleType.Spa_MANAGER);
         return registerUser(registrationDTO, result, "register-manager", "register/manager");
     }
 

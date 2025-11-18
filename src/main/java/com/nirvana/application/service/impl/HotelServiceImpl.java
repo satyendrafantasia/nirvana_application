@@ -1,9 +1,9 @@
 package com.nirvana.application.service.impl;
 
-import com.nirvana.application.exception.HotelAlreadyExistsException;
+import com.nirvana.application.exception.SpaAlreadyExistsException;
 import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.*;
-import com.nirvana.application.repository.HotelRepository;
+import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -21,185 +21,185 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class HotelServiceImpl implements HotelService {
+public class SpaServiceImpl implements SpaService {
 
-    private final HotelRepository hotelRepository;
+    private final SpaRepository SpaRepository;
     private final AddressService addressService;
     private final RoomService roomService;
     private final UserService userService;
-    private final HotelManagerService hotelManagerService;
+    private final SpaManagerService SpaManagerService;
 
     @Override
     @Transactional
-    public Hotel saveHotel(HotelRegistrationDTO hotelRegistrationDTO) {
-        log.info("Attempting to save a new hotel: {}", hotelRegistrationDTO.toString());
+    public Spa saveSpa(SpaRegistrationDTO SpaRegistrationDTO) {
+        log.info("Attempting to save a new Spa: {}", SpaRegistrationDTO.toString());
 
-        Optional<Hotel> existingHotel = hotelRepository.findByName(hotelRegistrationDTO.getName());
-        if (existingHotel.isPresent()) {
-            throw new HotelAlreadyExistsException("This hotel name is already registered!");
+        Optional<Spa> existingSpa = SpaRepository.findByName(SpaRegistrationDTO.getName());
+        if (existingSpa.isPresent()) {
+            throw new SpaAlreadyExistsException("This Spa name is already registered!");
         }
 
-        Hotel hotel = mapHotelRegistrationDtoToHotel(hotelRegistrationDTO);
+        Spa Spa = mapSpaRegistrationDtoToSpa(SpaRegistrationDTO);
 
-        Address savedAddress = addressService.saveAddress(hotelRegistrationDTO.getAddressDTO());
-        hotel.setAddress(savedAddress);
+        Address savedAddress = addressService.saveAddress(SpaRegistrationDTO.getAddressDTO());
+        Spa.setAddress(savedAddress);
 
-        // Get the username of the currently logged-in hotel manager
+        // Get the username of the currently logged-in Spa manager
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        // Retrieve the Hotel Manager associated with this username
-        HotelManager hotelManager = hotelManagerService.findByUser(userService.findUserByUsername(username));
-        hotel.setHotelManager(hotelManager);
+        // Retrieve the Spa Manager associated with this username
+        SpaManager SpaManager = SpaManagerService.findByUser(userService.findUserByUsername(username));
+        Spa.setSpaManager(SpaManager);
 
-        // Saving hotel to be able to bind rooms to hotel id
-        hotel = hotelRepository.save(hotel);
+        // Saving Spa to be able to bind rooms to Spa id
+        Spa = SpaRepository.save(Spa);
 
-        List<Room> savedRooms = roomService.saveRooms(hotelRegistrationDTO.getRoomDTOs(), hotel);
-        hotel.setRooms(savedRooms);
+        List<Room> savedRooms = roomService.saveRooms(SpaRegistrationDTO.getRoomDTOs(), Spa);
+        Spa.setRooms(savedRooms);
 
-        Hotel savedHotel = hotelRepository.save(hotel);
-        log.info("Successfully saved new hotel with ID: {}", hotel.getId());
-        return savedHotel;
+        Spa savedSpa = SpaRepository.save(Spa);
+        log.info("Successfully saved new Spa with ID: {}", Spa.getId());
+        return savedSpa;
     }
 
     @Override
-    public HotelDTO findHotelDtoByName(String name) {
-        Hotel hotel = hotelRepository.findByName(name)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
-        return mapHotelToHotelDto(hotel);
+    public SpaDTO findSpaDtoByName(String name) {
+        Spa Spa = SpaRepository.findByName(name)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        return mapSpaToSpaDto(Spa);
     }
 
     @Override
-    public HotelDTO findHotelDtoById(Long id) {
-        Hotel hotel = hotelRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
-        return mapHotelToHotelDto(hotel);
+    public SpaDTO findSpaDtoById(Long id) {
+        Spa Spa = SpaRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        return mapSpaToSpaDto(Spa);
     }
 
     @Override
-    public Optional<Hotel> findHotelById(Long id) {
-        return hotelRepository.findById(id);
+    public Optional<Spa> findSpaById(Long id) {
+        return SpaRepository.findById(id);
     }
 
     @Override
-    public List<HotelDTO> findAllHotels() {
-        List<Hotel> hotels = hotelRepository.findAll();
-        return hotels.stream()
-                .map(this::mapHotelToHotelDto)
+    public List<SpaDTO> findAllSpas() {
+        List<Spa> Spas = SpaRepository.findAll();
+        return Spas.stream()
+                .map(this::mapSpaToSpaDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public HotelDTO updateHotel(HotelDTO hotelDTO) {
-        log.info("Attempting to update hotel with ID: {}", hotelDTO.getId());
+    public SpaDTO updateSpa(SpaDTO SpaDTO) {
+        log.info("Attempting to update Spa with ID: {}", SpaDTO.getId());
 
-        Hotel existingHotel = hotelRepository.findById(hotelDTO.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
+        Spa existingSpa = SpaRepository.findById(SpaDTO.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
 
-        if (hotelNameExistsAndNotSameHotel(hotelDTO.getName(), hotelDTO.getId())) {
-            throw new HotelAlreadyExistsException("This hotel name is already registered!");
+        if (SpaNameExistsAndNotSameSpa(SpaDTO.getName(), SpaDTO.getId())) {
+            throw new SpaAlreadyExistsException("This Spa name is already registered!");
         }
 
-        existingHotel.setName(hotelDTO.getName());
+        existingSpa.setName(SpaDTO.getName());
 
-        Address updatedAddress = addressService.updateAddress(hotelDTO.getAddressDTO());
-        existingHotel.setAddress(updatedAddress);
+        Address updatedAddress = addressService.updateAddress(SpaDTO.getAddressDTO());
+        existingSpa.setAddress(updatedAddress);
 
-        hotelDTO.getRoomDTOs().forEach(roomService::updateRoom);
+        SpaDTO.getRoomDTOs().forEach(roomService::updateRoom);
 
-        hotelRepository.save(existingHotel);
-        log.info("Successfully updated existing hotel with ID: {}", hotelDTO.getId());
-        return mapHotelToHotelDto(existingHotel);
+        SpaRepository.save(existingSpa);
+        log.info("Successfully updated existing Spa with ID: {}", SpaDTO.getId());
+        return mapSpaToSpaDto(existingSpa);
     }
 
     @Override
-    public void deleteHotelById(Long id) {
-        log.info("Attempting to delete hotel with ID: {}", id);
-        hotelRepository.deleteById(id);
-        log.info("Successfully deleted hotel with ID: {}", id);
+    public void deleteSpaById(Long id) {
+        log.info("Attempting to delete Spa with ID: {}", id);
+        SpaRepository.deleteById(id);
+        log.info("Successfully deleted Spa with ID: {}", id);
     }
     @Override
-    public List<Hotel> findAllHotelsByManagerId(Long managerId) {
-        List<Hotel> hotels = hotelRepository.findAllByHotelManager_Id(managerId);
-        return (hotels != null) ? hotels : Collections.emptyList();
+    public List<Spa> findAllSpasByManagerId(Long managerId) {
+        List<Spa> Spas = SpaRepository.findAllBySpaManager_Id(managerId);
+        return (Spas != null) ? Spas : Collections.emptyList();
     }
 
     @Override
-    public List<HotelDTO> findAllHotelDtosByManagerId(Long managerId) {
-        List<Hotel> hotels = hotelRepository.findAllByHotelManager_Id(managerId);
-        if (hotels != null) {
-            return hotels.stream()
-                    .map(this::mapHotelToHotelDto)
+    public List<SpaDTO> findAllSpaDtosByManagerId(Long managerId) {
+        List<Spa> Spas = SpaRepository.findAllBySpaManager_Id(managerId);
+        if (Spas != null) {
+            return Spas.stream()
+                    .map(this::mapSpaToSpaDto)
                     .collect(Collectors.toList());
         }
         return Collections.emptyList();
     }
 
     @Override
-    public HotelDTO findHotelByIdAndManagerId(Long hotelId, Long managerId) {
-        Hotel hotel = hotelRepository.findByIdAndHotelManager_Id(hotelId, managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
-        return mapHotelToHotelDto(hotel);
+    public SpaDTO findSpaByIdAndManagerId(Long SpaId, Long managerId) {
+        Spa Spa = SpaRepository.findByIdAndSpaManager_Id(SpaId, managerId)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        return mapSpaToSpaDto(Spa);
     }
 
     @Override
     @Transactional
-    public HotelDTO updateHotelByManagerId(HotelDTO hotelDTO, Long managerId) {
-        log.info("Attempting to update hotel with ID: {} for Manager ID: {}", hotelDTO.getId(), managerId);
+    public SpaDTO updateSpaByManagerId(SpaDTO SpaDTO, Long managerId) {
+        log.info("Attempting to update Spa with ID: {} for Manager ID: {}", SpaDTO.getId(), managerId);
 
-        Hotel existingHotel = hotelRepository.findByIdAndHotelManager_Id(hotelDTO.getId(), managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
+        Spa existingSpa = SpaRepository.findByIdAndSpaManager_Id(SpaDTO.getId(), managerId)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
 
-        if (hotelNameExistsAndNotSameHotel(hotelDTO.getName(), hotelDTO.getId())) {
-            throw new HotelAlreadyExistsException("This hotel name is already registered!");
+        if (SpaNameExistsAndNotSameSpa(SpaDTO.getName(), SpaDTO.getId())) {
+            throw new SpaAlreadyExistsException("This Spa name is already registered!");
         }
 
-        existingHotel.setName(hotelDTO.getName());
+        existingSpa.setName(SpaDTO.getName());
 
-        Address updatedAddress = addressService.updateAddress(hotelDTO.getAddressDTO());
-        existingHotel.setAddress(updatedAddress);
+        Address updatedAddress = addressService.updateAddress(SpaDTO.getAddressDTO());
+        existingSpa.setAddress(updatedAddress);
 
-        hotelDTO.getRoomDTOs().forEach(roomService::updateRoom);
+        SpaDTO.getRoomDTOs().forEach(roomService::updateRoom);
 
-        hotelRepository.save(existingHotel);
-        log.info("Successfully updated existing hotel with ID: {} for Manager ID: {}", hotelDTO.getId(), managerId);
-        return mapHotelToHotelDto(existingHotel);    }
+        SpaRepository.save(existingSpa);
+        log.info("Successfully updated existing Spa with ID: {} for Manager ID: {}", SpaDTO.getId(), managerId);
+        return mapSpaToSpaDto(existingSpa);    }
 
     @Override
-    public void deleteHotelByIdAndManagerId(Long hotelId, Long managerId) {
-        log.info("Attempting to delete hotel with ID: {} for Manager ID: {}", hotelId, managerId);
-        Hotel hotel = hotelRepository.findByIdAndHotelManager_Id(hotelId, managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
-        hotelRepository.delete(hotel);
-        log.info("Successfully deleted hotel with ID: {} for Manager ID: {}", hotelId, managerId);
+    public void deleteSpaByIdAndManagerId(Long SpaId, Long managerId) {
+        log.info("Attempting to delete Spa with ID: {} for Manager ID: {}", SpaId, managerId);
+        Spa Spa = SpaRepository.findByIdAndSpaManager_Id(SpaId, managerId)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        SpaRepository.delete(Spa);
+        log.info("Successfully deleted Spa with ID: {} for Manager ID: {}", SpaId, managerId);
     }
 
-    private Hotel mapHotelRegistrationDtoToHotel(HotelRegistrationDTO dto) {
-        return Hotel.builder()
+    private Spa mapSpaRegistrationDtoToSpa(SpaRegistrationDTO dto) {
+        return Spa.builder()
                 .name(formatText(dto.getName()))
                 .build();
     }
 
     @Override
-    public HotelDTO mapHotelToHotelDto(Hotel hotel) {
-        List<RoomDTO> roomDTOs = hotel.getRooms().stream()
+    public SpaDTO mapSpaToSpaDto(Spa Spa) {
+        List<RoomDTO> roomDTOs = Spa.getRooms().stream()
                 .map(roomService::mapRoomToRoomDto)  // convert each Room to RoomDTO
                 .collect(Collectors.toList());  // collect results to a list
 
-        AddressDTO addressDTO = addressService.mapAddressToAddressDto(hotel.getAddress());
+        AddressDTO addressDTO = addressService.mapAddressToAddressDto(Spa.getAddress());
 
-        return HotelDTO.builder()
-                .id(hotel.getId())
-                .name(hotel.getName())
+        return SpaDTO.builder()
+                .id(Spa.getId())
+                .name(Spa.getName())
                 .addressDTO(addressDTO)
                 .roomDTOs(roomDTOs)
-                .managerUsername(hotel.getHotelManager().getUser().getUsername())
+                .managerUsername(Spa.getSpaManager().getUser().getUsername())
                 .build();
     }
 
-    private boolean hotelNameExistsAndNotSameHotel(String name, Long hotelId) {
-        Optional<Hotel> existingHotelWithSameName = hotelRepository.findByName(name);
-        return existingHotelWithSameName.isPresent() && !existingHotelWithSameName.get().getId().equals(hotelId);
+    private boolean SpaNameExistsAndNotSameSpa(String name, Long SpaId) {
+        Optional<Spa> existingSpaWithSameName = SpaRepository.findByName(name);
+        return existingSpaWithSameName.isPresent() && !existingSpaWithSameName.get().getId().equals(SpaId);
     }
 
     private String formatText(String text) {

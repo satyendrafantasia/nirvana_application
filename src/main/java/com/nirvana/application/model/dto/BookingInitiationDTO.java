@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class BookingInitiationDTO {
 
-    private long hotelId;
+    private long SpaId;
     private LocalDate checkinDate;
     private LocalDate checkoutDate;
     private long durationDays;

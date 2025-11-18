@@ -19,10 +19,10 @@ public class Availability {
     private Long id;
 
     // Unidirectional relationship due to business logic and performance considerations
-    // Logic: Querying Availability based on specific dates, rather than getting all Availability entities for a Hotel
+    // Logic: Querying Availability based on specific dates, rather than getting all Availability entities for a Spa
     @ManyToOne
     @JoinColumn(nullable = false)
-    private Hotel hotel;
+    private Spa Spa;
 
     @Column(nullable = false)
     private LocalDate date;
@@ -38,7 +38,7 @@ public class Availability {
     public String toString() {
         return "Availability{" +
                 "id=" + id +
-                ", hotel=" + hotel +
+                ", Spa=" + Spa +
                 ", date=" + date +
                 ", room=" + room +
                 ", availableRooms=" + availableRooms +
@@ -50,11 +50,11 @@ public class Availability {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Availability that = (Availability) o;
-        return Objects.equals(id, that.id) && Objects.equals(hotel, that.hotel) && Objects.equals(room, that.room);
+        return Objects.equals(id, that.id) && Objects.equals(Spa, that.Spa) && Objects.equals(room, that.room);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, hotel, room);
+        return Objects.hash(id, Spa, room);
     }
 }

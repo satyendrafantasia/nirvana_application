@@ -13,7 +13,7 @@ import java.util.Objects;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class HotelManager {
+public class SpaManager {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,15 +23,15 @@ public class HotelManager {
     @JoinColumn(nullable = false)
     private User user;
 
-    @OneToMany(mappedBy = "hotelManager", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Hotel> hotelList = new ArrayList<>();
+    @OneToMany(mappedBy = "SpaManager", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Spa> SpaList = new ArrayList<>();
 
     @Override
     public String toString() {
-        return "HotelManager{" +
+        return "SpaManager{" +
                 "id=" + id +
                 ", user=" + user +
-                ", hotelList=" + hotelList +
+                ", SpaList=" + SpaList +
                 '}';
     }
 
@@ -39,7 +39,7 @@ public class HotelManager {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        HotelManager that = (HotelManager) o;
+        SpaManager that = (SpaManager) o;
         return Objects.equals(id, that.id) && Objects.equals(user, that.user);
     }
 

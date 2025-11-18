@@ -2,7 +2,7 @@ package com.nirvana.application.controller;
 
 import com.nirvana.application.model.dto.*;
 import com.nirvana.application.service.BookingService;
-import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.SpaService;
 import com.nirvana.application.service.UserService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -28,7 +28,7 @@ import java.time.temporal.ChronoUnit;
 @Slf4j
 public class BookingController {
 
-    private final HotelService hotelService;
+    private final SpaService SpaService;
     private final UserService userService;
     private final BookingService bookingService;
 
@@ -49,10 +49,10 @@ public class BookingController {
             return "redirect:/search";
         }
 
-        HotelDTO hotelDTO = hotelService.findHotelDtoById(bookingInitiationDTO.getHotelId());
+        SpaDTO SpaDTO = SpaService.findSpaDtoById(bookingInitiationDTO.getSpaId());
 
         model.addAttribute("bookingInitiationDTO", bookingInitiationDTO);
-        model.addAttribute("hotelDTO", hotelDTO);
+        model.addAttribute("SpaDTO", SpaDTO);
         model.addAttribute("paymentCardDTO", new PaymentCardDTO());
 
         return "booking/payment";
@@ -69,9 +69,9 @@ public class BookingController {
 
         if (result.hasErrors()) {
             log.warn("Validation errors occurred while completing booking");
-            HotelDTO hotelDTO = hotelService.findHotelDtoById(bookingInitiationDTO.getHotelId());
+            SpaDTO SpaDTO = SpaService.findSpaDtoById(bookingInitiationDTO.getSpaId());
             model.addAttribute("bookingInitiationDTO", bookingInitiationDTO);
-            model.addAttribute("hotelDTO", hotelDTO);
+            model.addAttribute("SpaDTO", SpaDTO);
             model.addAttribute("paymentCardDTO", paymentDTO);
             return "booking/payment";
         }

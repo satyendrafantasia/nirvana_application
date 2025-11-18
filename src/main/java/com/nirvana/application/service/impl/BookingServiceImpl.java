@@ -27,7 +27,7 @@ public class BookingServiceImpl implements BookingService {
     private final AvailabilityService availabilityService;
     private final PaymentService paymentService;
     private final CustomerService customerService;
-    private final HotelService hotelService;
+    private final SpaService SpaService;
 
 
     @Override
@@ -38,10 +38,10 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = customerService.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Customer not found with user ID: " + userId));
 
-        Hotel hotel = hotelService.findHotelById(bookingInitiationDTO.getHotelId())
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + bookingInitiationDTO.getHotelId()));
+        Spa Spa = SpaService.findSpaById(bookingInitiationDTO.getSpaId())
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found with ID: " + bookingInitiationDTO.getSpaId()));
 
-        Booking booking = mapBookingInitDtoToBookingModel(bookingInitiationDTO, customer, hotel);
+        Booking booking = mapBookingInitDtoToBookingModel(bookingInitiationDTO, customer, Spa);
 
         return bookingRepository.save(booking);
     }
@@ -53,7 +53,7 @@ public class BookingServiceImpl implements BookingService {
         Payment savedPayment = paymentService.savePayment(bookingInitiationDTO, savedBooking);
         savedBooking.setPayment(savedPayment);
         bookingRepository.save(savedBooking);
-        availabilityService.updateAvailabilities(bookingInitiationDTO.getHotelId(), bookingInitiationDTO.getCheckinDate(),
+        availabilityService.updateAvailabilities(bookingInitiationDTO.getSpaId(), bookingInitiationDTO.getCheckinDate(),
                 bookingInitiationDTO.getCheckoutDate(), bookingInitiationDTO.getRoomSelections());
         return mapBookingModelToBookingDto(savedBooking);
     }
@@ -91,16 +91,16 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<BookingDTO> findBookingsByManagerId(Long managerId) {
-        List<Hotel> hotels = hotelService.findAllHotelsByManagerId(managerId);
-        return hotels.stream()
-                .flatMap(hotel -> bookingRepository.findBookingsByHotelId(hotel.getId()).stream())
+        List<Spa> Spas = SpaService.findAllSpasByManagerId(managerId);
+        return Spas.stream()
+                .flatMap(Spa -> bookingRepository.findBookingsBySpaId(Spa.getId()).stream())
                 .map(this::mapBookingModelToBookingDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public BookingDTO findBookingByIdAndManagerId(Long bookingId, Long managerId) {
-        Booking booking = bookingRepository.findBookingByIdAndHotel_HotelManagerId(bookingId, managerId)
+        Booking booking = bookingRepository.findBookingByIdAndSpa_SpaManagerId(bookingId, managerId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found with ID: " + bookingId + " and manager ID: " + managerId));
         return mapBookingModelToBookingDto(booking);
     }
@@ -117,9 +117,9 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingDTO mapBookingModelToBookingDto(Booking booking) {
         AddressDTO addressDto = AddressDTO.builder()
-                .addressLine(booking.getHotel().getAddress().getAddressLine())
-                .city(booking.getHotel().getAddress().getCity())
-                .country(booking.getHotel().getAddress().getCountry())
+                .addressLine(booking.getSpa().getAddress().getAddressLine())
+                .city(booking.getSpa().getAddress().getCity())
+                .country(booking.getSpa().getAddress().getCountry())
                 .build();
 
         List<RoomSelectionDTO> roomSelections = booking.getBookedRooms().stream()
@@ -136,13 +136,13 @@ public class BookingServiceImpl implements BookingService {
                 .confirmationNumber(booking.getConfirmationNumber())
                 .bookingDate(booking.getBookingDate())
                 .customerId(booking.getCustomer().getId())
-                .hotelId(booking.getHotel().getId())
+                .SpaId(booking.getSpa().getId())
                 .checkinDate(booking.getCheckinDate())
                 .checkoutDate(booking.getCheckoutDate())
                 .roomSelections(roomSelections)
                 .totalPrice(booking.getPayment().getTotalPrice())
-                .hotelName(booking.getHotel().getName())
-                .hotelAddress(addressDto)
+                .SpaName(booking.getSpa().getName())
+                .SpaAddress(addressDto)
                 .customerName(customerUser.getName() + " " + customerUser.getLastName())
                 .customerEmail(customerUser.getUsername())
                 .paymentStatus(booking.getPayment().getPaymentStatus())
@@ -150,10 +150,10 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
-    private Booking mapBookingInitDtoToBookingModel(BookingInitiationDTO bookingInitiationDTO, Customer customer, Hotel hotel) {
+    private Booking mapBookingInitDtoToBookingModel(BookingInitiationDTO bookingInitiationDTO, Customer customer, Spa Spa) {
         Booking booking = Booking.builder()
                 .customer(customer)
-                .hotel(hotel)
+                .Spa(Spa)
                 .checkinDate(bookingInitiationDTO.getCheckinDate())
                 .checkoutDate(bookingInitiationDTO.getCheckoutDate())
                 .build();

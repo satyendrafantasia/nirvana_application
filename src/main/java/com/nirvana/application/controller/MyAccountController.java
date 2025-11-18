@@ -1,3 +1,4 @@
+// java
 package com.nirvana.application.controller;
 
 import com.nirvana.application.exception.UsernameAlreadyExistsException;
@@ -55,35 +56,35 @@ public class MyAccountController {
         return "redirect:/customer/account?success";
     }
 
-    // Hotel Manager actions
+    // Spa Manager actions
     @GetMapping("/manager/account")
-    public String showHotelManagerAccount(Model model){
-        log.debug("Displaying hotel manager account");
+    public String showSpaManagerAccount(Model model){
+        log.debug("Displaying Spa manager account");
         addLoggedInUserDataToModel(model);
-        return "hotelmanager/account";
+        return "Spamanager/account";
     }
 
     @GetMapping("/manager/account/edit")
-    public String showHotelManagerEditForm(Model model){
-        log.debug("Displaying hotel manager account edit form");
+    public String showSpaManagerEditForm(Model model){
+        log.debug("Displaying Spa manager account edit form");
         addLoggedInUserDataToModel(model);
-        return "hotelmanager/account-edit";
+        return "Spamanager/account-edit";
     }
 
     @PostMapping("/manager/account/edit")
-    public String editHotelManagerAccount(@Valid @ModelAttribute("user") UserDTO userDTO, BindingResult result) {
-        log.info("Attempting to edit hotel manager account details for ID: {}", userDTO.getId());
+    public String editSpaManagerAccount(@Valid @ModelAttribute("user") UserDTO userDTO, BindingResult result) {
+        log.info("Attempting to edit Spa manager account details for ID: {}", userDTO.getId());
         if (result.hasErrors()) {
-            log.warn("Validation errors occurred while editing hotel manager account");
-            return "hotelmanager/account-edit";
+            log.warn("Validation errors occurred while editing Spa manager account");
+            return "Spamanager/account-edit";
         }
         try {
             userService.updateLoggedInUser(userDTO);
-            log.info("Successfully edited hotel manager account");
+            log.info("Successfully edited Spa manager account");
         } catch (UsernameAlreadyExistsException e) {
             log.error("Username already exists error", e);
             result.rejectValue("username", "user.exists", "Username is already registered!");
-            return "hotelmanager/account-edit";
+            return "Spamanager/account-edit";
         }
         return "redirect:/manager/account?success";
     }

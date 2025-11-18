@@ -1,12 +1,12 @@
 package com.nirvana.application.controller;
 
-import com.nirvana.application.exception.HotelAlreadyExistsException;
+import com.nirvana.application.exception.SpaAlreadyExistsException;
 import com.nirvana.application.exception.UsernameAlreadyExistsException;
 import com.nirvana.application.model.dto.BookingDTO;
-import com.nirvana.application.model.dto.HotelDTO;
+import com.nirvana.application.model.dto.SpaDTO;
 import com.nirvana.application.model.dto.UserDTO;
 import com.nirvana.application.service.BookingService;
-import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.SpaService;
 import com.nirvana.application.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
@@ -29,7 +29,7 @@ import java.util.List;
 public class AdminController {
 
     private final UserService userService;
-    private final HotelService hotelService;
+    private final SpaService SpaService;
     private final BookingService bookingService;
 
     @GetMapping("/dashboard")
@@ -74,40 +74,40 @@ public class AdminController {
         return "redirect:/admin/users";
     }
 
-    @GetMapping("/hotels")
-    public String listHotels(Model model) {
-        List<HotelDTO> hotelDTOList = hotelService.findAllHotels();
-        model.addAttribute("hotels", hotelDTOList);
-        return "admin/hotels";
+    @GetMapping("/Spas")
+    public String listSpas(Model model) {
+        List<SpaDTO> SpaDTOList = SpaService.findAllSpas();
+        model.addAttribute("Spas", SpaDTOList);
+        return "admin/Spas";
     }
 
-    @GetMapping("/hotels/edit/{id}")
-    public String showEditHotelForm(@PathVariable Long id, Model model) {
-        HotelDTO hotelDTO = hotelService.findHotelDtoById(id);
-        model.addAttribute("hotel", hotelDTO);
-        return "admin/hotels-edit";
+    @GetMapping("/Spas/edit/{id}")
+    public String showEditSpaForm(@PathVariable Long id, Model model) {
+        SpaDTO SpaDTO = SpaService.findSpaDtoById(id);
+        model.addAttribute("Spa", SpaDTO);
+        return "admin/Spas-edit";
     }
 
-    @PostMapping("/hotels/edit/{id}")
-    public String editHotel(@PathVariable Long id, @Valid @ModelAttribute("hotel") HotelDTO hotelDTO, BindingResult result, RedirectAttributes redirectAttributes) {
+    @PostMapping("/Spas/edit/{id}")
+    public String editSpa(@PathVariable Long id, @Valid @ModelAttribute("Spa") SpaDTO SpaDTO, BindingResult result, RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
-            return "admin/hotels-edit";
+            return "admin/Spas-edit";
         }
         try {
-            hotelService.updateHotel(hotelDTO);
-        } catch (HotelAlreadyExistsException e) {
-            result.rejectValue("name", "hotel.exists", e.getMessage());
-            return "admin/hotels-edit";
+            SpaService.updateSpa(SpaDTO);
+        } catch (SpaAlreadyExistsException e) {
+            result.rejectValue("name", "Spa.exists", e.getMessage());
+            return "admin/Spas-edit";
         }
 
-        redirectAttributes.addFlashAttribute("updatedHotelId", hotelDTO.getId());
-        return "redirect:/admin/hotels?success";
+        redirectAttributes.addFlashAttribute("updatedSpaId", SpaDTO.getId());
+        return "redirect:/admin/Spas?success";
     }
 
-    @PostMapping("/hotels/delete/{id}")
-    public String deleteHotel(@PathVariable Long id) {
-        hotelService.deleteHotelById(id);
-        return "redirect:/admin/hotels";
+    @PostMapping("/Spas/delete/{id}")
+    public String deleteSpa(@PathVariable Long id) {
+        SpaService.deleteSpaById(id);
+        return "redirect:/admin/Spas";
     }
 
     @GetMapping("/bookings")

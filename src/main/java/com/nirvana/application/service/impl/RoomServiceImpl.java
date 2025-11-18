@@ -1,6 +1,6 @@
 package com.nirvana.application.service.impl;
 
-import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.Room;
 import com.nirvana.application.model.dto.RoomDTO;
 import com.nirvana.application.repository.RoomRepository;
@@ -22,19 +22,19 @@ public class RoomServiceImpl implements RoomService {
     private final RoomRepository roomRepository;
 
     @Override
-    public Room saveRoom(RoomDTO roomDTO, Hotel hotel) {
+    public Room saveRoom(RoomDTO roomDTO, Spa Spa) {
         log.info("Attempting to save a new room: {}", roomDTO);
-        Room room = mapRoomDtoToRoom(roomDTO, hotel);
+        Room room = mapRoomDtoToRoom(roomDTO, Spa);
         room = roomRepository.save(room);
         log.info("Successfully saved room with ID: {}", room.getId());
         return room;
     }
 
     @Override
-    public List<Room> saveRooms(List<RoomDTO> roomDTOs, Hotel hotel) {
+    public List<Room> saveRooms(List<RoomDTO> roomDTOs, Spa Spa) {
         log.info("Attempting to save rooms: {}", roomDTOs);
         List<Room> rooms = roomDTOs.stream()
-                .map(roomDTO -> saveRoom(roomDTO, hotel))
+                .map(roomDTO -> saveRoom(roomDTO, Spa))
                 .collect(Collectors.toList());
         log.info("Successfully saved rooms: {}", rooms);
         return rooms;
@@ -46,17 +46,10 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public List<Room> findRoomsByHotelId(Long hotelId) {
-        // If RoomRepository defines a query like findByHotelId, prefer that.
-        // Fallback: filter in memory to avoid compile errors if repository method not present.
-        try {
-            return roomRepository.findByHotelId(hotelId);
-        } catch (NoSuchMethodError | AbstractMethodError e) {
-            return roomRepository.findAll().stream()
-                    .filter(r -> r.getHotel() != null && hotelId.equals(r.getHotel().getId()))
-                    .collect(Collectors.toList());
-        }
+    public List<Room> findRoomsBySpaId(Long SpaId) {
+        return null;
     }
+
 
     @Override
     public Room updateRoom(RoomDTO roomDTO) {
@@ -85,10 +78,10 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public Room mapRoomDtoToRoom(RoomDTO roomDTO, Hotel hotel) {
+    public Room mapRoomDtoToRoom(RoomDTO roomDTO, Spa Spa) {
         log.debug("Mapping RoomDTO to Room: {}", roomDTO);
         Room room = Room.builder()
-                .hotel(hotel)
+                .Spa(Spa)
                 .roomType(roomDTO.getRoomType())
                 .roomCount(roomDTO.getRoomCount())
                 .pricePerNight(roomDTO.getPricePerNight())
@@ -101,7 +94,7 @@ public class RoomServiceImpl implements RoomService {
     public RoomDTO mapRoomToRoomDto(Room room) {
         return RoomDTO.builder()
                 .id(room.getId())
-                .hotelId(room.getHotel() != null ? room.getHotel().getId() : null)
+                .SpaId(room.getSpa() != null ? room.getSpa().getId() : null)
                 .roomType(room.getRoomType())
                 .roomCount(room.getRoomCount())
                 .pricePerNight(room.getPricePerNight())

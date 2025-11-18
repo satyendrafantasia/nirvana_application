@@ -39,7 +39,7 @@ public class SecurityConfig {
                                 .requestMatchers("/", "/index", "/register/**").permitAll()
                                 .requestMatchers("/admin/**").hasRole("ADMIN")
                                 .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                                .requestMatchers("/manager/**").hasRole("HOTEL_MANAGER")
+                                .requestMatchers("/manager/**").hasRole("Spa_MANAGER")
                                 .anyRequest().authenticated())
                 .formLogin(
                         form -> form

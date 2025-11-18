@@ -1,13 +1,13 @@
 package com.nirvana.application.service.impl;
 
 import com.nirvana.application.model.Availability;
-import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.Room;
 import com.nirvana.application.model.dto.RoomSelectionDTO;
 import com.nirvana.application.model.enums.RoomType;
 import com.nirvana.application.repository.AvailabilityRepository;
 import com.nirvana.application.service.AvailabilityService;
-import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.SpaService;
 import com.nirvana.application.service.RoomService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class AvailabilityServiceImpl implements AvailabilityService {
 
     private final AvailabilityRepository availabilityRepository;
-    private final HotelService hotelService;
+    private final SpaService SpaService;
     private final RoomService roomService;
 
     @Override
@@ -39,9 +39,9 @@ public class AvailabilityServiceImpl implements AvailabilityService {
     }
 
     @Override
-    public void updateAvailabilities(long hotelId, LocalDate checkinDate, LocalDate checkoutDate, List<RoomSelectionDTO> roomSelections) {
-        Hotel hotel = hotelService.findHotelById(hotelId).orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
-        log.info("Attempting to update availabilities for hotel ID {} from {} to {}", hotelId, checkinDate, checkoutDate);
+    public void updateAvailabilities(long SpaId, LocalDate checkinDate, LocalDate checkoutDate, List<RoomSelectionDTO> roomSelections) {
+        Spa Spa = SpaService.findSpaById(SpaId).orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        log.info("Attempting to update availabilities for Spa ID {} from {} to {}", SpaId, checkinDate, checkoutDate);
 
         roomSelections = roomSelections.stream()
                 .filter(roomSelection -> roomSelection.getCount() > 0)
@@ -53,8 +53,8 @@ public class AvailabilityServiceImpl implements AvailabilityService {
             int selectedCount = roomSelection.getCount();
             log.debug("Processing {} room(s) of type {}", selectedCount, roomType);
 
-            // Find the room by roomType for the given hotel
-            Room room = hotel.getRooms().stream()
+            // Find the room by roomType for the given Spa
+            Room room = Spa.getRooms().stream()
                     .filter(r -> r.getRoomType() == roomType)
                     .findFirst()
                     .orElseThrow(() -> new EntityNotFoundException("Room type not found"));
@@ -64,7 +64,7 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                 final LocalDate currentDate = date; // Temporary final variable
                 Availability availability = availabilityRepository.findByRoomIdAndDate(room.getId(), date)
                         .orElseGet(() -> Availability.builder()
-                                .hotel(hotel)
+                                .Spa(Spa)
                                 .date(currentDate)
                                 .room(room)
                                 .availableRooms(room.getRoomCount())
@@ -80,7 +80,7 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                 availabilityRepository.save(availability);
             }
         }
-        log.info("Successfully updated availabilities for hotel ID {} from {} to {}", hotelId, checkinDate, checkoutDate);
+        log.info("Successfully updated availabilities for Spa ID {} from {} to {}", SpaId, checkinDate, checkoutDate);
     }
 
 }

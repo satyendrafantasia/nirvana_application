@@ -1,13 +1,13 @@
 package com.nirvana.application.controller;
 
-import com.nirvana.application.exception.HotelAlreadyExistsException;
+import com.nirvana.application.exception.SpaAlreadyExistsException;
 import com.nirvana.application.model.dto.BookingDTO;
-import com.nirvana.application.model.dto.HotelDTO;
-import com.nirvana.application.model.dto.HotelRegistrationDTO;
+import com.nirvana.application.model.dto.SpaDTO;
+import com.nirvana.application.model.dto.SpaRegistrationDTO;
 import com.nirvana.application.model.dto.RoomDTO;
 import com.nirvana.application.model.enums.RoomType;
 import com.nirvana.application.service.BookingService;
-import com.nirvana.application.service.HotelService;
+import com.nirvana.application.service.SpaService;
 import com.nirvana.application.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
@@ -28,89 +28,89 @@ import java.util.List;
 @RequestMapping("/manager")
 @RequiredArgsConstructor
 @Slf4j
-public class HotelManagerController {
+public class SpaManagerController {
 
-    private final HotelService hotelService;
+    private final SpaService SpaService;
     private final UserService userService;
     private final BookingService bookingService;
 
     @GetMapping("/dashboard")
     public String dashboard() {
-        return "hotelmanager/dashboard";
+        return "Spamanager/dashboard";
     }
 
-    @GetMapping("/hotels/add")
-    public String showAddHotelForm(Model model) {
-        HotelRegistrationDTO hotelRegistrationDTO = new HotelRegistrationDTO();
+    @GetMapping("/Spas/add")
+    public String showAddSpaForm(Model model) {
+        SpaRegistrationDTO SpaRegistrationDTO = new SpaRegistrationDTO();
 
         // Initialize roomDTOs with SINGLE and DOUBLE room types
         RoomDTO singleRoom = new RoomDTO(null, null, RoomType.SINGLE, 0, 0.0);
         RoomDTO doubleRoom = new RoomDTO(null, null, RoomType.DOUBLE, 0, 0.0);
-        hotelRegistrationDTO.getRoomDTOs().add(singleRoom);
-        hotelRegistrationDTO.getRoomDTOs().add(doubleRoom);
+        SpaRegistrationDTO.getRoomDTOs().add(singleRoom);
+        SpaRegistrationDTO.getRoomDTOs().add(doubleRoom);
 
-        model.addAttribute("hotel", hotelRegistrationDTO);
-        return "hotelmanager/hotels-add";
+        model.addAttribute("Spa", SpaRegistrationDTO);
+        return "Spamanager/Spas-add";
     }
 
-    @PostMapping("/hotels/add")
-    public String addHotel(@Valid @ModelAttribute("hotel") HotelRegistrationDTO hotelRegistrationDTO, BindingResult result, RedirectAttributes redirectAttributes) {
+    @PostMapping("/Spas/add")
+    public String addSpa(@Valid @ModelAttribute("Spa") SpaRegistrationDTO SpaRegistrationDTO, BindingResult result, RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
-            log.warn("Hotel creation failed due to validation errors: {}", result.getAllErrors());
-            return "hotelmanager/hotels-add";
+            log.warn("Spa creation failed due to validation errors: {}", result.getAllErrors());
+            return "Spamanager/Spas-add";
         }
         try {
-            hotelService.saveHotel(hotelRegistrationDTO);
-            redirectAttributes.addFlashAttribute("message", "Hotel (" + hotelRegistrationDTO.getName() + ") added successfully");
-            return "redirect:/manager/hotels";
-        } catch (HotelAlreadyExistsException e) {
-            result.rejectValue("name", "hotel.exists", e.getMessage());
-            return "hotelmanager/hotels-add";
+            SpaService.saveSpa(SpaRegistrationDTO);
+            redirectAttributes.addFlashAttribute("message", "Spa (" + SpaRegistrationDTO.getName() + ") added successfully");
+            return "redirect:/manager/Spas";
+        } catch (SpaAlreadyExistsException e) {
+            result.rejectValue("name", "Spa.exists", e.getMessage());
+            return "Spamanager/Spas-add";
         }
     }
 
-    @GetMapping("/hotels")
-    public String listHotels(Model model) {
+    @GetMapping("/Spas")
+    public String listSpas(Model model) {
         Long managerId = getCurrentManagerId();
-        List<HotelDTO> hotelList = hotelService.findAllHotelDtosByManagerId(managerId);
-        model.addAttribute("hotels", hotelList);
-        return "hotelmanager/hotels";
+        List<SpaDTO> SpaList = SpaService.findAllSpaDtosByManagerId(managerId);
+        model.addAttribute("Spas", SpaList);
+        return "Spamanager/Spas";
     }
 
-    @GetMapping("/hotels/edit/{id}")
-    public String showEditHotelForm(@PathVariable Long id, Model model) {
+    @GetMapping("/Spas/edit/{id}")
+    public String showEditSpaForm(@PathVariable Long id, Model model) {
         Long managerId = getCurrentManagerId();
-        HotelDTO hotelDTO = hotelService.findHotelByIdAndManagerId(id, managerId);
-        model.addAttribute("hotel", hotelDTO);
-        return "hotelmanager/hotels-edit";
+        SpaDTO SpaDTO = SpaService.findSpaByIdAndManagerId(id, managerId);
+        model.addAttribute("Spa", SpaDTO);
+        return "Spamanager/Spas-edit";
     }
 
-    @PostMapping("/hotels/edit/{id}")
-    public String editHotel(@PathVariable Long id, @Valid @ModelAttribute("hotel") HotelDTO hotelDTO, BindingResult result, RedirectAttributes redirectAttributes) {
+    @PostMapping("/Spas/edit/{id}")
+    public String editSpa(@PathVariable Long id, @Valid @ModelAttribute("Spa") SpaDTO SpaDTO, BindingResult result, RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
-            return "hotelmanager/hotels-edit";
+            return "Spamanager/Spas-edit";
         }
         try {
             Long managerId = getCurrentManagerId();
-            hotelDTO.setId(id);
-            hotelService.updateHotelByManagerId(hotelDTO, managerId);
-            redirectAttributes.addFlashAttribute("message", "Hotel (ID: " + id + ") updated successfully");
-            return "redirect:/manager/hotels";
+            SpaDTO.setId(id);
+            SpaService.updateSpaByManagerId(SpaDTO, managerId);
+            redirectAttributes.addFlashAttribute("message", "Spa (ID: " + id + ") updated successfully");
+            return "redirect:/manager/Spas";
 
-        } catch (HotelAlreadyExistsException e) {
-            result.rejectValue("name", "hotel.exists", e.getMessage());
-            return "hotelmanager/hotels-edit";
+        } catch (SpaAlreadyExistsException e) {
+            result.rejectValue("name", "Spa.exists", e.getMessage());
+            return "Spamanager/Spas-edit";
         } catch (EntityNotFoundException e) {
-            result.rejectValue("id", "hotel.notfound", e.getMessage());
-            return "hotelmanager/hotels-edit";
+            result.rejectValue("id", "Spa.notfound", e.getMessage());
+            return "Spamanager/Spas-edit";
         }
     }
 
-    @PostMapping("/hotels/delete/{id}")
-    public String deleteHotel(@PathVariable Long id) {
+    @PostMapping("/Spas/delete/{id}")
+    public String deleteSpa(@PathVariable Long id) {
         Long managerId = getCurrentManagerId();
-        hotelService.deleteHotelByIdAndManagerId(id, managerId);
-        return "redirect:/manager/hotels";
+        SpaService.deleteSpaByIdAndManagerId(id, managerId);
+        return "redirect:/manager/Spas";
     }
 
     @GetMapping("/bookings")
@@ -120,7 +120,7 @@ public class HotelManagerController {
             List<BookingDTO> bookingDTOs = bookingService.findBookingsByManagerId(managerId);
             model.addAttribute("bookings", bookingDTOs);
 
-            return "hotelmanager/bookings";
+            return "Spamanager/bookings";
         } catch (EntityNotFoundException e) {
             log.error("No bookings found for the provided manager ID", e);
             redirectAttributes.addFlashAttribute("errorMessage", "Bookings not found. Please try again later.");
@@ -144,7 +144,7 @@ public class HotelManagerController {
             long durationDays = ChronoUnit.DAYS.between(checkinDate, checkoutDate);
             model.addAttribute("days", durationDays);
 
-            return "hotelmanager/bookings-details";
+            return "Spamanager/bookings-details";
         } catch (EntityNotFoundException e) {
             log.error("No booking found with the provided ID", e);
             redirectAttributes.addFlashAttribute("errorMessage", "Booking not found. Please try again later.");
@@ -158,6 +158,6 @@ public class HotelManagerController {
 
     private Long getCurrentManagerId() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userService.findUserByUsername(username).getHotelManager().getId();
+        return userService.findUserByUsername(username).getSpaManager().getId();
     }
 }

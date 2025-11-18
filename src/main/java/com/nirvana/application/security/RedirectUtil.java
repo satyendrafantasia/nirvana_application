@@ -14,7 +14,7 @@ public class RedirectUtil {
                 return "/admin/dashboard";
             } else if (grantedAuthority.getAuthority().equals("ROLE_CUSTOMER")) {
                 return "/search";
-            } else if (grantedAuthority.getAuthority().equals("ROLE_HOTEL_MANAGER")) {
+            } else if (grantedAuthority.getAuthority().equals("ROLE_Spa_MANAGER")) {
                 return "/manager/dashboard";
             }
         }

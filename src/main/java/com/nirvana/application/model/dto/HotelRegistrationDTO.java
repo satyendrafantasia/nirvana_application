@@ -15,10 +15,10 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class HotelRegistrationDTO {
+public class SpaRegistrationDTO {
 
-    @NotBlank(message = "Hotel name cannot be empty")
-    @Pattern(regexp = "^(?!\\s*$)[A-Za-z0-9 ]+$", message = "Hotel name must only contain letters and numbers")
+    @NotBlank(message = "Spa name cannot be empty")
+    @Pattern(regexp = "^(?!\\s*$)[A-Za-z0-9 ]+$", message = "Spa name must only contain letters and numbers")
     private String name;
 
     @Valid

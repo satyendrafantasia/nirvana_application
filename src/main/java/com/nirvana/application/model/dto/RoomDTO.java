@@ -16,7 +16,7 @@ public class RoomDTO {
 
     private Long id;
 
-    private Long hotelId;
+    private Long SpaId;
 
     private RoomType roomType;
 

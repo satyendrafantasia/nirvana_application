@@ -7,7 +7,7 @@ import com.nirvana.application.model.dto.UserDTO;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 import com.nirvana.application.model.enums.RoleType;
 import com.nirvana.application.repository.CustomerRepository;
-import com.nirvana.application.repository.HotelManagerRepository;
+import com.nirvana.application.repository.SpaManagerRepository;
 import com.nirvana.application.repository.RoleRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.UserService;
@@ -38,7 +38,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final CustomerRepository customerRepository;
-    private final HotelManagerRepository hotelManagerRepository;
+    private final SpaManagerRepository SpaManagerRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -56,9 +56,9 @@ public class UserServiceImpl implements UserService {
         if (RoleType.CUSTOMER.equals(registrationDTO.getRoleType())) {
             Customer customer = Customer.builder().user(user).build();
             customerRepository.save(customer);
-        } else if (RoleType.HOTEL_MANAGER.equals(registrationDTO.getRoleType())) {
-            HotelManager hotelManager = HotelManager.builder().user(user).build();
-            hotelManagerRepository.save(hotelManager);
+        } else if (RoleType.Spa_MANAGER.equals(registrationDTO.getRoleType())) {
+            SpaManager SpaManager = SpaManager.builder().user(user).build();
+            SpaManagerRepository.save(SpaManager);
         }
 
         User savedUser = userRepository.save(user);
@@ -82,7 +82,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDTO findUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Hotel not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
 
         return mapUserToUserDto(user);
     }

@@ -1,38 +1,38 @@
 package com.nirvana.application.service;
 
-import com.nirvana.application.model.Hotel;
-import com.nirvana.application.model.dto.HotelDTO;
-import com.nirvana.application.model.dto.HotelRegistrationDTO;
+import com.nirvana.application.model.Spa;
+import com.nirvana.application.model.dto.SpaDTO;
+import com.nirvana.application.model.dto.SpaRegistrationDTO;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface HotelService {
+public interface SpaService {
 
-    Hotel saveHotel(HotelRegistrationDTO hotelRegistrationDTO);
+    Spa saveSpa(SpaRegistrationDTO SpaRegistrationDTO);
 
-    HotelDTO findHotelDtoByName(String name);
+    SpaDTO findSpaDtoByName(String name);
 
-    HotelDTO findHotelDtoById(Long id);
+    SpaDTO findSpaDtoById(Long id);
 
-    Optional<Hotel> findHotelById(Long id);
+    Optional<Spa> findSpaById(Long id);
 
-    List<HotelDTO> findAllHotels();
+    List<SpaDTO> findAllSpas();
 
-    HotelDTO updateHotel(HotelDTO hotelDTO);
+    SpaDTO updateSpa(SpaDTO SpaDTO);
 
-    void deleteHotelById(Long id);
+    void deleteSpaById(Long id);
 
-    List<Hotel> findAllHotelsByManagerId(Long managerId);
+    List<Spa> findAllSpasByManagerId(Long managerId);
 
-    List<HotelDTO> findAllHotelDtosByManagerId(Long managerId);
+    List<SpaDTO> findAllSpaDtosByManagerId(Long managerId);
 
-    HotelDTO findHotelByIdAndManagerId(Long hotelId, Long managerId);
+    SpaDTO findSpaByIdAndManagerId(Long SpaId, Long managerId);
 
-    HotelDTO updateHotelByManagerId(HotelDTO hotelDTO, Long managerId);
+    SpaDTO updateSpaByManagerId(SpaDTO SpaDTO, Long managerId);
 
-    void deleteHotelByIdAndManagerId(Long hotelId, Long managerId);
+    void deleteSpaByIdAndManagerId(Long SpaId, Long managerId);
 
-    HotelDTO mapHotelToHotelDto(Hotel hotel);
+    SpaDTO mapSpaToSpaDto(Spa Spa);
 
 }

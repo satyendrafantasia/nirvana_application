@@ -4,5 +4,5 @@ public enum RoleType {
 
     ADMIN,
     CUSTOMER,
-    HOTEL_MANAGER
+    Spa_MANAGER
 }

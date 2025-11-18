@@ -1,18 +1,18 @@
 package com.nirvana.application.exception;
 
-public class HotelAlreadyExistsException extends RuntimeException {
+public class SpaAlreadyExistsException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    public HotelAlreadyExistsException() {
+    public SpaAlreadyExistsException() {
         super();
     }
 
-    public HotelAlreadyExistsException(String message) {
+    public SpaAlreadyExistsException(String message) {
         super(message);
     }
 
-    public HotelAlreadyExistsException(String message, Throwable cause) {
+    public SpaAlreadyExistsException(String message, Throwable cause) {
         super(message, cause);
     }
 

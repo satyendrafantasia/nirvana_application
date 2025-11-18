@@ -24,13 +24,13 @@ public class BookingDTO {
     private String confirmationNumber;
     private LocalDateTime bookingDate;
     private Long customerId;
-    private Long hotelId;
+    private Long SpaId;
     private LocalDate checkinDate;
     private LocalDate checkoutDate;
     private List<RoomSelectionDTO> roomSelections = new ArrayList<>();
     private BigDecimal totalPrice;
-    private String hotelName;
-    private AddressDTO hotelAddress;
+    private String SpaName;
+    private AddressDTO SpaAddress;
     private String customerName;
     private String customerEmail;
     private PaymentStatus paymentStatus;

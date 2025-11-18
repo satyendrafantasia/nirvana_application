@@ -9,6 +9,6 @@ public interface AvailabilityService {
 
     Integer getMinAvailableRooms(Long roomId, LocalDate checkinDate, LocalDate checkoutDate);
 
-    void updateAvailabilities(long hotelId, LocalDate checkinDate, LocalDate checkoutDate, List<RoomSelectionDTO> roomSelections);
+    void updateAvailabilities(long SpaId, LocalDate checkinDate, LocalDate checkoutDate, List<RoomSelectionDTO> roomSelections);
 
 }

@@ -22,7 +22,7 @@ public class Room {
 
     @ManyToOne
     @JoinColumn(nullable = false)
-    private Hotel hotel;
+    private Spa Spa;
 
     @Enumerated(EnumType.STRING)
     private RoomType roomType;
@@ -39,7 +39,7 @@ public class Room {
     public String toString() {
         return "Room{" +
                 "id=" + id +
-                ", hotel=" + hotel +
+                ", Spa=" + Spa +
                 ", roomType=" + roomType +
                 ", roomCount=" + roomCount +
                 ", pricePerNight=" + pricePerNight +
@@ -51,11 +51,11 @@ public class Room {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Room room = (Room) o;
-        return Objects.equals(id, room.id) && Objects.equals(hotel, room.hotel);
+        return Objects.equals(id, room.id) && Objects.equals(Spa, room.Spa);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, hotel);
+        return Objects.hash(id, Spa);
     }
 }

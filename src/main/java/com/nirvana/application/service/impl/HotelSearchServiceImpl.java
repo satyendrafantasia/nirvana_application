@@ -1,11 +1,11 @@
 package com.nirvana.application.service.impl;
 
-import com.nirvana.application.model.Hotel;
+import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.dto.AddressDTO;
-import com.nirvana.application.model.dto.HotelAvailabilityDTO;
+import com.nirvana.application.model.dto.SpaAvailabilityDTO;
 import com.nirvana.application.model.dto.RoomDTO;
 import com.nirvana.application.model.enums.RoomType;
-import com.nirvana.application.repository.HotelRepository;
+import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -23,92 +23,92 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class HotelSearchServiceImpl implements HotelSearchService {
+public class SpaSearchServiceImpl implements SpaSearchService {
 
-    private final HotelRepository hotelRepository;
+    private final SpaRepository SpaRepository;
     private final AddressService addressService;
     private final RoomService roomService;
     private final AvailabilityService availabilityService;
 
     @Override
-    public List<HotelAvailabilityDTO> findAvailableHotelsByCityAndDate(String city, LocalDate checkinDate, LocalDate checkoutDate) {
+    public List<SpaAvailabilityDTO> findAvailableSpasByCityAndDate(String city, LocalDate checkinDate, LocalDate checkoutDate) {
         validateCheckinAndCheckoutDates(checkinDate, checkoutDate);
 
-        log.info("Attempting to find hotels in {} with available rooms from {} to {}", city, checkinDate, checkoutDate);
+        log.info("Attempting to find Spas in {} with available rooms from {} to {}", city, checkinDate, checkoutDate);
 
         // Number of days between check-in and check-out
         Long numberOfDays = ChronoUnit.DAYS.between(checkinDate, checkoutDate);
 
-        // 1. Fetch hotels that satisfy the criteria (min 1 available room throughout the booking range)
-        List<Hotel> hotelsWithAvailableRooms = hotelRepository.findHotelsWithAvailableRooms(city, checkinDate, checkoutDate, numberOfDays);
+        // 1. Fetch Spas that satisfy the criteria (min 1 available room throughout the booking range)
+        List<Spa> SpasWithAvailableRooms = SpaRepository.findSpasWithAvailableRooms(city, checkinDate, checkoutDate, numberOfDays);
 
-        // 2. Fetch hotels that don't have any availability records for the entire booking range
-        List<Hotel> hotelsWithoutAvailabilityRecords = hotelRepository.findHotelsWithoutAvailabilityRecords(city, checkinDate, checkoutDate);
+        // 2. Fetch Spas that don't have any availability records for the entire booking range
+        List<Spa> SpasWithoutAvailabilityRecords = SpaRepository.findSpasWithoutAvailabilityRecords(city, checkinDate, checkoutDate);
 
-        // 3. Fetch hotels with partial availability; some days with records meeting the criteria and some days without any records
-        List<Hotel> hotelsWithPartialAvailabilityRecords = hotelRepository.findHotelsWithPartialAvailabilityRecords(city, checkinDate, checkoutDate, numberOfDays);
+        // 3. Fetch Spas with partial availability; some days with records meeting the criteria and some days without any records
+        List<Spa> SpasWithPartialAvailabilityRecords = SpaRepository.findSpasWithPartialAvailabilityRecords(city, checkinDate, checkoutDate, numberOfDays);
 
-        // Combine and deduplicate the hotels using a Set
-        Set<Hotel> combinedHotels = new HashSet<>(hotelsWithAvailableRooms);
-        combinedHotels.addAll(hotelsWithoutAvailabilityRecords);
-        combinedHotels.addAll(hotelsWithPartialAvailabilityRecords);
+        // Combine and deduplicate the Spas using a Set
+        Set<Spa> combinedSpas = new HashSet<>(SpasWithAvailableRooms);
+        combinedSpas.addAll(SpasWithoutAvailabilityRecords);
+        combinedSpas.addAll(SpasWithPartialAvailabilityRecords);
 
-        log.info("Successfully found {} hotels with available rooms", combinedHotels.size());
+        log.info("Successfully found {} Spas with available rooms", combinedSpas.size());
 
-        // Convert the combined hotel list to DTOs for the response
-        return combinedHotels.stream()
-                .map(hotel -> mapHotelToHotelAvailabilityDto(hotel, checkinDate, checkoutDate))
+        // Convert the combined Spa list to DTOs for the response
+        return combinedSpas.stream()
+                .map(Spa -> mapSpaToSpaAvailabilityDto(Spa, checkinDate, checkoutDate))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public HotelAvailabilityDTO findAvailableHotelById(Long hotelId, LocalDate checkinDate, LocalDate checkoutDate) {
+    public SpaAvailabilityDTO findAvailableSpaById(Long SpaId, LocalDate checkinDate, LocalDate checkoutDate) {
         validateCheckinAndCheckoutDates(checkinDate, checkoutDate);
 
-        log.info("Attempting to find hotel with ID {} with available rooms from {} to {}", hotelId, checkinDate, checkoutDate);
+        log.info("Attempting to find Spa with ID {} with available rooms from {} to {}", SpaId, checkinDate, checkoutDate);
 
-        Optional<Hotel> hotelOptional = hotelRepository.findById(hotelId);
-        if (hotelOptional.isEmpty()) {
-            log.error("No hotel found with ID: {}", hotelId);
-            throw new EntityNotFoundException("Hotel not found");
+        Optional<Spa> SpaOptional = SpaRepository.findById(SpaId);
+        if (SpaOptional.isEmpty()) {
+            log.error("No Spa found with ID: {}", SpaId);
+            throw new EntityNotFoundException("Spa not found");
         }
 
-        Hotel hotel = hotelOptional.get();
-        return mapHotelToHotelAvailabilityDto(hotel, checkinDate, checkoutDate);
+        Spa Spa = SpaOptional.get();
+        return mapSpaToSpaAvailabilityDto(Spa, checkinDate, checkoutDate);
     }
 
 
     @Override
-    public HotelAvailabilityDTO mapHotelToHotelAvailabilityDto(Hotel hotel, LocalDate checkinDate, LocalDate checkoutDate) {
-        List<RoomDTO> roomDTOs = hotel.getRooms().stream()
+    public SpaAvailabilityDTO mapSpaToSpaAvailabilityDto(Spa Spa, LocalDate checkinDate, LocalDate checkoutDate) {
+        List<RoomDTO> roomDTOs = Spa.getRooms().stream()
                 .map(roomService::mapRoomToRoomDto)  // convert each Room to RoomDTO
                 .collect(Collectors.toList());
 
-        AddressDTO addressDTO = addressService.mapAddressToAddressDto(hotel.getAddress());
+        AddressDTO addressDTO = addressService.mapAddressToAddressDto(Spa.getAddress());
         
-        HotelAvailabilityDTO hotelAvailabilityDTO = HotelAvailabilityDTO.builder()
-                .id(hotel.getId())
-                .name(hotel.getName())
+        SpaAvailabilityDTO SpaAvailabilityDTO = SpaAvailabilityDTO.builder()
+                .id(Spa.getId())
+                .name(Spa.getName())
                 .addressDTO(addressDTO)
                 .roomDTOs(roomDTOs)
                 .build();
         
         // For each room type, find the minimum available rooms across the date range
-        int maxAvailableSingleRooms = hotel.getRooms().stream()
+        int maxAvailableSingleRooms = Spa.getRooms().stream()
                 .filter(room -> room.getRoomType() == RoomType.SINGLE)
                 .mapToInt(room -> availabilityService.getMinAvailableRooms(room.getId(), checkinDate, checkoutDate))
                 .max()
                 .orElse(0); // Assume no single rooms if none match the filter
-        hotelAvailabilityDTO.setMaxAvailableSingleRooms(maxAvailableSingleRooms);
+        SpaAvailabilityDTO.setMaxAvailableSingleRooms(maxAvailableSingleRooms);
 
-        int maxAvailableDoubleRooms = hotel.getRooms().stream()
+        int maxAvailableDoubleRooms = Spa.getRooms().stream()
                 .filter(room -> room.getRoomType() == RoomType.DOUBLE)
                 .mapToInt(room -> availabilityService.getMinAvailableRooms(room.getId(), checkinDate, checkoutDate))
                 .max()
                 .orElse(0); // Assume no double rooms if none match the filter
-        hotelAvailabilityDTO.setMaxAvailableDoubleRooms(maxAvailableDoubleRooms);
+        SpaAvailabilityDTO.setMaxAvailableDoubleRooms(maxAvailableDoubleRooms);
 
-        return hotelAvailabilityDTO;
+        return SpaAvailabilityDTO;
     }
 
     private void validateCheckinAndCheckoutDates(LocalDate checkinDate, LocalDate checkoutDate) {
