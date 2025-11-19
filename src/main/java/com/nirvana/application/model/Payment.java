@@ -39,7 +39,7 @@ public class Payment extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PaymentStatus status = PaymentStatus.INIT;
+    private PaymentStatus paymentStatus = PaymentStatus.INIT;
 
     @Column(unique = true, nullable = false)
     private String transactionId;

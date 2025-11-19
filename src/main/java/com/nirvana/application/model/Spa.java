@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -50,6 +53,9 @@ public class Spa extends BaseEntity {
     private Integer rooms = 1; // capacity units
     @Column(name = "max_concurrent_services")
     private Integer maxConcurrentServices = 1;
+
+    @OneToMany(mappedBy = "spa", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Therapist> therapists = new ArrayList<>();
 
     // business identifiers
     private String gstin;
