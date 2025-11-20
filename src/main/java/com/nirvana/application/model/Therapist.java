@@ -1,5 +1,6 @@
 package com.nirvana.application.model;
 
+import com.nirvana.application.model.enums.Gender;
 import com.nirvana.application.model.enums.GenderAllowed;
 import jakarta.persistence.*;
 import lombok.*;
@@ -86,7 +87,7 @@ public class Therapist extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "gender", length = 16)
-    private GenderAllowed gender;
+    private Gender gender;
 
     @Column(name = "country_of_origin", length = 128)
     private String countryOfOrigin;

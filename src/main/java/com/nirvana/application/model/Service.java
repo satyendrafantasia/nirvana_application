@@ -2,9 +2,13 @@ package com.nirvana.application.model;
 
 import com.nirvana.application.model.enums.GenderAllowed;
 import jakarta.persistence.*;
+import lombok.Builder;
+import lombok.Data;
 
 @Entity
 @Table(name = "service", indexes = @Index(name = "idx_service_spa", columnList = "spa_id"))
+@Data
+@Builder
 public class Service extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
