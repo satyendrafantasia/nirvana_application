@@ -1,36 +1,61 @@
 // java
-// `src/main/java/com/nirvana/application/security/JwtTokenProvider.java`
 package com.nirvana.application.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Base64;
 
 @Component
 public class JwtTokenProvider {
 
     private final JwtProperties props;
-    private final SecretKey key;
+    private SecretKey key;
 
     public JwtTokenProvider(JwtProperties props) {
         this.props = props;
-        // Accept raw secret or base64; if base64 decoding fails, use raw bytes
-        byte[] secretBytes = props.getSecret() != null ? props.getSecret().getBytes(StandardCharsets.UTF_8) : new byte[0];
+    }
+
+    @PostConstruct
+    public void init() {
+        String secret = props.getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("Missing jwt.secret configuration");
+        }
+
+        byte[] secretBytes;
+        // if looks like Base64 (padding or valid charset), decode; else use raw UTF-8 bytes
+        try {
+            if (Base64.getDecoder().decode(secret).length >= 32) {
+                secretBytes = Base64.getDecoder().decode(secret);
+            } else {
+                secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+            }
+        } catch (IllegalArgumentException e) {
+            // not valid base64, fallback to raw bytes
+            secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        }
+
+        if (secretBytes.length < 32) {
+            throw new IllegalStateException("JWT secret is too short; require at least 256-bit (32 bytes). Provide a base64-encoded 256-bit secret.");
+        }
+
         this.key = Keys.hmacShaKeyFor(secretBytes);
     }
 
     public String generateToken(Authentication authentication) {
         String username = authentication.getName();
-        Collection<String> roles = authentication.getAuthorities()
-                .stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList());
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
         long now = System.currentTimeMillis();
         Date issuedAt = new Date(now);
         Date expiry = new Date(now + props.getExpirationMs());
