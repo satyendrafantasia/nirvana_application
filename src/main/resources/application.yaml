@@ -23,6 +23,10 @@
           dialect: org.hibernate.dialect.MySQL8Dialect
     cache:
       type: redis
+    servlet:
+      multipart:
+              max-file-size: 50MB
+              max-request-size: 50MB
 
   server:
     port: 8080
@@ -75,3 +79,11 @@
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
+  aws:
+    s3:
+      bucket-name: your-bucket-name
+    region: us-east-1
+    access-key-id: YOUR_ACCESS_KEY_ID
+    secret-key: YOUR_SECRET_KEY
+
+
