@@ -87,7 +87,7 @@
     secret-key: YOUR_SECRET_KEY
 
   jwt:
-    secret: ${JWT_SECRET:replace_with_base64_256bit_secret}
+    secret: u8hLz2mYjV9xK7QmG5aV2q3Yc4F1b6Zr8p9tQwXyZk=
     expiration-ms: 3600000
     issuer: nirvana-app
     header: Authorization
