@@ -1,67 +1,124 @@
+// File: `src/main/java/com/nirvana/application/repository/SpaRepository.java`
 package com.nirvana.application.repository;
 
 import com.nirvana.application.model.Spa;
+import com.nirvana.application.repository.projection.SpaDistanceProjection;
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
-public interface SpaRepository extends JpaRepository<Spa, Long> {
+public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificationExecutor<Spa> {
 
-    Optional<Spa> findByName(String name);
+    @Query(value = """
+            SELECT
+                s.id AS id,
+                s.name AS name,
+                (
+                    6371 * acos(
+                        cos(radians(:lat)) * cos(radians(s.latitude)) *
+                        cos(radians(s.longitude) - radians(:lon)) +
+                        sin(radians(:lat)) * sin(radians(s.latitude))
+                    )
+                ) AS distanceKm
+            FROM spa s
+            WHERE s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND (
+                    6371 * acos(
+                        cos(radians(:lat)) * cos(radians(s.latitude)) *
+                        cos(radians(s.longitude) - radians(:lon)) +
+                        sin(radians(:lat)) * sin(radians(s.latitude))
+                    )
+              ) <= :radiusKm
+            ORDER BY distanceKm
+            """,
+            nativeQuery = true)
+    List<SpaDistanceProjection> findSpasWithinRadiusKm(@Param("lat") double lat,
+                                                       @Param("lon") double lon,
+                                                       @Param("radiusKm") double radiusKm);
 
-    List<Spa> findAllBySpaManager_Id(Long id);
+    @Query(value = """
+        SELECT
+            s.id AS id,
+            s.name AS name,
+            (
+                6371 * acos(
+                    cos(radians(:lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(:lon)) +
+                    sin(radians(:lat)) * sin(radians(s.latitude))
+                )
+            ) AS distanceKm
+        FROM spa s
+        WHERE s.latitude BETWEEN :minLat AND :maxLat
+          AND s.longitude BETWEEN :minLon AND :maxLon
+          AND (
+                6371 * acos(
+                    cos(radians(:lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(:lon)) +
+                    sin(radians(:lat)) * sin(radians(s.latitude))
+                )
+          ) <= :radiusKm
+        ORDER BY distanceKm
+        """,
+            nativeQuery = true)
+    List<SpaDistanceProjection> findSpasWithinRadiusKmAndBox(@Param("lat") double lat,
+                                                             @Param("lon") double lon,
+                                                             @Param("radiusKm") double radiusKm,
+                                                             @Param("minLat") double minLat,
+                                                             @Param("maxLat") double maxLat,
+                                                             @Param("minLon") double minLon,
+                                                             @Param("maxLon") double maxLon);
 
-    Optional<Spa> findByIdAndSpaManager_Id(Long id, Long managerId);
-
-    @Query("SELECT h FROM Spa h WHERE h.address.city = :city")
-    List<Spa> findSpasByCity(@Param("city") String city);
-
-    @Query("SELECT h " +
-            "FROM Spa h " +
-            "JOIN h.rooms r " +
-            "LEFT JOIN Availability a ON a.room.id = r.id " +
-            "AND a.date >= :checkinDate AND a.date < :checkoutDate " +
-            "WHERE h.address.city = :city " +
-            "AND (a IS NULL OR a.availableRooms > 0) " +
-            "GROUP BY h.id, r.id " +
-            "HAVING COUNT(DISTINCT a.date) + SUM(CASE WHEN a IS NULL THEN 1 ELSE 0 END) = :numberOfDays")
-    List<Spa> findSpasWithAvailableRooms(@Param("city") String city,
-                                             @Param("checkinDate") LocalDate checkinDate,
-                                             @Param("checkoutDate") LocalDate checkoutDate,
-                                             @Param("numberOfDays") Long numberOfDays);
-
-    @Query("SELECT h " +
-            "FROM Spa h " +
-            "WHERE h.address.city = :city " +
-            "AND NOT EXISTS (" +
-            "   SELECT 1 " +
-            "   FROM Availability a " +
-            "   WHERE a.room.Spa.id = h.id " +
-            "   AND a.date >= :checkinDate AND a.date < :checkoutDate" +
-            ")")
-    List<Spa> findSpasWithoutAvailabilityRecords(@Param("city") String city,
-                                                     @Param("checkinDate") LocalDate checkinDate,
-                                                     @Param("checkoutDate") LocalDate checkoutDate);
-
-    @Query("SELECT h " +
-            "FROM Spa h " +
-            "JOIN h.rooms r " +
-            "LEFT JOIN Availability a ON r.id = a.room.id " +
-            "AND a.date >= :checkinDate AND a.date < :checkoutDate " +
-            "WHERE h.address.city = :city " +
-            "AND (a IS NULL OR a.availableRooms > 0) " +
-            "GROUP BY h.id " +
-            "HAVING COUNT(DISTINCT a.date) < :numberOfDays " +
-            "AND COUNT(DISTINCT CASE WHEN a.availableRooms > 0 THEN a.date END) > 0")
-    List<Spa> findSpasWithPartialAvailabilityRecords(@Param("city") String city,
-                                                         @Param("checkinDate") LocalDate checkinDate,
-                                                         @Param("checkoutDate") LocalDate checkoutDate,
-                                                         @Param("numberOfDays") Long numberOfDays);
-
+    @Query(value = """
+        SELECT
+            s.id AS id,
+            s.name AS name,
+            (
+                6371 * acos(
+                    cos(radians(:lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(:lon)) +
+                    sin(radians(:lat)) * sin(radians(s.latitude))
+                )
+            ) AS distanceKm
+        FROM spa s
+        WHERE s.latitude BETWEEN :minLat AND :maxLat
+          AND s.longitude BETWEEN :minLon AND :maxLon
+          AND (
+                6371 * acos(
+                    cos(radians(:lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(:lon)) +
+                    sin(radians(:lat)) * sin(radians(s.latitude))
+                )
+          ) <= :radiusKm
+        ORDER BY distanceKm
+        """,
+            countQuery = """
+        SELECT count(*) FROM spa s
+        WHERE s.latitude BETWEEN :minLat AND :maxLat
+          AND s.longitude BETWEEN :minLon AND :maxLon
+          AND (
+                6371 * acos(
+                    cos(radians(:lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(:lon)) +
+                    sin(radians(:lat)) * sin(radians(s.latitude))
+                )
+          ) <= :radiusKm
+        """,
+            nativeQuery = true)
+    Page<SpaDistanceProjection> findSpasWithinRadiusKmAndBoxPaged(
+            @Param("lat") double lat,
+            @Param("lon") double lon,
+            @Param("radiusKm") double radiusKm,
+            @Param("minLat") double minLat,
+            @Param("maxLat") double maxLat,
+            @Param("minLon") double minLon,
+            @Param("maxLon") double maxLon,
+            org.springframework.data.domain.Pageable pageable
+    );
 }

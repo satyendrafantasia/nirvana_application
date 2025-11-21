@@ -8,22 +8,27 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class AddressDTO {
 
-    private Long id;
-
-    @NotBlank(message = "Address line cannot be empty")
-    @Pattern(regexp = "^[A-Za-z0-9 .,:-]*$", message = "Address line can only contain letters, numbers, and some special characters (. , : - )")
     private String addressLine;
-
-    @NotBlank(message = "City cannot be empty")
-    @Pattern(regexp = "^(?!\\s*$)[A-Za-z ]+$", message = "City must only contain letters")
+    private String addressLine2;
     private String city;
-
-    @NotBlank(message = "Country cannot be empty")
-    @Pattern(regexp = "^(?!\\s*$)[A-Za-z ]+$", message = "Country must only contain letters")
+    private String state;
+    private String postalCode;
+    private String locality;
+    private String landmark;
     private String country;
+    private String countryCode;
+    private String googlePlaceId;
+    private String formattedAddress;
+    private Double latitude;
+    private Double longitude;
+    private String timezone;
+    private String addressType;
+    private String geoSource;
+    private String metaJson;
 }
+

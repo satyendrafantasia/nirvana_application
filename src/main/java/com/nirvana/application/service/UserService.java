@@ -1,7 +1,6 @@
 package com.nirvana.application.service;
 
 import com.nirvana.application.model.User;
-import com.nirvana.application.model.dto.ResetPasswordDTO;
 import com.nirvana.application.model.dto.UserDTO;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 

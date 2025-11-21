@@ -1,209 +1,221 @@
 package com.nirvana.application.service.impl;
 
-import com.nirvana.application.exception.SpaAlreadyExistsException;
-import com.nirvana.application.model.*;
-import com.nirvana.application.model.dto.*;
+import com.nirvana.application.exception.BusinessException;
+import com.nirvana.application.exception.NotFoundException;
+import com.nirvana.application.model.dto.AddressDTO;
+import com.nirvana.application.model.dto.SpaRequestDTO;
+import com.nirvana.application.model.dto.SpaResponseDTO;
+import com.nirvana.application.model.Address;
+import com.nirvana.application.model.Spa;
 import com.nirvana.application.repository.SpaRepository;
-import com.nirvana.application.service.*;
-import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
+import com.nirvana.application.service.SpaService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class SpaServiceImpl implements SpaService {
 
-    private final SpaRepository SpaRepository;
-    private final AddressService addressService;
-    private final RoomService roomService;
-    private final UserService userService;
-    private final SpaManagerService SpaManagerService;
+    private final SpaRepository spaRepository;
 
-    @Override
     @Transactional
-    public Spa saveSpa(SpaRegistrationDTO SpaRegistrationDTO) {
-        log.info("Attempting to save a new Spa: {}", SpaRegistrationDTO.toString());
+    @Override
+    public SpaResponseDTO createSpa(SpaRequestDTO request) {
+        validateBusiness(request);
 
-        Optional<Spa> existingSpa = SpaRepository.findByName(SpaRegistrationDTO.getName());
-        if (existingSpa.isPresent()) {
-            throw new SpaAlreadyExistsException("This Spa name is already registered!");
-        }
-
-        Spa Spa = mapSpaRegistrationDtoToSpa(SpaRegistrationDTO);
-
-        Address savedAddress = addressService.saveAddress(SpaRegistrationDTO.getAddressDTO());
-        Spa.setAddress(savedAddress);
-
-        // Get the username of the currently logged-in Spa manager
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        // Retrieve the Spa Manager associated with this username
-        SpaManager SpaManager = SpaManagerService.findByUser(userService.findUserByUsername(username));
-        Spa.setSpaManager(SpaManager);
-
-        // Saving Spa to be able to bind rooms to Spa id
-        Spa = SpaRepository.save(Spa);
-
-        List<Room> savedRooms = roomService.saveRooms(SpaRegistrationDTO.getRoomDTOs(), Spa);
-//        Spa.setRooms(savedRooms);
-
-        Spa savedSpa = SpaRepository.save(Spa);
-        log.info("Successfully saved new Spa with ID: {}", Spa.getId());
-        return savedSpa;
+        Spa spa = new Spa();
+        applyRequestToEntity(spa, request, false);
+        Spa saved = spaRepository.save(spa);
+        return toResponseDto(saved);
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public SpaDTO findSpaDtoByName(String name) {
-        Spa Spa = SpaRepository.findByName(name)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
-        return mapSpaToSpaDto(Spa);
+    public SpaResponseDTO getSpaById(Long id) {
+        Spa spa = spaRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Spa not found with id: " + id));
+        return toResponseDto(spa);
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public SpaDTO findSpaDtoById(Long id) {
-        Spa Spa = SpaRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
-        return mapSpaToSpaDto(Spa);
+    public Page<SpaResponseDTO> listSpas(Pageable pageable) {
+        return spaRepository.findAll(pageable)
+                .map(this::toResponseDto);
     }
 
-    @Override
-    public Optional<Spa> findSpaById(Long id) {
-        return SpaRepository.findById(id);
-    }
-
-    @Override
-    public List<SpaDTO> findAllSpas() {
-        List<Spa> Spas = SpaRepository.findAll();
-        return Spas.stream()
-                .map(this::mapSpaToSpaDto)
-                .collect(Collectors.toList());
-    }
-
-    @Override
     @Transactional
-    public SpaDTO updateSpa(SpaDTO SpaDTO) {
-        log.info("Attempting to update Spa with ID: {}", SpaDTO.getId());
+    @Override
+    public SpaResponseDTO updateSpa(Long id, SpaRequestDTO request) {
+        validateBusiness(request);
 
-        Spa existingSpa = SpaRepository.findById(SpaDTO.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
+        Spa spa = spaRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Spa not found with id: " + id));
 
-        if (SpaNameExistsAndNotSameSpa(SpaDTO.getName(), SpaDTO.getId())) {
-            throw new SpaAlreadyExistsException("This Spa name is already registered!");
+        // optimistic locking: version must match
+        if (request.getVersion() == null) {
+            throw new BusinessException("Version is required for update");
+        }
+        if (!request.getVersion().equals(spa.getVersion())) {
+            throw new BusinessException("Version mismatch: concurrent modification detected");
         }
 
-        existingSpa.setName(SpaDTO.getName());
-
-        Address updatedAddress = addressService.updateAddress(SpaDTO.getAddressDTO());
-        existingSpa.setAddress(updatedAddress);
-
-        SpaDTO.getRoomDTOs().forEach(roomService::updateRoom);
-
-        SpaRepository.save(existingSpa);
-        log.info("Successfully updated existing Spa with ID: {}", SpaDTO.getId());
-        return mapSpaToSpaDto(existingSpa);
+        applyRequestToEntity(spa, request, true);
+        Spa saved = spaRepository.save(spa);
+        return toResponseDto(saved);
     }
 
-    @Override
-    public void deleteSpaById(Long id) {
-        log.info("Attempting to delete Spa with ID: {}", id);
-        SpaRepository.deleteById(id);
-        log.info("Successfully deleted Spa with ID: {}", id);
-    }
-    @Override
-    public List<Spa> findAllSpasByManagerId(Long managerId) {
-        List<Spa> Spas = SpaRepository.findAllBySpaManager_Id(managerId);
-        return (Spas != null) ? Spas : Collections.emptyList();
-    }
-
-    @Override
-    public List<SpaDTO> findAllSpaDtosByManagerId(Long managerId) {
-        List<Spa> Spas = SpaRepository.findAllBySpaManager_Id(managerId);
-        if (Spas != null) {
-            return Spas.stream()
-                    .map(this::mapSpaToSpaDto)
-                    .collect(Collectors.toList());
-        }
-        return Collections.emptyList();
-    }
-
-    @Override
-    public SpaDTO findSpaByIdAndManagerId(Long SpaId, Long managerId) {
-        Spa Spa = SpaRepository.findByIdAndSpaManager_Id(SpaId, managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
-        return mapSpaToSpaDto(Spa);
-    }
-
-    @Override
     @Transactional
-    public SpaDTO updateSpaByManagerId(SpaDTO SpaDTO, Long managerId) {
-        log.info("Attempting to update Spa with ID: {} for Manager ID: {}", SpaDTO.getId(), managerId);
-
-        Spa existingSpa = SpaRepository.findByIdAndSpaManager_Id(SpaDTO.getId(), managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
-
-        if (SpaNameExistsAndNotSameSpa(SpaDTO.getName(), SpaDTO.getId())) {
-            throw new SpaAlreadyExistsException("This Spa name is already registered!");
-        }
-
-        existingSpa.setName(SpaDTO.getName());
-
-        Address updatedAddress = addressService.updateAddress(SpaDTO.getAddressDTO());
-        existingSpa.setAddress(updatedAddress);
-
-        SpaDTO.getRoomDTOs().forEach(roomService::updateRoom);
-
-        SpaRepository.save(existingSpa);
-        log.info("Successfully updated existing Spa with ID: {} for Manager ID: {}", SpaDTO.getId(), managerId);
-        return mapSpaToSpaDto(existingSpa);    }
-
     @Override
-    public void deleteSpaByIdAndManagerId(Long SpaId, Long managerId) {
-        log.info("Attempting to delete Spa with ID: {} for Manager ID: {}", SpaId, managerId);
-        Spa Spa = SpaRepository.findByIdAndSpaManager_Id(SpaId, managerId)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found"));
-        SpaRepository.delete(Spa);
-        log.info("Successfully deleted Spa with ID: {} for Manager ID: {}", SpaId, managerId);
+    public void deactivateSpa(Long id) {
+        Spa spa = spaRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Spa not found with id: " + id));
+        spa.setIsActive(false);
+        spaRepository.save(spa);
     }
 
-    private Spa mapSpaRegistrationDtoToSpa(SpaRegistrationDTO dto) {
-        return Spa.builder()
-                .name(formatText(dto.getName()))
+    // ---------- Business validation ----------
+
+    private void validateBusiness(SpaRequestDTO req) {
+        // Validate timezone
+        try {
+            ZoneId.of(req.getTimezone());
+        } catch (Exception e) {
+            throw new BusinessException("Invalid timezone: " + req.getTimezone());
+        }
+
+        // Validate tax/commission range
+        if (req.getTaxPercent() != null && (req.getTaxPercent() < 0 || req.getTaxPercent() > 100)) {
+            throw new BusinessException("taxPercent must be between 0 and 100");
+        }
+        if (req.getCommissionPct() != null && (req.getCommissionPct() < 0 || req.getCommissionPct() > 100)) {
+            throw new BusinessException("commissionPct must be between 0 and 100");
+        }
+
+        // Minimal currency sanity (you can enforce ISO list later)
+        if (req.getDefaultCurrency() != null && req.getDefaultCurrency().length() > 10) {
+            throw new BusinessException("defaultCurrency is too long");
+        }
+    }
+
+    // ---------- Mapping helpers ----------
+
+    private void applyRequestToEntity(Spa spa, SpaRequestDTO req, boolean updating) {
+        spa.setName(req.getName());
+        spa.setDescription(req.getDescription());
+
+        if (req.getAddress() != null) {
+            spa.setAddress(toAddressEntity(req.getAddress()));
+        }
+
+        spa.setTimezone(req.getTimezone());
+        spa.setPhone(req.getPhone());
+        spa.setEmail(req.getEmail());
+        spa.setWebsiteUrl(req.getWebsiteUrl());
+
+        spa.setGstin(req.getGstin());
+        spa.setBusinessRegistrationNumber(req.getBusinessRegistrationNumber());
+        spa.setOwnerName(req.getOwnerName());
+
+        if (req.getActive() != null) {
+            spa.setIsActive(req.getActive());
+        } else if (!updating && spa.getIsActive() == null) {
+            spa.setIsActive(true);
+        }
+
+        if (req.getFeatured() != null) {
+            spa.setIsFeatured(req.getFeatured());
+        } else if (!updating && spa.getIsFeatured() == null) {
+            spa.setIsFeatured(false);
+        }
+
+        if (req.getDefaultCurrency() != null) {
+            spa.setDefaultCurrency(req.getDefaultCurrency());
+        } else if (!updating && spa.getDefaultCurrency() == null) {
+            spa.setDefaultCurrency("INR");
+        }
+
+        if (req.getTaxPercent() != null) {
+            spa.setTaxPercent(req.getTaxPercent());
+        } else if (!updating && spa.getTaxPercent() == null) {
+            spa.setTaxPercent(18);
+        }
+
+        if (req.getCommissionPct() != null) {
+            spa.setCommissionPct(req.getCommissionPct());
+        } else if (!updating && spa.getCommissionPct() == null) {
+            spa.setCommissionPct(10);
+        }
+
+        spa.setFacebookUrl(req.getFacebookUrl());
+        spa.setInstagramUrl(req.getInstagramUrl());
+    }
+
+    private Address toAddressEntity(AddressDTO dto) {
+        if (dto == null) return null;
+        return Address.builder()
+                .addressLine(dto.getAddressLine())
+                .addressLine2(dto.getAddressLine2())
+                .city(dto.getCity())
+                .state(dto.getState())
+                .postalCode(dto.getPostalCode())
+                .locality(dto.getLocality())
+                .landmark(dto.getLandmark())
+                .country(dto.getCountry())
+                .countryCode(dto.getCountryCode())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
                 .build();
     }
 
-    @Override
-    public SpaDTO mapSpaToSpaDto(Spa Spa) {
-//        List<RoomDTO> roomDTOs = Spa.getRooms().stream()
-//                .map(roomService::mapRoomToRoomDto)  // convert each Room to RoomDTO
-//                .collect(Collectors.toList());  // collect results to a list
-
-        AddressDTO addressDTO = addressService.mapAddressToAddressDto(Spa.getAddress());
-
-        return SpaDTO.builder()
-                .id(Spa.getId())
-                .name(Spa.getName())
-                .addressDTO(addressDTO)
-                .managerUsername(Spa.getSpaManager().getUser().getUsername())
+    private AddressDTO toAddressDto(Address address) {
+        if (address == null) return null;
+        return AddressDTO.builder()
+                .addressLine(address.getAddressLine())
+                .addressLine2(address.getAddressLine2())
+                .city(address.getCity())
+                .state(address.getState())
+                .postalCode(address.getPostalCode())
+                .locality(address.getLocality())
+                .landmark(address.getLandmark())
+                .country(address.getCountry())
+                .countryCode(address.getCountryCode())
+                .latitude(address.getLatitude())
+                .longitude(address.getLongitude())
                 .build();
     }
 
-    private boolean SpaNameExistsAndNotSameSpa(String name, Long SpaId) {
-        Optional<Spa> existingSpaWithSameName = SpaRepository.findByName(name);
-        return existingSpaWithSameName.isPresent() && !existingSpaWithSameName.get().getId().equals(SpaId);
+    private SpaResponseDTO toResponseDto(Spa spa) {
+        return SpaResponseDTO.builder()
+                .id(spa.getId())
+                .name(spa.getName())
+                .description(spa.getDescription())
+                .address(toAddressDto(spa.getAddress()))
+                .timezone(spa.getTimezone())
+                .phone(spa.getPhone())
+                .email(spa.getEmail())
+                .websiteUrl(spa.getWebsiteUrl())
+                .gstin(spa.getGstin())
+                .businessRegistrationNumber(spa.getBusinessRegistrationNumber())
+                .ownerName(spa.getOwnerName())
+                .active(spa.getIsActive())
+                .verified(spa.getIsVerified())
+                .featured(spa.getIsFeatured())
+                .ratingAvg(spa.getRatingAvg())
+                .ratingCount(spa.getRatingCount())
+                .totalBookings(spa.getTotalBookings())
+                .facebookUrl(spa.getFacebookUrl())
+                .instagramUrl(spa.getInstagramUrl())
+                .defaultCurrency(spa.getDefaultCurrency())
+                .taxPercent(spa.getTaxPercent())
+                .commissionPct(spa.getCommissionPct())
+                .imagesJson(spa.getImagesJson())
+                .version(spa.getVersion())
+                .build();
     }
-
-    private String formatText(String text) {
-        return StringUtils.capitalize(text.trim());
-    }
-
 }
-

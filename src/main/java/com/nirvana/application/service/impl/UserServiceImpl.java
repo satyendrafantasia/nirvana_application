@@ -3,12 +3,10 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.exception.UsernameAlreadyExistsException;
 import com.nirvana.application.model.*;
-import com.nirvana.application.model.dto.ResetPasswordDTO;
 import com.nirvana.application.model.dto.UserDTO;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 import com.nirvana.application.model.enums.RoleType;
 import com.nirvana.application.repository.CustomerRepository;
-import com.nirvana.application.repository.SpaManagerRepository;
 import com.nirvana.application.repository.RoleRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.UserService;

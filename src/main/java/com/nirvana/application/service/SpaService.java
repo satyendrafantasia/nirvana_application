@@ -1,38 +1,19 @@
 package com.nirvana.application.service;
 
-import com.nirvana.application.model.Spa;
-import com.nirvana.application.model.dto.SpaDTO;
-import com.nirvana.application.model.dto.SpaRegistrationDTO;
-
-import java.util.List;
-import java.util.Optional;
+import com.nirvana.application.model.dto.SpaRequestDTO;
+import com.nirvana.application.model.dto.SpaResponseDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface SpaService {
 
-    Spa saveSpa(SpaRegistrationDTO SpaRegistrationDTO);
+    SpaResponseDTO createSpa(SpaRequestDTO request);
 
-    SpaDTO findSpaDtoByName(String name);
+    SpaResponseDTO getSpaById(Long id);
 
-    SpaDTO findSpaDtoById(Long id);
+    Page<SpaResponseDTO> listSpas(Pageable pageable);
 
-    Optional<Spa> findSpaById(Long id);
+    SpaResponseDTO updateSpa(Long id, SpaRequestDTO request);
 
-    List<SpaDTO> findAllSpas();
-
-    SpaDTO updateSpa(SpaDTO SpaDTO);
-
-    void deleteSpaById(Long id);
-
-    List<Spa> findAllSpasByManagerId(Long managerId);
-
-    List<SpaDTO> findAllSpaDtosByManagerId(Long managerId);
-
-    SpaDTO findSpaByIdAndManagerId(Long SpaId, Long managerId);
-
-    SpaDTO updateSpaByManagerId(SpaDTO SpaDTO, Long managerId);
-
-    void deleteSpaByIdAndManagerId(Long SpaId, Long managerId);
-
-    SpaDTO mapSpaToSpaDto(Spa Spa);
-
+    void deactivateSpa(Long id); // soft delete
 }

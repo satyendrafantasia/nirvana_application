@@ -3,63 +3,73 @@ package com.nirvana.application.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.Objects;
-
 @Entity
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = "metaJson")
+@EqualsAndHashCode
 public class Address {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @Column(nullable = false)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "address_line1", nullable = false, length = 255)
     private String addressLine;
 
-    @Column(nullable = false)
+    @Column(name = "address_line2", length = 255)
     private String addressLine2;
 
-    @Column(nullable = false)
+    @Column(length = 100, nullable = false)
     private String city;
 
-    @Column(nullable = false)
+    @Column(length = 100)
+    private String state;
+
+    @Column(name = "postal_code", length = 20)
+    private String postalCode;
+
+    @Column(length = 255)
+    private String locality;
+
+    @Column(length = 255)
+    private String landmark;
+
+    @Column(length = 100)
     private String country;
 
-    @Override
-    public String toString() {
-        return "Address{" +
-                "id=" + id +
-                ", addressLine1='" + addressLine + '\'' +
-                ", addressLine2='" + addressLine2 + '\'' +
-                ", city='" + city + '\'' +
-                ", country='" + country + '\'' +
-                '}';
-    }
+    @Column(length = 4)
+    private String countryCode; // ISO code
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Address)) return false;
-        Address other = (Address) o;
-        // If both entities have an id, use it for equality (database identity)
-        if (this.id != null && other.id != null) {
-            return this.id.equals(other.id);
-        }
-        // Otherwise compare on natural fields
-        return Objects.equals(addressLine, other.addressLine) &&
-                Objects.equals(addressLine2, other.addressLine2) &&
-                Objects.equals(city, other.city) &&
-                Objects.equals(country, other.country);
-    }
+    // Google map integration
+    @Column(name = "google_place_id", length = 255)
+    private String googlePlaceId;
 
-    @Override
-    public int hashCode() {
-        // If id is available use it (stable after persist), otherwise use natural fields
-        return (id != null) ? id.hashCode() : Objects.hash(addressLine, addressLine2, city, country);
-    }
+    @Column(name = "formatted_address", length = 500)
+    private String formattedAddress;
 
+    // Latitude/Longitude
+    @Column(precision = 9, scale = 6)
+    private Double latitude;
+
+    @Column(precision = 9, scale = 6)
+    private Double longitude;
+
+    @Column(length = 50)
+    private String timezone;
+
+    @Column(length = 50)
+    private String addressType; // HOME / OFFICE / SPA_BRANCH etc.
+
+    @Column(length = 50)
+    private String geoSource; // MANUAL, GPS, GOOGLE_AUTOCOMPLETE
+
+    // Flexible extension
+    @Column(name = "meta", columnDefinition = "jsonb")
+    private String metaJson;
+
+    // equals & hashcode remain same as yours
 }
