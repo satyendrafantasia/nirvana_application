@@ -1,5 +1,5 @@
-package com.nirvana.application.config;
 
+package com.nirvana.application.config;
 
 import com.nirvana.application.security.CustomAuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +13,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -31,7 +30,6 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
-        // In case CSRF disabling is needed for testing
         http.csrf(csrf -> csrf.disable());
 
         http.authorizeHttpRequests((authorize) ->
@@ -49,7 +47,7 @@ public class SecurityConfig {
                                 .permitAll())
                 .logout(
                         logout -> logout
-                                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
+                                .logoutUrl("/logout")
                                 .permitAll()
                 );
         return http.build();

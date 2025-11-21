@@ -29,7 +29,6 @@ public class Spa extends BaseEntity {
     @Column(length = 2000)
     private String description;
 
-    @Embedded
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "address_id")
     private Address address;
@@ -70,7 +69,8 @@ public class Spa extends BaseEntity {
     @Column(name = "owner_name")
     private String ownerName;
 
-    @Column(name = "spa_manager")
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "spa_manager_id")
     private SpaManager spaManager;
 
 

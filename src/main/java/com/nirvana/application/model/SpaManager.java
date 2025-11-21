@@ -23,15 +23,17 @@ public class SpaManager {
     @JoinColumn(nullable = false)
     private User user;
 
-    @OneToMany(mappedBy = "spaManager", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Spa> SpaList = new ArrayList<>();
+
+
+    @OneToOne(mappedBy = "spaManager", fetch = FetchType.LAZY)
+    private Spa spa;
 
     @Override
     public String toString() {
         return "SpaManager{" +
                 "id=" + id +
                 ", user=" + user +
-                ", SpaList=" + SpaList +
+                ", SpaList=" + spa +
                 '}';
     }
 

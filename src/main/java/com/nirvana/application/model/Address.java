@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.Objects;
-@Embeddable
+
 @Entity
 @Getter
 @Setter
@@ -21,6 +21,9 @@ public class Address {
     private String addressLine;
 
     @Column(nullable = false)
+    private String addressLine2;
+
+    @Column(nullable = false)
     private String city;
 
     @Column(nullable = false)
@@ -30,7 +33,8 @@ public class Address {
     public String toString() {
         return "Address{" +
                 "id=" + id +
-                ", addressLine='" + addressLine + '\'' +
+                ", addressLine1='" + addressLine + '\'' +
+                ", addressLine2='" + addressLine2 + '\'' +
                 ", city='" + city + '\'' +
                 ", country='" + country + '\'' +
                 '}';
@@ -39,13 +43,23 @@ public class Address {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Address address = (Address) o;
-        return Objects.equals(id, address.id) && Objects.equals(addressLine, address.addressLine);
+        if (!(o instanceof Address)) return false;
+        Address other = (Address) o;
+        // If both entities have an id, use it for equality (database identity)
+        if (this.id != null && other.id != null) {
+            return this.id.equals(other.id);
+        }
+        // Otherwise compare on natural fields
+        return Objects.equals(addressLine, other.addressLine) &&
+                Objects.equals(addressLine2, other.addressLine2) &&
+                Objects.equals(city, other.city) &&
+                Objects.equals(country, other.country);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, addressLine);
+        // If id is available use it (stable after persist), otherwise use natural fields
+        return (id != null) ? id.hashCode() : Objects.hash(addressLine, addressLine2, city, country);
     }
+
 }
