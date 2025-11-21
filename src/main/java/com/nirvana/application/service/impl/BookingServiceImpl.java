@@ -5,6 +5,7 @@ import com.nirvana.application.model.dto.AddressDTO;
 import com.nirvana.application.model.dto.BookingDTO;
 import com.nirvana.application.model.dto.BookingInitiationDTO;
 import com.nirvana.application.model.dto.RoomSelectionDTO;
+import com.nirvana.application.model.enums.PaymentMethod;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.service.*;
 import jakarta.persistence.EntityNotFoundException;
@@ -146,14 +147,14 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(customerUser.getName() + " " + customerUser.getLastName())
                 .customerEmail(customerUser.getUsername())
                 .paymentStatus(booking.getPayment().getPaymentStatus())
-                .paymentMethod(booking.getPayment().getPaymentMethod())
+                .paymentMethod(PaymentMethod.valueOf(booking.getPayment().getPaymentMethod()))
                 .build();
     }
 
     private Booking mapBookingInitDtoToBookingModel(BookingInitiationDTO bookingInitiationDTO, Customer customer, Spa Spa) {
         Booking booking = Booking.builder()
                 .customer(customer)
-                .Spa(Spa)
+                .spa(Spa)
                 .checkinDate(bookingInitiationDTO.getCheckinDate())
                 .checkoutDate(bookingInitiationDTO.getCheckoutDate())
                 .build();

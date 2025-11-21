@@ -4,15 +4,16 @@
       name: application
     profiles:
       active: local
+
     datasource:
-      url: ${DB_URL:jdbc:mysql://localhost:3306/mydb?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true}
-      username: ${DB_USER:root}
-      password: ${DB_PASS:password}
+      url: jdbc:mysql://localhost:3306/nirvana_v1?useSSL=false&serverTimezone=UTC
+      username: root
+      password: root
       driver-class-name: com.mysql.cj.jdbc.Driver
       hikari:
-        maximum-pool-size: 10
-        connection-timeout: 30000
         minimum-idle: 2
+        maximum-pool-size: 10
+
     jpa:
       hibernate:
         ddl-auto: update
@@ -20,9 +21,14 @@
       properties:
         hibernate:
           format_sql: true
-          dialect: org.hibernate.dialect.MySQL8Dialect
+
     cache:
       type: redis
+
+    servlet:
+      multipart:
+        max-file-size: 50MB
+        max-request-size: 50MB
 
   server:
     port: 8080
@@ -42,7 +48,11 @@
     endpoints:
       web:
         exposure:
-          include: health,info,metrics,prometheus
+          include:
+            - health
+            - info
+            - metrics
+            - prometheus
         base-path: /management
     endpoint:
       health:
@@ -75,3 +85,17 @@
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
+
+  aws:
+    s3:
+      bucket-name: your-bucket-name
+    region: us-east-1
+    access-key-id: YOUR_ACCESS_KEY_ID
+    secret-key: YOUR_SECRET_KEY
+
+  jwt:
+    secret: u8hLz2mYjV9xK7QmG5aV2q3Yc4F1b6Zr8p9tQwXyZk=
+    expiration-ms: 3600000
+    issuer: nirvana-app
+    header: Authorization
+    token-prefix: Bearer

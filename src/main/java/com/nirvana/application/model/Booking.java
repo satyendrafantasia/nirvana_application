@@ -4,7 +4,14 @@ import com.nirvana.application.model.enums.BookingSource;
 import com.nirvana.application.model.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,9 +34,33 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "spa_id", nullable = false)
+    @Column(unique = true, nullable = false)
+    private String confirmationNumber;
+
+    @CreationTimestamp
+    private LocalDateTime bookingDate;
+
+    @ManyToOne
+    @JoinColumn(nullable = false)
+    private Customer customer;
+
+    @ManyToOne
+    @JoinColumn(nullable = true)
     private Spa spa;
+
+    @Column(nullable = false)
+    private LocalDate checkinDate;
+
+    @Column(nullable = false)
+    private LocalDate checkoutDate;
+
+    @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<BookedRoom> bookedRooms = new ArrayList<>();
+
+    @OneToOne(mappedBy = "booking")
+    private Payment payment;
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)

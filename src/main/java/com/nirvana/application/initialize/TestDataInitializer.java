@@ -92,48 +92,48 @@ public class TestDataInitializer implements CommandLineRunner {
                 addressRepository.save(addressBerlin3);
 
                 Spa SpaIst1 = Spa.builder().name("Swissotel The Bosphorus Istanbul")
-                        .address(addressIst1).SpaManager(hm1).build();
+                        .address(addressIst1).spaManager(hm1).build();
                 Spa SpaIst2 = Spa.builder().name("Four Seasons Spa Istanbul")
-                        .address(addressIst2).SpaManager(hm1).build();
+                        .address(addressIst2).spaManager(hm1).build();
                 Spa SpaIst3 = Spa.builder().name("Ciragan Palace Kempinski Istanbul")
-                        .address(addressIst3).SpaManager(hm1).build();
+                        .address(addressIst3).spaManager(hm1).build();
 
                 Spa SpaBerlin1 = Spa.builder().name("Spa Adlon Kempinski Berlin")
-                        .address(addressBerlin1).SpaManager(hm2).build();
+                        .address(addressBerlin1).spaManager(hm2).build();
                 Spa SpaBerlin2 = Spa.builder().name("The Ritz-Carlton Berlin")
-                        .address(addressBerlin2).SpaManager(hm2).build();
+                        .address(addressBerlin2).spaManager(hm2).build();
                 Spa SpaBerlin3 = Spa.builder().name("InterContinental Berlin")
-                        .address(addressBerlin3).SpaManager(hm2).build();
+                        .address(addressBerlin3).spaManager(hm2).build();
 
                 Room singleRoomIst1 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(370).roomCount(35).Spa(SpaIst1).build();
+                        .pricePerNight(370).roomCount(35).spa(SpaIst1).build();
                 Room doubleRoomIst1 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(459).roomCount(45).Spa(SpaIst1).build();
+                        .pricePerNight(459).roomCount(45).spa(SpaIst1).build();
 
                 Room singleRoomIst2 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(700).roomCount(25).Spa(SpaIst2).build();
+                        .pricePerNight(700).roomCount(25).spa(SpaIst2).build();
                 Room doubleRoomIst2 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(890).roomCount(30).Spa(SpaIst2).build();
+                        .pricePerNight(890).roomCount(30).spa(SpaIst2).build();
 
                 Room singleRoomIst3 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(691).roomCount(30).Spa(SpaIst3).build();
+                        .pricePerNight(691).roomCount(30).spa(SpaIst3).build();
                 Room doubleRoomIst3 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(800).roomCount(75).Spa(SpaIst3).build();
+                        .pricePerNight(800).roomCount(75).spa(SpaIst3).build();
 
                 Room singleRoomBerlin1 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(120.0).roomCount(25).Spa(SpaBerlin1).build();
+                        .pricePerNight(120.0).roomCount(25).spa(SpaBerlin1).build();
                 Room doubleRoomBerlin1 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(250.0).roomCount(15).Spa(SpaBerlin1).build();
+                        .pricePerNight(250.0).roomCount(15).spa(SpaBerlin1).build();
 
                 Room singleRoomBerlin2 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(300).roomCount(50).Spa(SpaBerlin2).build();
+                        .pricePerNight(300).roomCount(50).spa(SpaBerlin2).build();
                 Room doubleRoomBerlin2 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(400).roomCount(50).Spa(SpaBerlin2).build();
+                        .pricePerNight(400).roomCount(50).spa(SpaBerlin2).build();
 
                 Room singleRoomBerlin3 = Room.builder().roomType(RoomType.SINGLE)
-                        .pricePerNight(179).roomCount(45).Spa(SpaBerlin3).build();
+                        .pricePerNight(179).roomCount(45).spa(SpaBerlin3).build();
                 Room doubleRoomBerlin3 = Room.builder().roomType(RoomType.DOUBLE)
-                        .pricePerNight(256).roomCount(25).Spa(SpaBerlin3).build();
+                        .pricePerNight(256).roomCount(25).spa(SpaBerlin3).build();
 
                 SpaIst1.getRooms().addAll(Arrays.asList(singleRoomIst1,doubleRoomIst1));
                 SpaIst2.getRooms().addAll(Arrays.asList(singleRoomIst2,doubleRoomIst2));

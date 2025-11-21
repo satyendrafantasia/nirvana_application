@@ -77,6 +77,10 @@ public class Therapist extends BaseEntity {
     @Builder.Default
     private Set<Service> services = new HashSet<>();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
+    private Service service;
+
     // Freeform biography / experience summary
     @Column(name = "bio", length = 2000)
     private String bio;

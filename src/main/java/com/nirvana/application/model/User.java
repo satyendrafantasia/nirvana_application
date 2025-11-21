@@ -32,6 +32,7 @@ public class User extends BaseEntity {
     private String email;
 
     private String name;
+    private String lastName;
     private String displayName;
     private String username;
     @Column(nullable = false)
@@ -39,6 +40,13 @@ public class User extends BaseEntity {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Customer customer;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(nullable = false)
+    private Role role;
 
     // store simple role names like ROLE_USER, ROLE_ADMIN
     @ElementCollection(fetch = FetchType.EAGER)
@@ -72,6 +80,9 @@ public class User extends BaseEntity {
     private String preferredContactMethod; // "phone","email","whatsapp"
     @Column(name = "marketing_opt_in", nullable = false)
     private Boolean marketingOptIn = true;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private SpaManager spaManager;
 
     // business / loyalty
     @Column(name = "loyalty_points", nullable = false)

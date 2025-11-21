@@ -23,7 +23,7 @@ public class SpaManager {
     @JoinColumn(nullable = false)
     private User user;
 
-    @OneToMany(mappedBy = "SpaManager", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "spaManager", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Spa> SpaList = new ArrayList<>();
 
     @Override

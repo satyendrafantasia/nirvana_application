@@ -5,6 +5,10 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Table(name = "service", indexes = @Index(name = "idx_service_spa", columnList = "spa_id"))
 @Data
@@ -45,11 +49,26 @@ public class Service extends BaseEntity {
 
     // expanded
     @Column(name = "category")
-    private String category; // e.g., "massage","facial"
+    private String category;
+    // e.g., "massage","facial"
     @Column(name = "sub_category")
     private String subCategory;
+
     @Column(name = "service_code", unique = true)
-    private String serviceCode; // SKU-like
+    private String serviceCode;
+    // SKU-like
+    @Column(name = "price_cents")
+    private Integer priceCents;
+
+    @Column(name = "duration_minutes" )
+    private Integer durationMinutes;
+
+    @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Therapist> therapists = new HashSet<>();
+    
+    private Long version;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 
     @Column(name = "min_persons", nullable = false)
     private Integer minPersons = 1;
@@ -75,7 +94,6 @@ public class Service extends BaseEntity {
     @Column(name = "meta", columnDefinition = "jsonb")
     private String metaJson;
 
-    @Version
-    private Long version;
+
 }
 

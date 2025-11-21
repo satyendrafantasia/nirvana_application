@@ -81,7 +81,7 @@ public class RoomServiceImpl implements RoomService {
     public Room mapRoomDtoToRoom(RoomDTO roomDTO, Spa Spa) {
         log.debug("Mapping RoomDTO to Room: {}", roomDTO);
         Room room = Room.builder()
-                .Spa(Spa)
+                .spa(Spa)
                 .roomType(roomDTO.getRoomType())
                 .roomCount(roomDTO.getRoomCount())
                 .pricePerNight(roomDTO.getPricePerNight())

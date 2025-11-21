@@ -1,3 +1,4 @@
+// java
 package com.nirvana.application.service.impl;
 
 import com.nirvana.application.exception.UsernameAlreadyExistsException;
@@ -38,7 +39,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final CustomerRepository customerRepository;
-    private final SpaManagerRepository SpaManagerRepository;
+    private final SpaManagerRepository spaManagerRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -57,8 +58,8 @@ public class UserServiceImpl implements UserService {
             Customer customer = Customer.builder().user(user).build();
             customerRepository.save(customer);
         } else if (RoleType.Spa_MANAGER.equals(registrationDTO.getRoleType())) {
-            SpaManager SpaManager = SpaManager.builder().user(user).build();
-            SpaManagerRepository.save(SpaManager);
+            SpaManager spaManager = SpaManager.builder().user(user).build();
+            spaManagerRepository.save(spaManager);
         }
 
         User savedUser = userRepository.save(user);
@@ -142,7 +143,6 @@ public class UserServiceImpl implements UserService {
         log.info("Successfully deleted user with ID: {}", id);
     }
 
-    // TODO: 23.07.2023
     @Override
     public User resetPassword(ResetPasswordDTO resetPasswordDTO) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -195,8 +195,6 @@ public class UserServiceImpl implements UserService {
         user.setLastName(formatText(userDTO.getLastName()));
     }
 
-    // In production applications, prefer logging out the user and requiring re-login over the method below.
-    // It updates the authentication context directly, which could be a potential security risk.
     private void updateAuthentication(UserDTO userDTO) {
         User user = userRepository.findByUsername(userDTO.getUsername());
 

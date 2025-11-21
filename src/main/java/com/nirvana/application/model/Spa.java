@@ -29,6 +29,11 @@ public class Spa extends BaseEntity {
     @Column(length = 2000)
     private String description;
 
+    @Embedded
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id")
+    private Address address;
+
     @Column(name = "address_line1")
     private String addressLine1;
     @Column(name = "address_line2")
@@ -49,8 +54,9 @@ public class Spa extends BaseEntity {
     private String email;
     private String websiteUrl;
 
-    @Column(nullable = false)
-    private Integer rooms = 1; // capacity units
+    @OneToMany(mappedBy = "spa", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Room> rooms = new ArrayList<>();
     @Column(name = "max_concurrent_services")
     private Integer maxConcurrentServices = 1;
 
@@ -63,6 +69,11 @@ public class Spa extends BaseEntity {
     private String businessRegistrationNumber;
     @Column(name = "owner_name")
     private String ownerName;
+
+    @Column(name = "spa_manager")
+    private SpaManager spaManager;
+
+
     @Column(name = "established_at")
     private OffsetDateTime establishedAt;
 
@@ -115,4 +126,6 @@ public class Spa extends BaseEntity {
 
     @Version
     private Long version;
+
+
 }
