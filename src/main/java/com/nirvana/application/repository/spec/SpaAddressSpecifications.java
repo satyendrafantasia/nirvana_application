@@ -3,112 +3,88 @@ package com.nirvana.application.repository.spec;
 import com.nirvana.application.model.Spa;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
+
 public final class SpaAddressSpecifications {
 
-    private SpaAddressSpecifications() {
-    }
+    private SpaAddressSpecifications() {}
 
     public static Specification<Spa> cityEquals(String city) {
         return (root, query, cb) -> {
-            if (city == null || city.isBlank()) return null;
+            if (!has(city)) return null;
             return cb.equal(cb.lower(root.get("address").get("city")), city.toLowerCase());
         };
     }
 
-    public static Specification<Spa> cityLike(String cityLike) {
+    public static Specification<Spa> localityLike(String locality) {
         return (root, query, cb) -> {
-            if (cityLike == null || cityLike.isBlank()) return null;
-            String pattern = "%" + cityLike.toLowerCase() + "%";
-            return cb.like(cb.lower(root.get("address").get("city")), pattern);
+            if (!has(locality)) return null;
+            return cb.like(
+                    cb.lower(root.get("address").get("locality")),
+                    "%" + locality.toLowerCase() + "%"
+            );
         };
     }
 
-    public static Specification<Spa> countryCodeEquals(String countryCode) {
+    public static Specification<Spa> countryCodeEquals(String code) {
         return (root, query, cb) -> {
-            if (countryCode == null || countryCode.isBlank()) return null;
-            return cb.equal(cb.lower(root.get("address").get("countryCode")), countryCode.toLowerCase());
-        };
-    }
-
-    public static Specification<Spa> postalCodeEquals(String postalCode) {
-        return (root, query, cb) -> {
-            if (postalCode == null || postalCode.isBlank()) return null;
-            return cb.equal(cb.lower(root.get("address").get("postalCode")), postalCode.toLowerCase());
-        };
-    }
-
-    public static Specification<Spa> localityLike(String localityLike) {
-        return (root, query, cb) -> {
-            if (localityLike == null || localityLike.isBlank()) return null;
-            String pattern = "%" + localityLike.toLowerCase() + "%";
-            return cb.like(cb.lower(root.get("address").get("locality")), pattern);
-        };
-    }
-
-    public static Specification<Spa> stateEquals(String state) {
-        return (root, query, cb) -> {
-            if (state == null || state.isBlank()) return null;
-            return cb.equal(cb.lower(root.get("address").get("state")), state.toLowerCase());
-        };
-    }
-
-    public static Specification<Spa> countryEquals(String country) {
-        return (root, query, cb) -> {
-            if (country == null || country.isBlank()) return null;
-            return cb.equal(cb.lower(root.get("address").get("country")), country.toLowerCase());
+            if (!has(code)) return null;
+            return cb.equal(cb.lower(root.get("address").get("countryCode")), code.toLowerCase());
         };
     }
 
     public static Specification<Spa> addressContains(String text) {
         return (root, query, cb) -> {
-            if (text == null || text.isBlank()) return null;
-            String pattern = "%" + text.toLowerCase() + "%";
+            if (!has(text)) return null;
 
-            var addressPath = root.get("address");
+            String like = "%" + text.toLowerCase() + "%";
+            var a = root.get("address");
 
             return cb.or(
-                    cb.like(cb.lower(addressPath.get("addressLine")), pattern),
-                    cb.like(cb.lower(addressPath.get("addressLine2")), pattern),
-                    cb.like(cb.lower(addressPath.get("locality")), pattern),
-                    cb.like(cb.lower(addressPath.get("landmark")), pattern),
-                    cb.like(cb.lower(addressPath.get("city")), pattern),
-                    cb.like(cb.lower(addressPath.get("state")), pattern),
-                    cb.like(cb.lower(addressPath.get("postalCode")), pattern),
-                    cb.like(cb.lower(addressPath.get("country")), pattern)
+                    cb.like(cb.lower(a.get("addressLine")), like),
+                    cb.like(cb.lower(a.get("addressLine2")), like),
+                    cb.like(cb.lower(a.get("locality")), like),
+                    cb.like(cb.lower(a.get("landmark")), like),
+                    cb.like(cb.lower(a.get("city")), like),
+                    cb.like(cb.lower(a.get("state")), like),
+                    cb.like(cb.lower(a.get("postalCode")), like),
+                    cb.like(cb.lower(a.get("country")), like)
             );
         };
     }
 
     /**
-     * Filter by latitude/longitude bounding box (simple geo range).
-     * Use this before you go for proper geo-indexing.
-     * Every method returns null if the param is blank ⇒ Spring Data JPA ignores that spec, making chaining easy.
-
-     * addressContains is your generic “search by text” across multiple address fields.
-
-     * withinLatLonBox is a poor man’s geo search (good enough until you go to PostGIS / Elastic).
+     * Geo bounding — BigDecimal support
      */
-    public static Specification<Spa> withinLatLonBox(Double minLat, Double maxLat,
-                                                     Double minLon, Double maxLon) {
+    public static Specification<Spa> withinLatLonBox(
+            Double minLat, Double maxLat,
+            Double minLon, Double maxLon
+    ) {
         return (root, query, cb) -> {
-            var addressPath = root.get("address");
+            var a = root.get("address");
+            var predicate = cb.conjunction();
 
-            var predicates = cb.conjunction();
+            if (minLat != null)
+                predicate = cb.and(predicate,
+                        cb.greaterThanOrEqualTo(a.get("latitude"), BigDecimal.valueOf(minLat)));
 
-            if (minLat != null) {
-                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(addressPath.get("latitude"), minLat));
-            }
-            if (maxLat != null) {
-                predicates = cb.and(predicates, cb.lessThanOrEqualTo(addressPath.get("latitude"), maxLat));
-            }
-            if (minLon != null) {
-                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(addressPath.get("longitude"), minLon));
-            }
-            if (maxLon != null) {
-                predicates = cb.and(predicates, cb.lessThanOrEqualTo(addressPath.get("longitude"), maxLon));
-            }
+            if (maxLat != null)
+                predicate = cb.and(predicate,
+                        cb.lessThanOrEqualTo(a.get("latitude"), BigDecimal.valueOf(maxLat)));
 
-            return predicates.getExpressions().isEmpty() ? null : predicates;
+            if (minLon != null)
+                predicate = cb.and(predicate,
+                        cb.greaterThanOrEqualTo(a.get("longitude"), BigDecimal.valueOf(minLon)));
+
+            if (maxLon != null)
+                predicate = cb.and(predicate,
+                        cb.lessThanOrEqualTo(a.get("longitude"), BigDecimal.valueOf(maxLon)));
+
+            return predicate.getExpressions().isEmpty() ? null : predicate;
         };
+    }
+
+    private static boolean has(String s) {
+        return s != null && !s.isBlank();
     }
 }

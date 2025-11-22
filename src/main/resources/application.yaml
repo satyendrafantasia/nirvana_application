@@ -81,3 +81,11 @@
     secret-key: YOUR_SECRET_KEY
 
 
+
+  flyway:
+    enabled: true
+    locations: "classpath:db/migration"
+
+
+
+

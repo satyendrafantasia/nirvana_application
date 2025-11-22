@@ -27,12 +27,6 @@ public class SpaController {
         return spaService.getSpaById(id);
     }
 
-    @GetMapping
-    public Page<SpaResponseDTO> listSpas(@RequestParam(defaultValue = "0") int page,
-                                         @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(size, 100));
-        return spaService.listSpas(pageable);
-    }
 
     @PutMapping("/{id}")
     public SpaResponseDTO updateSpa(@PathVariable Long id,

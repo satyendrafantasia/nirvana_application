@@ -1,3 +1,3 @@
 package com.nirvana.application.model.enums;
 
-public enum KycStatus { PENDING, VERIFIED, REJECTED }
+public enum KycStatus { PENDING, VERIFIED, APPROVED, REJECTED }
