@@ -1,6 +1,7 @@
 package com.nirvana.application.model;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 
@@ -9,6 +10,11 @@ import java.time.OffsetDateTime;
         @Index(name = "idx_review_spa", columnList = "spa_id,created_at DESC"),
         @Index(name = "idx_review_user", columnList = "user_id,created_at DESC")
 })
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,8 +40,6 @@ public class Review {
     @Column(length = 4000)
     private String text;
 
-    @Column(name = "images", columnDefinition = "json")
-    private String imagesJson;
 
     @Column(name = "is_visible", nullable = false)
     private Boolean isVisible = true;
@@ -50,6 +54,12 @@ public class Review {
     private Long replyByProviderId;
     @Column(name = "reply_at")
     private OffsetDateTime replyAt;
+
+    // link to media assets, filtered by entity_type='REVIEW'
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entity_id", referencedColumnName = "id")
+    @org.hibernate.annotations.Where(clause = "entity_type = 'REVIEW'")
+    private java.util.List<MediaAsset> mediaAssets;
 
     @Column(name = "helpful_count", nullable = false)
     private Integer helpfulCount = 0;

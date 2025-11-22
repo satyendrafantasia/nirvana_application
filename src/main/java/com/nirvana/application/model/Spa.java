@@ -66,6 +66,20 @@ public class Spa extends BaseEntity {
     @Column(name = "established_at")
     private OffsetDateTime establishedAt;
 
+    @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY)
+    private List<SpaRoom> rooms;
+
+    @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY)
+    private List<MembershipPlan> membershipPlans;
+
+    @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY)
+    private List<Payout> payouts;
+
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entity_id") // with entity_type='SPA'
+    private List<MediaAsset> mediaAssets;
+
+
     // KYC
     @Enumerated(EnumType.STRING)
     @Column(name = "kyc_status", nullable = false)

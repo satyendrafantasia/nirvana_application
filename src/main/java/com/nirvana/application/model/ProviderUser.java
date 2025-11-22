@@ -1,6 +1,7 @@
 package com.nirvana.application.model;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 
@@ -9,6 +10,11 @@ import java.time.OffsetDateTime;
         @Index(name = "idx_provider_email", columnList = "email"),
         @Index(name = "idx_provider_phone", columnList = "phone")
 })
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class ProviderUser extends BaseEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

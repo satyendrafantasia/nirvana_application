@@ -51,6 +51,19 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "service_id", nullable = false)
     private Service service;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "coupon_id")
+    private Coupon coupon;
+
+    @OneToOne(mappedBy = "booking", fetch = FetchType.LAZY)
+    private Invoice invoice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_membership_id")
+    private UserMembership userMembership;
+
+
+
     /**
      * The concrete time slot reserved by this booking.
      * We ALSO snapshot start/end below to survive slot changes.

@@ -2,6 +2,7 @@ package com.nirvana.application.model;
 
 import com.nirvana.application.model.enums.SlotStatus;
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 
@@ -9,6 +10,11 @@ import java.time.OffsetDateTime;
 @Table(name = "slot", indexes = {
         // existing indexes
 })
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class Slot extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,6 +51,11 @@ public class Slot extends BaseEntity {
 
     @Column(name = "room_number")
     private String roomNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id")
+    private SpaRoom room;
+
 
     @Column(name = "booked_units", nullable = false)
     private Short bookedUnits = 0;

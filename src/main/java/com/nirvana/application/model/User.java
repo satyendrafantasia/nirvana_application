@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,6 +53,21 @@ public class User extends BaseEntity {
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role")
     private Set<String> roles;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<UserFavoriteSpa> favoriteSpas;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<UserFavoriteTherapist> favoriteTherapists;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<UserMembership> memberships;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<NotificationLog> notifications;
+
+
+
 
     // security / auth
     @Column(name = "password_hash")
