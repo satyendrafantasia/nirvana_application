@@ -34,7 +34,7 @@ public class Review {
     @Column(length = 4000)
     private String text;
 
-    @Column(name = "images", columnDefinition = "jsonb")
+    @Column(name = "images", columnDefinition = "json")
     private String imagesJson;
 
     @Column(name = "is_visible", nullable = false)
@@ -56,7 +56,7 @@ public class Review {
     @Column(name = "reported_count", nullable = false)
     private Integer reportedCount = 0;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 }
 

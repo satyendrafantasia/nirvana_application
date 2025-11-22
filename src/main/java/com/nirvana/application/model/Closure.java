@@ -63,7 +63,7 @@ public class Closure {
     @Column(name = "reason", length = 1000)
     private String reason;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     @Version

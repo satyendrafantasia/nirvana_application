@@ -159,19 +159,19 @@ public class Booking extends BaseEntity {
     /**
      * Snapshot of policies (cancellation, no-show, late arrival) at booking time.
      */
-    @Column(name = "policy_snapshot", columnDefinition = "jsonb", nullable = false)
+    @Column(name = "policy_snapshot", columnDefinition = "json", nullable = false)
     private String policySnapshotJson;
 
     /**
      * Detailed tax breakdown snapshot (CGST/SGST, rates per line item, etc.).
      */
-    @Column(name = "tax_breakdown", columnDefinition = "jsonb")
+    @Column(name = "tax_breakdown", columnDefinition = "json")
     private String taxBreakdownJson;
 
     /**
      * Add-ons / products sold with this booking (snapshot).
      */
-    @Column(name = "items", columnDefinition = "jsonb")
+    @Column(name = "items", columnDefinition = "json")
     private String itemsJson;
 
     // -------- RELATION TO PAYMENT --------
@@ -202,7 +202,7 @@ public class Booking extends BaseEntity {
     @Column(name = "ip_address", length = 64)
     private String ipAddress;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     @Version

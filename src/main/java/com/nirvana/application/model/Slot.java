@@ -55,7 +55,7 @@ public class Slot extends BaseEntity {
     @Column(name = "is_blocked", nullable = false)
     private Boolean isBlocked = false; // admin block
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     @Version

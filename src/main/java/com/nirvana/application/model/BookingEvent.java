@@ -53,7 +53,7 @@ public class BookingEvent {
     private Long actorId;          // Id of user/provider/system entity
 
     // ---- PAYLOAD ----
-    @Column(name = "event_payload", columnDefinition = "jsonb")
+    @Column(name = "event_payload", columnDefinition = "json")
     private String eventPayloadJson;   // Extra context for audit
 
     // ---- TIMESTAMP ----

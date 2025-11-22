@@ -61,9 +61,9 @@ public class ScheduleRule {
     private String note;
 
     /**
-     * Optional metadata for future fields; keep as jsonb text.
+     * Optional metadata for future fields; keep as json text.
      */
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     @Version

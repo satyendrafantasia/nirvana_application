@@ -79,23 +79,23 @@ public class Service extends BaseEntity {
     @Column(name = "max_persons", nullable = false)
     private Integer maxPersons = 1;
 
-    @Column(name = "images", columnDefinition = "jsonb")
+    @Column(name = "images", columnDefinition = "json")
     private String imagesJson;
-    @Column(name = "equipment_required", columnDefinition = "text[]")
+    @Column(name = "equipment_required", columnDefinition = "json")
     private String[] equipmentRequired;
     @Column(name = "therapist_gender_preference")
     private String therapistGenderPreference;
 
-    @Column(name = "cancellation_policy_json", columnDefinition = "jsonb")
+    @Column(name = "cancellation_policy_json", columnDefinition = "json")
     private String cancellationPolicyJson;
 
-    @Column(name = "price_breakdown", columnDefinition = "jsonb")
+    @Column(name = "price_breakdown", columnDefinition = "json")
     private String priceBreakdownJson; // taxes, service fee etc.
 
     @Column(name = "is_visible_on_marketplace", nullable = false)
     private Boolean isVisibleOnMarketplace = true;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
 

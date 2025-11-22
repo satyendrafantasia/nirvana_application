@@ -12,7 +12,7 @@ import java.util.Set;
 /**
  * Therapist (provider) representing a person who delivers services at a Spa.
  *
- * - imagesJson : jsonb array of image URLs and meta (preferred for flexible metadata).
+ * - imagesJson : json array of image URLs and meta (preferred for flexible metadata).
  * - services : Many-to-many mapping to Service entity (the services this therapist can deliver).
  * - reviewsJson : lightweight JSON blob (list of review ids or small summaries). Replace with relation if you need referential integrity.
  */
@@ -61,8 +61,8 @@ public class Therapist extends BaseEntity {
     @Column(name = "profile_image_url", length = 1000)
     private String profileImageUrl;
 
-    // Multiple images stored as jsonb: [{"url":"...","alt":"...","order":1}, ...]
-    @Column(name = "images", columnDefinition = "jsonb")
+    // Multiple images stored as json: [{"url":"...","alt":"...","order":1}, ...]
+    @Column(name = "images", columnDefinition = "json")
     private String imagesJson;
 
     // Services offered (join table)
@@ -96,12 +96,12 @@ public class Therapist extends BaseEntity {
     @Column(name = "country_of_origin", length = 128)
     private String countryOfOrigin;
 
-    // Languages as text[] in DB (Postgres) for quick filtering
-    @Column(name = "languages", columnDefinition = "text[]")
+    // Languages as json in DB (Postgres) for quick filtering
+    @Column(name = "languages", columnDefinition = "json")
     private String[] languages;
 
     // Certifications and qualifications
-    @Column(name = "certifications", columnDefinition = "jsonb")
+    @Column(name = "certifications", columnDefinition = "json")
     private String certificationsJson;
 
     // Rating aggregates (materialized for fast reads)
@@ -112,7 +112,7 @@ public class Therapist extends BaseEntity {
     private Integer ratingCount = 0;
 
     // Optionally retain a small reviews summary or list of review ids; consider separate table for full reviews
-    @Column(name = "reviews", columnDefinition = "jsonb")
+    @Column(name = "reviews", columnDefinition = "json")
     private String reviewsJson;
 
     // Pricing & experience
@@ -133,7 +133,7 @@ public class Therapist extends BaseEntity {
     private Boolean isAvailable = true; // quick flag for real-time availability
 
     // flexible metadata
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     // optimistic locking

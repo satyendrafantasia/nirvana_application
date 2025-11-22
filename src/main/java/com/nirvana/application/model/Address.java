@@ -67,7 +67,7 @@ public class Address {
     private String geoSource; // MANUAL, GPS, GOOGLE_AUTOCOMPLETE
 
     // Flexible extension
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     // equals & hashcode remain same as yours

@@ -32,11 +32,11 @@ public class ProviderUser extends BaseEntity {
     private OffsetDateTime terminationDate;
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
-    @Column(name = "work_hours_json", columnDefinition = "jsonb")
+    @Column(name = "work_hours_json", columnDefinition = "json")
     private String workHoursJson; // detailed schedule
 
     // credentials & certifications
-    @Column(name = "certifications", columnDefinition = "jsonb")
+    @Column(name = "certifications", columnDefinition = "json")
     private String certificationsJson;
     @Column(name = "id_doc_url")
     private String idDocUrl;
@@ -48,14 +48,14 @@ public class ProviderUser extends BaseEntity {
     private String payoutMethod;
 
     // extra
-    @Column(name = "languages", columnDefinition = "text[]")
+    @Column(name = "languages", columnDefinition = "json")
     private String[] languages;
     @Column(name = "rating_avg")
     private Float ratingAvg = 0f;
     @Column(name = "rating_count")
     private Integer ratingCount = 0;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 
     @Version

@@ -103,13 +103,13 @@ public class Spa extends BaseEntity {
     private Long totalBookings = 0L;
 
     // images, amenities, tags
-    @Column(name = "images", columnDefinition = "jsonb")
+    @Column(name = "images", columnDefinition = "json")
     private String imagesJson;
 
-    @Column(name = "amenities", columnDefinition = "text[]")
+    @Column(name = "amenities", columnDefinition = "json")
     private String[] amenities;
 
-    @Column(name = "tags", columnDefinition = "text[]")
+    @Column(name = "tags", columnDefinition = "json")
     private String[] tags;
 
     // policies & financials
@@ -140,7 +140,7 @@ public class Spa extends BaseEntity {
     @Column(name = "google_place_id", insertable = false, updatable = false)
     private String googlePlaceId;
 
-    @Column(name = "meta", columnDefinition = "jsonb" , insertable=false, updatable=false)
+    @Column(name = "meta", columnDefinition = "json" , insertable=false, updatable=false)
     private String metaJson;
 
     @Version

@@ -98,7 +98,7 @@ public class User extends BaseEntity {
     private OffsetDateTime deletedAt;
 
     // metadata
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "json")
     private String metaJson; // e.g. preferences, third-party ids
 
     @Version
