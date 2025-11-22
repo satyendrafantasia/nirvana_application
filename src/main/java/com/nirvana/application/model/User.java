@@ -41,8 +41,7 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean active = true;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
-    private Customer customer;
+
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(nullable = false)

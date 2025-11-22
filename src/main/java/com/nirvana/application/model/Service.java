@@ -2,8 +2,10 @@ package com.nirvana.application.model;
 
 import com.nirvana.application.model.enums.GenderAllowed;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 import java.util.HashSet;
@@ -13,6 +15,8 @@ import java.util.Set;
 @Table(name = "service", indexes = @Index(name = "idx_service_spa", columnList = "spa_id"))
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Service extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,7 +69,7 @@ public class Service extends BaseEntity {
 
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Therapist> therapists = new HashSet<>();
-    
+
     private Long version;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

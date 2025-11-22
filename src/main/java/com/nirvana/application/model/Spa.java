@@ -34,16 +34,14 @@ public class Spa extends BaseEntity {
     @Embedded
     private Address address;
 
-    @Column(nullable = false)
+    @Column(nullable = false ,  insertable=false, updatable=false)
     private String timezone; // e.g., Asia/Kolkata
 
     private String phone;
     private String email;
     private String websiteUrl;
 
-    @OneToMany(mappedBy = "spa", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
-    @Builder.Default
-    private List<Room> rooms = new ArrayList<>();
+
 
     @Column(name = "max_concurrent_services")
     private Integer maxConcurrentServices = 1;
@@ -139,10 +137,10 @@ public class Spa extends BaseEntity {
     private String instagramUrl;
 
     // optional: google place id if not in Address
-    @Column(name = "google_place_id", length = 255)
+    @Column(name = "google_place_id", insertable = false, updatable = false)
     private String googlePlaceId;
 
-    @Column(name = "meta", columnDefinition = "jsonb")
+    @Column(name = "meta", columnDefinition = "jsonb" , insertable=false, updatable=false)
     private String metaJson;
 
     @Version

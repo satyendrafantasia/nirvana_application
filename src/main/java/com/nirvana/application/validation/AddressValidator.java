@@ -1,8 +1,10 @@
+// java
 package com.nirvana.application.validation;
-
 
 import com.nirvana.application.model.Address;
 import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
 
 @Component
 public class AddressValidator {
@@ -35,16 +37,16 @@ public class AddressValidator {
             throw new IllegalArgumentException("Both latitude and longitude must be set together");
         }
 
-        // Lat/lon sanity (if present)
+        // Lat/lon sanity (if present) using BigDecimal comparisons
         if (address.getLatitude() != null) {
-            double lat = address.getLatitude();
-            if (lat < -90.0 || lat > 90.0) {
+            BigDecimal lat = address.getLatitude();
+            if (lat.compareTo(BigDecimal.valueOf(-90.0)) < 0 || lat.compareTo(BigDecimal.valueOf(90.0)) > 0) {
                 throw new IllegalArgumentException("Latitude out of range [-90,90]");
             }
         }
         if (address.getLongitude() != null) {
-            double lon = address.getLongitude();
-            if (lon < -180.0 || lon > 180.0) {
+            BigDecimal lon = address.getLongitude();
+            if (lon.compareTo(BigDecimal.valueOf(-180.0)) < 0 || lon.compareTo(BigDecimal.valueOf(180.0)) > 0) {
                 throw new IllegalArgumentException("Longitude out of range [-180,180]");
             }
         }

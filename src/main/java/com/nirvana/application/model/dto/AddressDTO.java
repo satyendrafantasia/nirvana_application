@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,8 +26,8 @@ public class AddressDTO {
     private String countryCode;
     private String googlePlaceId;
     private String formattedAddress;
-    private Double latitude;
-    private Double longitude;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private String timezone;
     private String addressType;
     private String geoSource;

@@ -3,7 +3,9 @@ package com.nirvana.application.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-@Entity
+import java.math.BigDecimal;
+
+@Embeddable
 @Getter
 @Setter
 @NoArgsConstructor
@@ -12,10 +14,7 @@ import lombok.*;
 @ToString(exclude = "metaJson")
 @EqualsAndHashCode
 public class Address {
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(nullable = false)
-    private Long id;
+
 
     @Column(name = "address_line1", nullable = false, length = 255)
     private String addressLine;
@@ -51,12 +50,12 @@ public class Address {
     @Column(name = "formatted_address", length = 500)
     private String formattedAddress;
 
-    // Latitude/Longitude
+    // Latitude/Longitude (use BigDecimal so precision/scale are meaningful)
     @Column(precision = 9, scale = 6)
-    private Double latitude;
+    private BigDecimal latitude;
 
     @Column(precision = 9, scale = 6)
-    private Double longitude;
+    private BigDecimal longitude;
 
     @Column(length = 50)
     private String timezone;

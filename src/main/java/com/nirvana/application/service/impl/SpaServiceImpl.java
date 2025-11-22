@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.ZoneId;
 
 @Service
@@ -168,8 +169,8 @@ public class SpaServiceImpl implements SpaService {
                 .landmark(dto.getLandmark())
                 .country(dto.getCountry())
                 .countryCode(dto.getCountryCode())
-                .latitude(dto.getLatitude())
-                .longitude(dto.getLongitude())
+                .latitude((dto.getLatitude()))
+                .longitude((dto.getLongitude()))
                 .build();
     }
 
