@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificationExecutor<Spa> {
@@ -121,4 +122,9 @@ public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificatio
             @Param("maxLon") double maxLon,
             org.springframework.data.domain.Pageable pageable
     );
+
+    // Only spas belonging to the logged-in spa owner (via SpaManager -> AppUser.id)
+    Optional<Spa> findByIdAndSpaManager_User_Id(Long id, Long userId);
+
+    List<Spa> findBySpaManager_User_Id(Long userId);
 }

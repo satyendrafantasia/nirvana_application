@@ -86,6 +86,15 @@
     enabled: true
     locations: "classpath:db/migration"
 
+  payments:
+    razorpay:
+      enabled: true
+      key-id: rzp_test_xxxxxxxx      # <-- PUBLIC key (goes to FE)
+      key-secret: your_secret_key    # <-- aka SALT, NEVER send to FE
+      webhook-secret: your_webhook_secret # for webhooks
+      currency: INR
+      auto-capture: true             # payment_capture = 1
+      description-prefix: "Nirvana Spa Booking"
 
 
 

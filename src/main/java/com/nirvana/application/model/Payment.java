@@ -65,6 +65,9 @@ public class Payment extends BaseEntity {
     @Column(name = "refunded_at")
     private OffsetDateTime refundedAt;
 
+    @Column(name = "created_at")
+    private OffsetDateTime createdAt;
+
     @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
 

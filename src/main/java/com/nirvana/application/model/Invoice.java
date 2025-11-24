@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.proxy.HibernateProxy;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
@@ -15,9 +14,10 @@ import java.util.Objects;
 })
 @Getter
 @Setter
-@ToString
+@ToString(exclude = {"booking", "user", "spa"})
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Invoice extends BaseEntity {
 
     @Id
@@ -29,39 +29,37 @@ public class Invoice extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "booking_id", nullable = false)
-    @ToString.Exclude
     private Booking booking;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-    @ToString.Exclude
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "spa_id", nullable = false)
-    @ToString.Exclude
     private Spa spa;
 
-    @Column(name = "amount_subtotal", nullable = false, precision = 38, scale = 2)
-    private BigDecimal amountSubtotal;
+    // amounts in smallest unit (paise/cents)
+    @Column(name = "amount_cents", nullable = false)
+    private Integer amountCents;
 
-    @Column(name = "tax_amount", nullable = false, precision = 38, scale = 2)
-    private BigDecimal taxAmount;
+    @Column(name = "tax_cents", nullable = false)
+    private Integer taxCents;
 
-    @Column(name = "discount_amount", nullable = false, precision = 38, scale = 2)
-    private BigDecimal discountAmount;
+    @Column(name = "discount_cents", nullable = false)
+    private Integer discountCents;
 
-    @Column(name = "amount_total", nullable = false, precision = 38, scale = 2)
-    private BigDecimal amountTotal;
+    @Column(name = "total_cents", nullable = false)
+    private Integer totalCents;
 
     @Column(name = "currency", nullable = false, length = 8)
     private String currency;
 
     @Column(name = "status", length = 32, nullable = false)
-    private String status; // GENERATED, SENT, PAID, VOID, etc. (string for now)
+    private String status; // GENERATED, SENT, PAID, VOID, etc.
 
     @Column(name = "invoice_pdf_url", length = 1000)
-    private String invoicePdfUrl;
+    private String pdfUrl;
 
     @Column(name = "issued_at", nullable = false)
     private OffsetDateTime issuedAt;
@@ -75,14 +73,16 @@ public class Invoice extends BaseEntity {
     @Version
     private Long version;
 
-    // getters/setters
-
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
         if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
+        Class<?> oEffectiveClass = o instanceof HibernateProxy
+                ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
         if (thisEffectiveClass != oEffectiveClass) return false;
         Invoice invoice = (Invoice) o;
         return getId() != null && Objects.equals(getId(), invoice.getId());
@@ -90,7 +90,8 @@ public class Invoice extends BaseEntity {
 
     @Override
     public final int hashCode() {
-        return this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass().hashCode() : getClass().hashCode();
+        return this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass().hashCode()
+                : getClass().hashCode();
     }
 }
-
