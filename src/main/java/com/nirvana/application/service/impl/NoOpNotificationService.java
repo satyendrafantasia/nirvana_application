@@ -19,4 +19,14 @@ public class NoOpNotificationService implements NotificationService {
     public void notifyCustomerBookingConfirmed(Booking booking) {
         log.debug("[notification] customer booking confirmed id={} ref={}", booking.getId(), booking.getBookingReference());
     }
+
+    @Override
+    public void notifyCustomerBookingCancelled(Booking booking) {
+        log.debug("[notification] customer booking cancelled id={} ref={}", booking.getId(), booking.getBookingReference());
+    }
+
+    @Override
+    public void notifySpaOwnerBookingCancelled(Booking booking) {
+        log.debug("[notification] spa owner booking cancelled id={} ref={}", booking.getId(), booking.getBookingReference());
+    }
 }

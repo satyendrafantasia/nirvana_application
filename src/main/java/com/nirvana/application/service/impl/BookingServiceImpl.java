@@ -4,39 +4,60 @@ import com.nirvana.application.model.Booking;
 import com.nirvana.application.model.Slot;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.User;
+import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
-import com.nirvana.application.model.dto.PaymentInitResponse;
+import com.nirvana.application.model.dto.BookingListResponse;
+import com.nirvana.application.model.dto.BookingSummaryResponse;
+import com.nirvana.application.model.dto.PagedResponse;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.CancellationActor;
 import com.nirvana.application.model.enums.PaymentMode;
+import com.nirvana.application.model.enums.PaymentStatus;
 import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.BookingRepository;
+import com.nirvana.application.repository.PaymentRepository;
+import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.SlotRepository;
 import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.repository.UserRepository;
-import com.nirvana.application.repository.ServiceRepository;
+import com.nirvana.application.service.BookingService;
+import com.nirvana.application.service.NotificationService;
+import com.nirvana.application.service.RefundService;
+import com.nirvana.application.utils.CancellationEligibility;
+import com.nirvana.application.utils.CancellationEvaluator;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class BookingService {
+@Slf4j
+public class BookingServiceImpl implements BookingService {
+
+    private static final int CANCELLATION_CUTOFF_MINUTES = 15;
 
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
     private final SlotRepository slotRepository;
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
+    private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
+    private final NotificationService notificationService;
+    private final RefundService refundService;
 
+    @Override
     @Transactional
     public BookingCreateResponse createBooking(Long userId, BookingCreateRequest request) {
         if (request == null) {
@@ -126,11 +147,119 @@ public class BookingService {
         BookingCreateResponse response = buildResponse(saved, totalCents);
 
         if (paymentMode == PaymentMode.ONLINE) {
-            PaymentInitResponse paymentInitResponse = paymentService.initiateRazorpayPayment(saved.getId());
-            response.setRazorpay(paymentInitResponse);
+            response.setRazorpay(paymentService.initiateRazorpayPayment(saved.getId()));
         }
 
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BookingListResponse listUserBookings(Long userId, BookingStatus status, Pageable pageable) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        Page<Booking> bookings = status == null
+                ? bookingRepository.findWithDetailsByUserId(userId, pageable)
+                : bookingRepository.findWithDetailsByUserIdAndStatus(userId, status, pageable);
+
+        List<BookingSummaryResponse> content = bookings.stream()
+                .map(booking -> toSummaryResponse(booking, CancellationEvaluator.evaluateCancellation(booking, now, CANCELLATION_CUTOFF_MINUTES)))
+                .toList();
+
+        PagedResponse<BookingSummaryResponse> page = new PagedResponse<>(
+                content,
+                bookings.getNumber(),
+                bookings.getSize(),
+                bookings.getTotalElements(),
+                bookings.getTotalPages());
+
+        return new BookingListResponse(page);
+    }
+
+    @Override
+    @Transactional
+    public BookingCancelResponse cancelBooking(Long bookingId, Long userId) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
+
+        if (booking.getStatus() == BookingStatus.CANCELLED
+                || booking.getStatus() == BookingStatus.COMPLETED
+                || booking.getStatus() == BookingStatus.NO_SHOW) {
+            throw new IllegalStateException("Booking cannot be cancelled in current status: " + booking.getStatus());
+        }
+
+        CancellationEligibility eligibility = CancellationEvaluator.evaluateCancellation(
+                booking, now, CANCELLATION_CUTOFF_MINUTES);
+        if (!eligibility.canCancel()) {
+            throw new IllegalStateException(eligibility.reason());
+        }
+
+        boolean refundInitiated = false;
+        Integer refundAmountCents = null;
+
+        if (booking.getPaymentMode() == PaymentMode.ONLINE) {
+            refundAmountCents = processRefundIfNeeded(booking, now);
+            refundInitiated = refundAmountCents != null && refundAmountCents > 0;
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelledAt(now);
+        booking.setCancellationReasonText("User cancelled booking");
+        booking.setCancelledBy(CancellationActor.USER);
+        booking.setLastStatusChangedAt(now);
+        bookingRepository.save(booking);
+
+        notificationService.notifyCustomerBookingCancelled(booking);
+        notificationService.notifySpaOwnerBookingCancelled(booking);
+
+        return BookingCancelResponse.builder()
+                .bookingId(booking.getId())
+                .bookingReference(booking.getBookingReference())
+                .status(booking.getStatus())
+                .refundInitiated(refundInitiated)
+                .refundAmountCents(refundAmountCents)
+                .refundStatus(booking.getRefundStatus())
+                .build();
+    }
+
+    private Integer processRefundIfNeeded(Booking booking, OffsetDateTime now) {
+        return paymentRepository
+                .findFirstByBookingIdAndPaymentStatusIn(
+                        booking.getId(),
+                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED))
+                .map(payment -> {
+                    refundService.processRefund(payment, booking);
+                    payment.setPaymentStatus(PaymentStatus.REFUNDED);
+                    payment.setRefundedCents(payment.getAmountCents());
+                    payment.setRefundedAt(now);
+                    paymentRepository.save(payment);
+                    booking.setRefundStatus(RefundStatus.COMPLETED);
+                    bookingRepository.save(booking);
+                    return payment.getAmountCents();
+                })
+                .orElse(null);
+    }
+
+    private BookingSummaryResponse toSummaryResponse(Booking booking, CancellationEligibility eligibility) {
+        return BookingSummaryResponse.builder()
+                .bookingId(booking.getId())
+                .bookingReference(booking.getBookingReference())
+                .spaId(booking.getSpa().getId())
+                .spaName(booking.getSpa().getName())
+                .spaCity(booking.getSpa().getAddress() != null ? booking.getSpa().getAddress().getCity() : null)
+                .spaAddressLine(booking.getSpa().getAddress() != null ? booking.getSpa().getAddress().getFormattedAddress() : null)
+                .serviceId(booking.getService().getId())
+                .serviceName(booking.getService().getName())
+                .serviceDurationMinutes(booking.getService().getDurationMin())
+                .servicePriceCents(booking.getService().getPriceCents())
+                .startTs(booking.getStartTs())
+                .endTs(booking.getEndTs())
+                .status(booking.getStatus())
+                .paymentMode(booking.getPaymentMode())
+                .canCancel(eligibility.canCancel())
+                .cancellationReason(eligibility.reason())
+                .build();
     }
 
     private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests) {
