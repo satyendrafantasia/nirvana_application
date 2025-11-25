@@ -19,9 +19,37 @@ CREATE TABLE IF NOT EXISTS booking_hold (
     CONSTRAINT fk_booking_hold_slot FOREIGN KEY (slot_id) REFERENCES slot(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-DROP INDEX IF EXISTS idx_hold_user ON booking_hold;
+SET @booking_hold_idx_hold_user_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'booking_hold'
+      AND index_name = 'idx_hold_user'
+);
+SET @booking_hold_drop_idx_hold_user_sql = IF(
+    @booking_hold_idx_hold_user_exists > 0,
+    'DROP INDEX idx_hold_user ON booking_hold',
+    'SELECT 1'
+);
+PREPARE stmt FROM @booking_hold_drop_idx_hold_user_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 CREATE INDEX idx_hold_user ON booking_hold (user_id, expires_at);
-DROP INDEX IF EXISTS idx_hold_slot ON booking_hold;
+SET @booking_hold_idx_hold_slot_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'booking_hold'
+      AND index_name = 'idx_hold_slot'
+);
+SET @booking_hold_drop_idx_hold_slot_sql = IF(
+    @booking_hold_idx_hold_slot_exists > 0,
+    'DROP INDEX idx_hold_slot ON booking_hold',
+    'SELECT 1'
+);
+PREPARE stmt FROM @booking_hold_drop_idx_hold_slot_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 CREATE INDEX idx_hold_slot ON booking_hold (slot_id, expires_at);
 
 CREATE TABLE IF NOT EXISTS waitlist_entry (
@@ -47,7 +75,35 @@ CREATE TABLE IF NOT EXISTS waitlist_entry (
     CONSTRAINT fk_waitlist_slot FOREIGN KEY (slot_id) REFERENCES slot(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-DROP INDEX IF EXISTS idx_waitlist_slot ON waitlist_entry;
+SET @waitlist_entry_idx_slot_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'waitlist_entry'
+      AND index_name = 'idx_waitlist_slot'
+);
+SET @waitlist_entry_drop_idx_slot_sql = IF(
+    @waitlist_entry_idx_slot_exists > 0,
+    'DROP INDEX idx_waitlist_slot ON waitlist_entry',
+    'SELECT 1'
+);
+PREPARE stmt FROM @waitlist_entry_drop_idx_slot_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 CREATE INDEX idx_waitlist_slot ON waitlist_entry (slot_id, active, created_at);
-DROP INDEX IF EXISTS idx_waitlist_user ON waitlist_entry;
+SET @waitlist_entry_idx_user_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'waitlist_entry'
+      AND index_name = 'idx_waitlist_user'
+);
+SET @waitlist_entry_drop_idx_user_sql = IF(
+    @waitlist_entry_idx_user_exists > 0,
+    'DROP INDEX idx_waitlist_user ON waitlist_entry',
+    'SELECT 1'
+);
+PREPARE stmt FROM @waitlist_entry_drop_idx_user_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 CREATE INDEX idx_waitlist_user ON waitlist_entry (user_id, active, created_at);
