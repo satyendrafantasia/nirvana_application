@@ -54,7 +54,7 @@ public class CommunicationServiceImpl implements CommunicationService {
         String title = render(template.getSubject(), variables);
         String body = render(template.getBody(), variables);
 
-        NotificationLog log = NotificationLog.builder()
+        NotificationLog logEntry = NotificationLog.builder()
                 .user(user)
                 .channel(request.getChannel())
                 .status(NotificationStatus.SENT)
@@ -66,7 +66,7 @@ public class CommunicationServiceImpl implements CommunicationService {
                 .sentAt(OffsetDateTime.now(ZoneOffset.UTC))
                 .build();
 
-        NotificationLog saved = notificationLogRepository.save(log);
+        NotificationLog saved = notificationLogRepository.save(logEntry);
         log.info("Queued notification {} for user {} via {}", saved.getId(), userId, request.getChannel());
         return toResponse(saved);
     }
