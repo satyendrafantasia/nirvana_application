@@ -130,5 +130,23 @@
       secret: ${JWT_SECRET:change-me-to-a-strong-secret}
       expiration-minutes: 1440
 
+  reliability:
+    rate-limiting:
+      enabled: true
+      requests: 120
+      window-seconds: 60
+      block-seconds: 120
+      captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:demo-captcha}
+      whitelist-paths:
+        - /management/health
+        - /management/info
+
+  currency:
+    base: INR
+    rates:
+      INR: 1.0
+      USD: 0.012
+      EUR: 0.011
+
 
 

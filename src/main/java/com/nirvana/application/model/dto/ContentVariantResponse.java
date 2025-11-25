@@ -13,4 +13,5 @@ public class ContentVariantResponse {
     private String variantKey;
     private String content;
     private Boolean isActive;
+    private String locale;
 }

@@ -95,6 +95,16 @@ public class User extends BaseEntity {
     private String preferredContactMethod; // "phone","email","whatsapp"
     @Column(name = "marketing_opt_in", nullable = false)
     private Boolean marketingOptIn = true;
+    @Column(name = "privacy_consent_version", length = 64)
+    private String privacyConsentVersion;
+    @Column(name = "privacy_consented_at")
+    private OffsetDateTime privacyConsentedAt;
+    @Column(name = "consent_source", length = 128)
+    private String consentSource;
+    @Column(name = "data_erasure_requested_at")
+    private OffsetDateTime dataErasureRequestedAt;
+    @Column(name = "data_erased_at")
+    private OffsetDateTime dataErasedAt;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private SpaManager spaManager;

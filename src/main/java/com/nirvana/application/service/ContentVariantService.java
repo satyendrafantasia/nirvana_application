@@ -6,7 +6,7 @@ import com.nirvana.application.model.dto.ContentVariantResponse;
 
 public interface ContentVariantService {
 
-    ContentVariantListResponse listActiveVariants(String experimentKey);
+    ContentVariantListResponse listActiveVariants(String experimentKey, String locale);
 
     ContentVariantResponse createVariant(ContentVariantRequest request);
 }

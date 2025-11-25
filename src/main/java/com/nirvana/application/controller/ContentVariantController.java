@@ -24,9 +24,10 @@ public class ContentVariantController {
 
     @GetMapping("/content-variants")
     public ContentVariantListResponse listVariants(
-            @RequestParam(value = "experimentKey", required = false) String experimentKey
+            @RequestParam(value = "experimentKey", required = false) String experimentKey,
+            @RequestParam(value = "locale", required = false) String locale
     ) {
-        return contentVariantService.listActiveVariants(experimentKey);
+        return contentVariantService.listActiveVariants(experimentKey, locale);
     }
 
     @PostMapping("/content-variants")
