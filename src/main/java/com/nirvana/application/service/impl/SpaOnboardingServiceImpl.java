@@ -7,6 +7,9 @@ import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.*;
 import com.nirvana.application.model.enums.KycStatus;
 import com.nirvana.application.repository.SpaRepository;
+import com.nirvana.application.repository.SpaManagerRepository;
+import com.nirvana.application.repository.UserRepository;
+import com.nirvana.application.service.AddressNormalizationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,17 +29,17 @@ import static java.util.stream.Collectors.toList;
 public class SpaOnboardingServiceImpl implements com.nirvana.application.service.SpaOnboardingService {
 
     private final SpaRepository spaRepository;
+    private final SpaManagerRepository spaManagerRepository;
+    private final UserRepository userRepository;
+    private final AddressNormalizationService addressNormalizationService;
     private final ObjectMapper objectMapper; // configure once as @Bean
-
-    // TODO: inject SpaManagerService / UserService to fetch SpaManager/AppUser properly.
-    // For now assume spaManager is set elsewhere or use a TODO marker.
 
     @Override
     @Transactional
     public SpaOnboardingSummaryResponse startOnboarding(Long ownerUserId,
                                                         SpaOnboardingStartRequest request) {
 
-        // In prod, you’d create/find SpaManager for this ownerUserId.
+        SpaManager spaManager = resolveSpaManager(ownerUserId);
         Spa spa = new Spa();
         spa.setName(request.getName());
         spa.setDescription(request.getDescription());
@@ -51,11 +54,13 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         spa.setKycStatus(KycStatus.PENDING);
 
         if (request.getAddress() != null) {
-            spa.setAddress(toAddress(request.getAddress()));
+            spa.setAddress(normalizeAddress(request.getAddress()));
+            if (spa.getAddress() != null) {
+                spa.setTimezone(spa.getAddress().getTimezone());
+            }
         }
 
-        // TODO set spaManager based on ownerUserId (after you wire SpaManager/AppUser)
-        // spa.setSpaManager(spaManager);
+        spa.setSpaManager(spaManager);
 
         Spa saved = spaRepository.save(spa);
         log.info("Started onboarding spa {} for ownerUserId={}", saved.getId(), ownerUserId);
@@ -109,7 +114,7 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
                                                       AddressDTO addressDto) {
         Spa spa = findOwnedSpa(ownerUserId, spaId);
 
-        spa.setAddress(toAddress(addressDto));
+        spa.setAddress(normalizeAddress(addressDto));
 
         // keep timezone column in sync if you really need the separate field
         if (spa.getAddress() != null) {
@@ -184,7 +189,28 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
                         "Spa not found or not owned by user: " + spaId));
     }
 
-    private Address toAddress(AddressDTO dto) {
+    private SpaManager resolveSpaManager(Long ownerUserId) {
+        User owner = userRepository.findById(ownerUserId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + ownerUserId));
+
+        if (owner.getSpaManager() != null) {
+            return owner.getSpaManager();
+        }
+
+        SpaManager existing = spaManagerRepository.findByUser_Id(ownerUserId)
+                .orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+
+        SpaManager created = SpaManager.builder()
+                .user(owner)
+                .build();
+        owner.setSpaManager(created);
+        return spaManagerRepository.save(created);
+    }
+
+    private Address normalizeAddress(AddressDTO dto) {
         if (dto == null) {
             return null;
         }
@@ -201,7 +227,7 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         a.setGooglePlaceId(dto.getGooglePlaceId());
         a.setFormattedAddress(dto.getFormattedAddress());
         a.setTimezone(dto.getTimezone());
-        return a;
+        return addressNormalizationService.normalize(a);
     }
 
     private SpaOnboardingSummaryResponse toSummary(Spa spa) {
