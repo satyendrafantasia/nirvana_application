@@ -30,9 +30,9 @@ public class BookingController {
 
     @PostMapping("/bookings")
     public BookingCreateResponse createBooking(
-            @RequestParam Long userId, // TODO: derive from authentication in real system
             @Valid @RequestBody BookingCreateRequest request
     ) {
+        Long userId = SecurityUtils.getCurrentUserId();
         return bookingService.createBooking(userId, request);
     }
 
