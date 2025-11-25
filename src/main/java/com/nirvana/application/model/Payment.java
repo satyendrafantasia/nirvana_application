@@ -41,7 +41,7 @@ public class Payment extends BaseEntity {
     @Column(nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.INIT;
 
-    @Column(unique = true, nullable = false)
+    @Column(unique = true)
     private String transactionId;
 
     @Column(nullable = false)

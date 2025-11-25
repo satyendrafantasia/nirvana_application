@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 
-@org.springframework.stereotype.Service
+@Service
 @Slf4j
 @RequiredArgsConstructor
 public class SlotAvailabilityService {
@@ -71,6 +71,9 @@ public class SlotAvailabilityService {
         if (Boolean.FALSE.equals(spa.getIsActive())) {
             throw new IllegalStateException("Spa is inactive");
         }
+        if (Boolean.FALSE.equals(spa.getIsVerified())) {
+            throw new IllegalStateException("Spa is not verified");
+        }
         if (Boolean.FALSE.equals(service.getIsActive())) {
             throw new IllegalStateException("Service is inactive");
         }
@@ -116,7 +119,7 @@ public class SlotAvailabilityService {
                     List<ScheduleRule> rules = rulesByDate.getOrDefault(d, List.of());
                     return isSlotBookable(slot, rules, closures, zoneId, guests);
                 })
-                .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey())))
+                .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey(), guests)))
                 .collect(Collectors.groupingBy(
                         Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())
@@ -197,21 +200,27 @@ public class SlotAvailabilityService {
         return ZoneId.systemDefault().getId();
     }
 
-    private SlotAvailabilityResponse toDto(Slot slot) {
+    private SlotAvailabilityResponse toDto(Slot slot, int guests) {
         short capacity = slot.getCapacityUnit();
         short booked = slot.getBookedUnits();
-        short remaining = (short) Math.max(0, capacity - booked);
+        int remaining = Math.max(0, capacity - booked);
+
+        String uiStatus;
+        if (Boolean.TRUE.equals(slot.getIsBlocked())) {
+            uiStatus = "BLOCKED";
+        } else if (remaining < guests) {
+            uiStatus = "FULL";
+        } else {
+            uiStatus = "AVAILABLE";
+        }
 
         return new SlotAvailabilityResponse(
                 slot.getId(),
                 slot.getStartTs(),
                 slot.getEndTs(),
-                capacity,
-                booked,
                 remaining,
-                Boolean.TRUE.equals(slot.getIsBlocked()),
-                slot.getStatus().name(),
-                slot.getRoomNumber()
+                slot.getRoomNumber(),
+                uiStatus
         );
     }
 }

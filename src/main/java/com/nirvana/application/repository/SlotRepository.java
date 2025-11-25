@@ -61,6 +61,7 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
           AND s.endTs <= :endTs
           AND s.isBlocked = false
           AND s.status = com.nirvana.application.model.enums.SlotStatus.OPEN
+          AND s.bookedUnits < s.capacityUnit
         ORDER BY s.startTs ASC
         """)
     List<Slot> findSlotsForServiceBetween(
