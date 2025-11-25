@@ -11,10 +11,8 @@ public final class SecurityUtils {
     public static Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
-            return principal.id();
+            return principal.getId();
         }
         throw new IllegalStateException("Unauthenticated request");
     }
-
-    public record UserPrincipal(Long id, String email) {}
 }
