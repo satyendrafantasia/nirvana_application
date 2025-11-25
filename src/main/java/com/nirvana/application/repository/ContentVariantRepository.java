@@ -10,4 +10,8 @@ public interface ContentVariantRepository extends JpaRepository<ContentVariant, 
     List<ContentVariant> findByIsActiveTrueOrderByCreatedAtDesc();
 
     List<ContentVariant> findByIsActiveTrueAndExperimentKeyOrderByCreatedAtDesc(String experimentKey);
+
+    List<ContentVariant> findByIsActiveTrueAndExperimentKeyAndLocaleOrderByCreatedAtDesc(String experimentKey, String locale);
+
+    List<ContentVariant> findByIsActiveTrueAndLocaleOrderByCreatedAtDesc(String locale);
 }

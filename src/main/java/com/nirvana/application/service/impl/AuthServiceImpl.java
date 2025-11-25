@@ -46,6 +46,10 @@ public class AuthServiceImpl implements AuthService {
             throw new EntityExistsException("Username already exists");
         }
 
+        if (!Boolean.TRUE.equals(request.getAcceptPrivacyPolicy())) {
+            throw new IllegalArgumentException("User must accept privacy policy to register");
+        }
+
         RoleType roleType = Optional.ofNullable(request.getRoleType()).orElse(RoleType.CUSTOMER);
         Role role = Optional.ofNullable(roleRepository.findByRoleType(roleType))
                 .orElseThrow(() -> new EntityNotFoundException("Role not configured: " + roleType));
@@ -60,7 +64,12 @@ public class AuthServiceImpl implements AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .active(true)
                 .isActive(true)
-                .timezone("UTC")
+                .timezone(Optional.ofNullable(request.getTimezone()).orElse("UTC"))
+                .locale(request.getLocale())
+                .marketingOptIn(Optional.ofNullable(request.getMarketingOptIn()).orElse(Boolean.TRUE))
+                .privacyConsentVersion(Optional.ofNullable(request.getConsentVersion()).orElse("v1"))
+                .consentSource(request.getConsentSource())
+                .privacyConsentedAt(OffsetDateTime.now())
                 .build();
 
         User saved = userRepository.save(user);
