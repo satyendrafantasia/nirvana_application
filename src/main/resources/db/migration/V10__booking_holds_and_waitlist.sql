@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS booking_hold (
     CONSTRAINT fk_booking_hold_slot FOREIGN KEY (slot_id) REFERENCES slot(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+ALTER TABLE booking_hold
+    ADD COLUMN IF NOT EXISTS hold_units INTEGER NOT NULL DEFAULT 1;
+
 -- Do not drop idx_hold_user because it backs the foreign key. Instead, create a
 -- dedicated composite index for the expires_at lookup when missing.
 SET @booking_hold_idx_user_expires_exists = (
