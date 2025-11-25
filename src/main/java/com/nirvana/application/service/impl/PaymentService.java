@@ -6,10 +6,12 @@ import com.nirvana.application.model.dto.PaymentInitResponse;
 import com.nirvana.application.model.dto.PaymentLinkInitResponse;
 import com.nirvana.application.model.dto.RazorpayConfirmRequest;
 import com.nirvana.application.model.enums.BookingStatus;
+import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.service.InvoiceService;
+import com.nirvana.application.service.NotificationService;
 import com.razorpay.Order;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
@@ -41,6 +43,7 @@ public class PaymentService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final InvoiceService invoiceService; // you already have this
+    private final NotificationService notificationService;
 
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
 
@@ -55,6 +58,9 @@ public class PaymentService {
 
         if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
             throw new IllegalStateException("Booking not in PENDING_PAYMENT: " + booking.getStatus());
+        }
+        if (booking.getPaymentMode() != PaymentMode.ONLINE) {
+            throw new IllegalStateException("Payment can only be initiated for ONLINE mode bookings");
         }
 
         // idempotent: reuse existing INIT/PENDING payment if it exists
@@ -130,6 +136,10 @@ public class PaymentService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
+        if (booking.getPaymentMode() != PaymentMode.ONLINE) {
+            throw new IllegalStateException("Cannot confirm payment for OFFLINE bookings");
+        }
+
         Payment payment = paymentRepository
                 .findByBookingIdAndGateway(bookingId, GATEWAY_RAZORPAY)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -171,12 +181,18 @@ public class PaymentService {
             payment.setTransactionId(request.getRazorpayPaymentId());
             paymentRepository.save(payment);
 
+            BookingStatus previousStatus = booking.getStatus();
             booking.setStatus(BookingStatus.CONFIRMED);
             booking.setLastStatusChangedAt(OffsetDateTime.now(ZoneOffset.UTC));
             bookingRepository.save(booking);
 
             // Generate invoice (idempotent)
             invoiceService.generateInvoiceForBooking(bookingId);
+
+            if (previousStatus != BookingStatus.CONFIRMED) {
+                notificationService.notifySpaOwnerBookingConfirmed(booking);
+                notificationService.notifyCustomerBookingConfirmed(booking);
+            }
 
             log.info("Payment {} confirmed for booking {}",
                     payment.getTransactionId(), bookingId);

@@ -1,6 +1,7 @@
 package com.nirvana.application.model;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.BookingChannel;
+import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.model.enums.CancellationActor;
 import jakarta.persistence.*;
@@ -111,6 +112,10 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private BookingStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_mode", length = 16)
+    private PaymentMode paymentMode;
 
 
     @Enumerated(EnumType.STRING)

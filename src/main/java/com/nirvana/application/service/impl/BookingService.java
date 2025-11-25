@@ -1,20 +1,29 @@
 package com.nirvana.application.service.impl;
 
-// src/main/java/com/nirvana/application/service/BookingService.java
-
-import com.nirvana.application.model.*;
-import com.nirvana.application.model.dto.BookingResponse;
-import com.nirvana.application.model.dto.CreateBookingRequest;
+import com.nirvana.application.model.Booking;
+import com.nirvana.application.model.Slot;
+import com.nirvana.application.model.Spa;
+import com.nirvana.application.model.User;
+import com.nirvana.application.model.dto.BookingCreateRequest;
+import com.nirvana.application.model.dto.BookingCreateResponse;
+import com.nirvana.application.model.dto.PaymentInitResponse;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.CancellationActor;
-import com.nirvana.application.model.enums.ScheduledBy;
-import com.nirvana.application.repository.*;
+import com.nirvana.application.model.enums.PaymentMode;
+import com.nirvana.application.model.enums.RefundStatus;
+import com.nirvana.application.model.enums.SlotStatus;
+import com.nirvana.application.repository.BookingRepository;
+import com.nirvana.application.repository.SlotRepository;
+import com.nirvana.application.repository.SpaRepository;
+import com.nirvana.application.repository.UserRepository;
+import com.nirvana.application.repository.ServiceRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
@@ -24,123 +33,148 @@ public class BookingService {
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
     private final SlotRepository slotRepository;
-    private final UserRepository appUserRepository;
+    private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
+    private final PaymentService paymentService;
 
     @Transactional
-    public BookingResponse createBooking(
-            Long spaId,
-            Long serviceId,
-            Long slotId,
-            Long userId,
-            CreateBookingRequest request
-    ) {
+    public BookingCreateResponse createBooking(Long userId, BookingCreateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request must not be null");
         }
-        int guestCount = request.guestCount() != null ? request.guestCount() : 1;
-        if (guestCount <= 0) {
-            throw new IllegalArgumentException("guestCount must be > 0");
+        int guests = request.getGuests() != null ? request.getGuests() : 1;
+        if (guests <= 0) {
+            throw new IllegalArgumentException("guests must be > 0");
         }
 
-        Spa spa = spaRepository.findById(spaId)
-                .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + spaId));
+        Spa spa = spaRepository.findById(request.getSpaId())
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + request.getSpaId()));
+        if (Boolean.FALSE.equals(spa.getIsActive())) {
+            throw new IllegalStateException("Spa is inactive");
+        }
+        if (Boolean.FALSE.equals(spa.getIsVerified())) {
+            throw new IllegalStateException("Spa is not verified");
+        }
 
-        com.nirvana.application.model.Service service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new EntityNotFoundException("Service not found: " + serviceId));
-
+        com.nirvana.application.model.Service service = serviceRepository.findById(request.getServiceId())
+                .orElseThrow(() -> new EntityNotFoundException("Service not found: " + request.getServiceId()));
         if (!service.getSpa().getId().equals(spa.getId())) {
             throw new IllegalArgumentException("Service does not belong to Spa");
         }
+        if (Boolean.FALSE.equals(service.getIsActive())) {
+            throw new IllegalStateException("Service is inactive");
+        }
+        if (guests < service.getMinPersons() || guests > service.getMaxPersons()) {
+            throw new IllegalArgumentException("guests must be between minPersons and maxPersons for the service");
+        }
 
-        User user = appUserRepository.findById(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
 
-        // Lock slot row to prevent race conditions
-        Slot slot = slotRepository.findByIdForUpdate(slotId)
-                .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + slotId));
+        Slot slot = slotRepository.findByIdForUpdate(request.getSlotId())
+                .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + request.getSlotId()));
 
-        if (!slot.getSpa().getId().equals(spa.getId())) {
-            throw new IllegalArgumentException("Slot does not belong to Spa");
-        }
-        if (!slot.getService().getId().equals(service.getId())) {
-            throw new IllegalArgumentException("Slot does not belong to Service");
-        }
+        validateSlot(spa, service, slot, guests);
 
-        OffsetDateTime now = OffsetDateTime.now();
-        if (slot.getStartTs().isBefore(now)) {
-            throw new IllegalStateException("Cannot book a slot in the past");
-        }
+        PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
 
-        if (Boolean.TRUE.equals(slot.getIsBlocked())) {
-            throw new IllegalStateException("Slot is blocked");
-        }
-
-        if (slot.getStatus() != com.nirvana.application.model.enums.SlotStatus.OPEN) {
-            throw new IllegalStateException("Slot is not open for booking");
-        }
-
-        short capacity = slot.getCapacityUnit();
-        short booked = slot.getBookedUnits();
-        int remaining = capacity - booked;
-        if (remaining < guestCount) {
-            throw new IllegalStateException("Not enough capacity left in slot");
-        }
-
-        // pricing
-        String currency = service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency();
         int unitPrice = service.getPriceCents() != null
                 ? service.getPriceCents()
                 : (service.getBasePriceCents() != null ? service.getBasePriceCents() : 0);
-
-        int priceCents = unitPrice * guestCount;
-        int discountCents = 0;
-        int taxCents = 0;
-        int depositCents = 0;
-
-        // TODO: add pricing engine / tax engine later
-
-        String bookingRef = generateUniqueBookingReference();
+        int priceCents = unitPrice * guests;
+        int discountCents = 0; // placeholder for coupon/discount engine
+        int taxCents = calculateTax(spa, priceCents - discountCents);
+        int totalCents = priceCents + taxCents - discountCents;
 
         Booking booking = new Booking();
         booking.setSpa(spa);
         booking.setService(service);
         booking.setSlot(slot);
         booking.setUser(user);
-
-        booking.setBookingReference(bookingRef);
-        booking.setCurrency(currency);
-        booking.setGuestCount(guestCount);
+        booking.setBookingReference(generateUniqueBookingReference());
+        booking.setCurrency(service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency());
+        booking.setGuestCount(guests);
         booking.setPriceCents(priceCents);
         booking.setDiscountCents(discountCents);
         booking.setTaxCents(taxCents);
-        booking.setDepositCents(depositCents);
-        booking.setRemainderCents(priceCents + taxCents - discountCents - depositCents);
-
-        booking.setCustomerNotes(request.customerNotes());
-        booking.setIsTestBooking(Boolean.TRUE.equals(request.testBooking()));
-        booking.setCouponCode(request.couponCode());
-        booking.setIpAddress(request.clientIp());
-
+        booking.setDepositCents(0);
+        booking.setRemainderCents(totalCents);
+        booking.setRefundStatus(RefundStatus.NONE);
+        booking.setCustomerNotes(request.getSpecialRequest());
         booking.setStartTs(slot.getStartTs());
         booking.setEndTs(slot.getEndTs());
-
-        booking.setStatus(BookingStatus.PENDING_PAYMENT);
         booking.setScheduledBy(CancellationActor.USER);
-        booking.setRefundStatus(com.nirvana.application.model.enums.RefundStatus.NONE);
+        booking.setLastStatusChangedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        booking.setPaymentMode(paymentMode);
 
-        booking.setLastStatusChangedAt(now);
+        if (paymentMode == PaymentMode.OFFLINE) {
+            booking.setStatus(BookingStatus.CONFIRMED);
+        } else {
+            booking.setStatus(BookingStatus.PENDING_PAYMENT);
+        }
 
         Booking saved = bookingRepository.save(booking);
 
-        // update slot usage
-        slot.setBookedUnits((short) (booked + guestCount));
-        if (slot.getBookedUnits() >= capacity) {
-            slot.setStatus(com.nirvana.application.model.enums.SlotStatus.BOOKED);
+        // reserve capacity immediately to prevent overbooking even while payment is pending
+        short updatedUnits = (short) (slot.getBookedUnits() + guests);
+        slot.setBookedUnits(updatedUnits);
+        if (updatedUnits >= slot.getCapacityUnit()) {
+            slot.setStatus(SlotStatus.BOOKED);
         }
         slotRepository.save(slot);
 
-        return toResponse(saved);
+        BookingCreateResponse response = buildResponse(saved, totalCents);
+
+        if (paymentMode == PaymentMode.ONLINE) {
+            PaymentInitResponse paymentInitResponse = paymentService.initiateRazorpayPayment(saved.getId());
+            response.setRazorpay(paymentInitResponse);
+        }
+
+        return response;
+    }
+
+    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests) {
+        if (!slot.getSpa().getId().equals(spa.getId())) {
+            throw new IllegalArgumentException("Slot does not belong to Spa");
+        }
+        if (!slot.getService().getId().equals(service.getId())) {
+            throw new IllegalArgumentException("Slot does not belong to Service");
+        }
+        if (slot.getStartTs().isBefore(OffsetDateTime.now())) {
+            throw new IllegalStateException("Cannot book a slot in the past");
+        }
+        if (Boolean.TRUE.equals(slot.getIsBlocked())) {
+            throw new IllegalStateException("Slot is blocked");
+        }
+        if (slot.getStatus() != SlotStatus.OPEN) {
+            throw new IllegalStateException("Slot is not open for booking");
+        }
+        int remaining = slot.getCapacityUnit() - slot.getBookedUnits();
+        if (remaining < guests) {
+            throw new IllegalStateException("Not enough capacity left in slot");
+        }
+    }
+
+    private int calculateTax(Spa spa, int taxableAmount) {
+        Integer taxPercent = spa.getTaxPercent();
+        if (taxPercent == null || taxPercent <= 0) {
+            return 0;
+        }
+        return (int) Math.round(taxableAmount * (taxPercent / 100.0));
+    }
+
+    private BookingCreateResponse buildResponse(Booking booking, int totalCents) {
+        BookingCreateResponse response = new BookingCreateResponse();
+        response.setBookingId(booking.getId());
+        response.setBookingReference(booking.getBookingReference());
+        response.setStatus(booking.getStatus().name());
+        response.setPaymentMode(booking.getPaymentMode() != null ? booking.getPaymentMode().name() : null);
+        response.setPriceCents(booking.getPriceCents());
+        response.setTaxCents(booking.getTaxCents());
+        response.setDiscountCents(booking.getDiscountCents());
+        response.setTotalCents(totalCents);
+        response.setCurrency(booking.getCurrency());
+        return response;
     }
 
     private String generateUniqueBookingReference() {
@@ -150,25 +184,5 @@ public class BookingService {
                 return ref;
             }
         }
-    }
-
-    private BookingResponse toResponse(Booking booking) {
-        return new BookingResponse(
-                booking.getId(),
-                booking.getBookingReference(),
-                booking.getSpa().getId(),
-                booking.getService().getId(),
-                booking.getSlot().getId(),
-                booking.getUser().getId(),
-                booking.getStatus(),
-                booking.getGuestCount(),
-                booking.getPriceCents(),
-                booking.getTaxCents(),
-                booking.getDiscountCents(),
-                booking.getDepositCents(),
-                booking.getCurrency(),
-                booking.getStartTs(),
-                booking.getEndTs()
-        );
     }
 }

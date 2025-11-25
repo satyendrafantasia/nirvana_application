@@ -4,13 +4,10 @@ package com.nirvana.application.model.dto;
 import java.time.OffsetDateTime;
 
 public record SlotAvailabilityResponse(
-        Long id,
+        Long slotId,
         OffsetDateTime startTs,
         OffsetDateTime endTs,
-        short capacityUnit,
-        short bookedUnits,
-        short remainingUnits,
-        boolean blocked,
-        String status,
-        String roomNumber
+        int remainingCapacityUnits,
+        String roomNumber,
+        String status
 ) {}
