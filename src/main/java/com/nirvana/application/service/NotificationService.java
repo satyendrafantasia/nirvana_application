@@ -6,4 +6,8 @@ public interface NotificationService {
     void notifySpaOwnerBookingConfirmed(Booking booking);
 
     void notifyCustomerBookingConfirmed(Booking booking);
+
+    default void notifyCustomerBookingCancelled(Booking booking) {}
+
+    default void notifySpaOwnerBookingCancelled(Booking booking) {}
 }
