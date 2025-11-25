@@ -90,14 +90,14 @@ public class SlotAvailabilityService {
         // Fetch all closures overlapping the whole range
         List<Closure> closures = closureRepository.findClosuresOverlapping(spaId, from, to);
 
-        // Pre-group schedule rules by weekday to avoid hitting DB per slot
-        Map<Short, List<ScheduleRule>> rulesByWeekday = new HashMap<>();
+        // Pre-group schedule rules by date to avoid hitting DB per slot
+        Map<LocalDate, List<ScheduleRule>> rulesByDate = new HashMap<>();
         for (int i = 0; i < days; i++) {
             LocalDate date = startDate.plusDays(i);
             short weekday = (short) date.getDayOfWeek().getValue(); // 1=Mon..7=Sun
             List<ScheduleRule> rules =
                     scheduleRuleRepository.findApplicableRulesForDay(spaId, weekday, date);
-            rulesByWeekday.put(weekday, rules);
+            rulesByDate.put(date, rules);
         }
 
         // Group slots per local date and filter using schedule + closure + capacity rules
@@ -113,8 +113,7 @@ public class SlotAvailabilityService {
                 .filter(entry -> {
                     Slot slot = entry.getKey();
                     LocalDate d = entry.getValue();
-                    short weekday = (short) d.getDayOfWeek().getValue();
-                    List<ScheduleRule> rules = rulesByWeekday.getOrDefault(weekday, List.of());
+                    List<ScheduleRule> rules = rulesByDate.getOrDefault(d, List.of());
                     return isSlotBookable(slot, rules, closures, zoneId, guests);
                 })
                 .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey())))
