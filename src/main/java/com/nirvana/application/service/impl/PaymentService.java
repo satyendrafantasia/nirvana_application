@@ -90,13 +90,6 @@ public class PaymentService {
         );
         amountSubunits = conversion.convertedCents();
 
-        CurrencyConversionService.ConversionResult conversion = currencyConversionService.convert(
-                amountSubunits,
-                booking.getCurrency(),
-                razorpayProps.getCurrency()
-        );
-        amountSubunits = conversion.convertedCents();
-
         try {
             JSONObject orderReq = new JSONObject();
             orderReq.put("amount", amountSubunits);                    // paise
