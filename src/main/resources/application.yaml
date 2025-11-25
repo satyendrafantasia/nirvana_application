@@ -101,6 +101,9 @@
       auto-capture: true             # payment_capture = 1
       description-prefix: "Nirvana Spa Booking"
 
+  invoice:
+    pdf-base-url: https://cdn.nirvana.invalid/invoices
+
   notifications:
     sendgrid:
       enabled: false
