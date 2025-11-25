@@ -14,6 +14,7 @@ import com.nirvana.application.service.InvoiceService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final EmailService emailService;   // you can provide a NoOp impl for now
+
+    @Value("${invoice.pdf-base-url:https://cdn.nirvana.invalid/invoices/}")
+    private String invoicePdfBaseUrl;
 
     @Override
     @Transactional
@@ -61,8 +65,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         int discountCents = booking.getDiscountCents();
         int totalCents = amountCents + taxCents - discountCents;
 
+        String invoiceNumber = generateInvoiceNumber();
+
         Invoice invoice = Invoice.builder()
-                .invoiceNumber(generateInvoiceNumber())
+                .invoiceNumber(invoiceNumber)
                 .booking(booking)
                 .amountCents(amountCents)
                 .taxCents(taxCents)
@@ -70,7 +76,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .totalCents(totalCents)
                 .currency(booking.getCurrency())
                 .issuedAt(OffsetDateTime.now(ZoneOffset.UTC))
-                .pdfUrl(null)         // TODO: set after generating PDF
+                .pdfUrl(buildPdfUrl(invoiceNumber))
                 .metaJson(null)
                 .build();
 
@@ -127,6 +133,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                 return candidate;
             }
         }
+    }
+
+    private String buildPdfUrl(String invoiceNumber) {
+        if (invoicePdfBaseUrl.endsWith("/")) {
+            return invoicePdfBaseUrl + invoiceNumber + ".pdf";
+        }
+        return invoicePdfBaseUrl + "/" + invoiceNumber + ".pdf";
     }
 
     private InvoiceResponseDto toDto(Invoice invoice) {
