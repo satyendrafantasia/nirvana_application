@@ -127,4 +127,6 @@ public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificatio
     Optional<Spa> findByIdAndSpaManager_User_Id(Long id, Long userId);
 
     List<Spa> findBySpaManager_User_Id(Long userId);
+
+    Optional<Spa> findByAddress_GooglePlaceId(String googlePlaceId);
 }
