@@ -1,7 +1,6 @@
 package com.nirvana.application.service;
 
 import com.nirvana.application.model.InventoryCalendarEntry;
-import com.nirvana.application.model.Service;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.dto.InventoryCalendarResponse;
 import com.nirvana.application.model.dto.InventoryDayRequest;
@@ -44,7 +43,7 @@ public class InventoryCalendarService {
         Spa spa = spaRepository.findById(request.getSpaId())
                 .orElseThrow(() -> new IllegalArgumentException("Spa not found for inventory"));
 
-        Service service = null;
+        com.nirvana.application.model.Service service = null;
         if (request.getServiceId() != null) {
             service = serviceRepository.findById(request.getServiceId())
                     .orElseThrow(() -> new IllegalArgumentException("Service not found"));
