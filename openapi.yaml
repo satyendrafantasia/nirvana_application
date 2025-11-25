@@ -1,0 +1,2567 @@
+openapi: 3.0.3
+info:
+  title: Nirvana SPA Booking API
+  version: 0.0.1-SNAPSHOT
+  description: API specification for the Nirvana single page application booking backend.
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+  - url: https://api.nirvana.local/api
+    description: Production server (example)
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationDTO'
+      responses:
+        '200':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and return JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /privacy/consent:
+    post:
+      tags: [Compliance]
+      summary: Update user consent and preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentUpdateRequest'
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+  /privacy/erase:
+    post:
+      tags: [Compliance]
+      summary: Request user data erasure
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataErasureRequest'
+      responses:
+        '200':
+          description: User flagged for erasure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create a booking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+      responses:
+        '200':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCreateResponse'
+  /me/bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/BookingStatus'
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Booking list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingListResponse'
+  /bookings/{bookingId}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Cancel a booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Cancellation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCancelResponse'
+  /bookings/{bookingId}/payments/razorpay/order:
+    post:
+      tags: [Payments]
+      summary: Create Razorpay order for a booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Payment initiation info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitResponse'
+  /bookings/{bookingId}/payments/razorpay/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirm Razorpay payment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RazorpayConfirmRequest'
+      responses:
+        '200':
+          description: Payment confirmed
+  /bookings/{bookingId}/payments/razorpay/retry:
+    post:
+      tags: [Payments]
+      summary: Retry Razorpay payment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: New payment order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitResponse'
+  /bookings/{bookingId}/payments/razorpay/payment-link:
+    post:
+      tags: [Payments]
+      summary: Create Razorpay payment link
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Payment link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkInitResponse'
+  /payments/razorpay/webhook:
+    post:
+      tags: [Payments]
+      summary: Handle Razorpay webhook callbacks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+        '400':
+          description: Invalid signature
+  /bookings/{bookingId}/refunds:
+    post:
+      tags: [Refunds]
+      summary: Request a refund for a booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequestDto'
+      responses:
+        '200':
+          description: Refund request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResponseDto'
+  /bookings/{bookingId}/refunds/latest:
+    get:
+      tags: [Refunds]
+      summary: Get latest refund for a booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Latest refund
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResponseDto'
+  /bookings/{bookingId}/refunds/approve:
+    post:
+      tags: [Refunds]
+      summary: Approve or process a refund (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRefundDecisionRequest'
+      responses:
+        '200':
+          description: Refund decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResponseDto'
+  /bookings/{bookingId}/vouchers:
+    post:
+      tags: [Refunds]
+      summary: Issue a voucher for a booking (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherIssueRequest'
+      responses:
+        '200':
+          description: Voucher issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoucherResponse'
+  /bookings/{bookingId}/invoice/pdf:
+    post:
+      tags: [Invoices]
+      summary: Generate invoice PDF for booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Invoice generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponseDto'
+  /spas:
+    post:
+      tags: [Spas]
+      summary: Create a spa
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaRequestDTO'
+      responses:
+        '200':
+          description: Spa created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaResponseDTO'
+  /spas/{id}:
+    get:
+      tags: [Spas]
+      summary: Get spa details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Spa details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaDetailResponse'
+    put:
+      tags: [Spas]
+      summary: Update spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaRequestDTO'
+      responses:
+        '200':
+          description: Spa updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaResponseDTO'
+    delete:
+      tags: [Spas]
+      summary: Deactivate spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Spa deactivated
+  /spas/{id}/services:
+    get:
+      tags: [Spas]
+      summary: List services for a spa
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Services for spa
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceSummaryResponse'
+  /spas/search:
+    get:
+      tags: [SpaSearch]
+      summary: Search spas with filters and pagination
+      parameters:
+        - in: query
+          name: city
+          schema: { type: string }
+        - in: query
+          name: countryCode
+          schema: { type: string }
+        - in: query
+          name: locality
+          schema: { type: string }
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: minRating
+          schema: { type: number, format: float }
+        - in: query
+          name: serviceId
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: serviceName
+          schema: { type: string }
+        - in: query
+          name: serviceCategory
+          schema: { type: string }
+        - in: query
+          name: minLat
+          schema: { type: number, format: double }
+        - in: query
+          name: maxLat
+          schema: { type: number, format: double }
+        - in: query
+          name: minLon
+          schema: { type: number, format: double }
+        - in: query
+          name: maxLon
+          schema: { type: number, format: double }
+        - in: query
+          name: centerLat
+          schema: { type: number, format: double }
+        - in: query
+          name: centerLon
+          schema: { type: number, format: double }
+        - in: query
+          name: radiusKm
+          schema: { type: number, format: double }
+        - in: query
+          name: sort
+          schema: { type: string, default: featured }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: Paged spa search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedSpaSummaryResponse'
+  /spas/nearby:
+    get:
+      tags: [SpaDiscovery]
+      summary: List spas near coordinates
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: lon
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: radiusKm
+          schema: { type: number, format: double }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Nearby spas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpaSummaryResponse'
+  /spas/recommendations:
+    get:
+      tags: [SpaDiscovery]
+      summary: Recommend spas near coordinates
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: lon
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: radiusKm
+          schema: { type: number, format: double }
+        - in: query
+          name: minRating
+          schema: { type: number, format: float }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 5 }
+      responses:
+        '200':
+          description: Recommended spas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedSpaSummaryResponse'
+  /spas/{spaId}/services/{serviceId}/slots/week:
+    get:
+      tags: [Slots]
+      summary: Get slot availability for a week
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: path
+          name: serviceId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+        - in: query
+          name: days
+          schema: { type: integer, default: 7, minimum: 1, maximum: 14 }
+        - in: query
+          name: guests
+          schema: { type: integer, default: 1, minimum: 1 }
+      responses:
+        '200':
+          description: Week slots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekSlotsResponse'
+  /spas/{spaId}/services/{serviceId}/slots:
+    get:
+      tags: [Slots]
+      summary: Get slot availability for a day
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: path
+          name: serviceId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: date
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: guests
+          schema: { type: integer, default: 1, minimum: 1 }
+      responses:
+        '200':
+          description: Slots for date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SlotAvailabilityResponse'
+  /maps/route:
+    get:
+      tags: [Maps]
+      summary: Estimate route between coordinates
+      parameters:
+        - in: query
+          name: originLat
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: originLon
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: destinationLat
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: destinationLon
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: mode
+          schema: { type: string, default: driving }
+      responses:
+        '200':
+          description: Route estimate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MapRouteResponse'
+  /maps/eta/spa/{spaId}:
+    get:
+      tags: [Maps]
+      summary: Estimate route to spa from origin
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: originLat
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: originLon
+          required: true
+          schema: { type: number, format: double }
+        - in: query
+          name: mode
+          schema: { type: string, default: driving }
+      responses:
+        '200':
+          description: Route estimate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MapRouteResponse'
+  /maps/provider:
+    get:
+      tags: [Maps]
+      summary: Get active map provider configuration
+      responses:
+        '200':
+          description: Provider config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MapProviderConfigResponse'
+  /messages/threads:
+    post:
+      tags: [Messaging]
+      summary: Start a messaging thread
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageThreadCreateRequest'
+      responses:
+        '200':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageThreadResponse'
+    get:
+      tags: [Messaging]
+      summary: List message threads for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Threads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageThreadListResponse'
+  /messages/threads/{threadId}/messages:
+    get:
+      tags: [Messaging]
+      summary: List chat messages in a thread
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessageListResponse'
+    post:
+      tags: [Messaging]
+      summary: Post a chat message to a thread
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessageRequest'
+      responses:
+        '200':
+          description: Created message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessageResponse'
+  /messages/messages/{messageId}/moderate:
+    post:
+      tags: [Messaging]
+      summary: Moderate a chat message (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationDecisionRequest'
+      responses:
+        '200':
+          description: Moderation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessageResponse'
+  /notifications/send:
+    post:
+      tags: [Notifications]
+      summary: Send a notification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationSendRequest'
+      responses:
+        '200':
+          description: Notification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+  /notifications/me:
+    get:
+      tags: [Notifications]
+      summary: List notifications for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark a notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+  /notifications/templates:
+    post:
+      tags: [Notifications]
+      summary: Create or update a notification template (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTemplateRequest'
+      responses:
+        '200':
+          description: Saved template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplateResponse'
+    get:
+      tags: [Notifications]
+      summary: List notification templates (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationTemplateResponse'
+  /faqs:
+    get:
+      tags: [Content]
+      summary: List FAQs
+      parameters:
+        - in: query
+          name: category
+          schema: { type: string }
+      responses:
+        '200':
+          description: FAQ list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqListResponse'
+    post:
+      tags: [Content]
+      summary: Create a FAQ entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaqRequest'
+      responses:
+        '200':
+          description: Created FAQ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqResponse'
+  /content-variants:
+    get:
+      tags: [Content]
+      summary: List active content variants
+      parameters:
+        - in: query
+          name: experimentKey
+          schema: { type: string }
+        - in: query
+          name: locale
+          schema: { type: string }
+      responses:
+        '200':
+          description: Content variants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentVariantListResponse'
+    post:
+      tags: [Content]
+      summary: Create a content variant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentVariantRequest'
+      responses:
+        '200':
+          description: Created variant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentVariantResponse'
+  /reviews:
+    post:
+      tags: [Reviews]
+      summary: Submit a review
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        '200':
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+  /spas/{spaId}/reviews:
+    get:
+      tags: [Reviews]
+      summary: List reviews for a spa
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewListResponse'
+  /me/reviews:
+    get:
+      tags: [Reviews]
+      summary: List reviews submitted by current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: My reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewListResponse'
+  /onboarding/spas:
+    post:
+      tags: [SpaOnboarding]
+      summary: Start spa onboarding
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaOnboardingStartRequest'
+      responses:
+        '200':
+          description: Onboarding started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+    get:
+      tags: [SpaOnboarding]
+      summary: List spas owned by current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Owned spas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /onboarding/spas/{spaId}:
+    get:
+      tags: [SpaOnboarding]
+      summary: Get onboarding summary for owned spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Onboarding summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /onboarding/spas/{spaId}/details:
+    put:
+      tags: [SpaOnboarding]
+      summary: Update spa details during onboarding
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaOnboardingDetailsRequest'
+      responses:
+        '200':
+          description: Updated onboarding details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /onboarding/spas/{spaId}/address:
+    put:
+      tags: [SpaOnboarding]
+      summary: Update spa address during onboarding
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressDTO'
+      responses:
+        '200':
+          description: Updated address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /onboarding/spas/{spaId}/kyc:
+    put:
+      tags: [SpaOnboarding]
+      summary: Submit spa KYC details
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpaKycRequest'
+      responses:
+        '200':
+          description: KYC submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /onboarding/spas/drafts:
+    post:
+      tags: [SpaOnboarding]
+      summary: Save onboarding draft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingDraftRequest'
+      responses:
+        '200':
+          description: Draft saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingDraftResponse'
+    get:
+      tags: [SpaOnboarding]
+      summary: List onboarding drafts for owner
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Draft list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OnboardingDraftResponse'
+  /onboarding/spas/drafts/{resumeToken}:
+    get:
+      tags: [SpaOnboarding]
+      summary: Get onboarding draft by resume token
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resumeToken
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingDraftResponse'
+    delete:
+      tags: [SpaOnboarding]
+      summary: Delete onboarding draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resumeToken
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Draft deleted
+  /onboarding/spas/drafts/{resumeToken}/heartbeat:
+    post:
+      tags: [SpaOnboarding]
+      summary: Refresh onboarding draft heartbeat
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resumeToken
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Draft heartbeat updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingDraftResponse'
+  /onboarding/google-places/{placeId}:
+    post:
+      tags: [SpaOnboarding]
+      summary: Onboard a spa from Google Places
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: placeId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Onboarded spa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /admin/google-places/spas/{spaId}/approve:
+    post:
+      tags: [Admin]
+      summary: Approve imported spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Approved spa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaOnboardingSummaryResponse'
+  /admin/spas/{spaId}/kyc/approve:
+    post:
+      tags: [Admin]
+      summary: Approve spa KYC
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: KYC approved
+  /admin/spas/{spaId}/kyc/reject:
+    post:
+      tags: [Admin]
+      summary: Reject spa KYC
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: reason
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: KYC rejected
+  /admin/inventory/calendar:
+    get:
+      tags: [Admin]
+      summary: Get inventory calendar for spa/service
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: serviceId
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Inventory calendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryCalendarResponse'
+  /admin/inventory/day:
+    post:
+      tags: [Admin]
+      summary: Upsert inventory for a day
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryDayRequest'
+      responses:
+        '200':
+          description: Inventory saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryDayResponse'
+  /admin/support-overrides:
+    post:
+      tags: [Admin]
+      summary: Request support override
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportOverrideRequest'
+      responses:
+        '200':
+          description: Override created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportOverrideResponse'
+    get:
+      tags: [Admin]
+      summary: List support overrides for a spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Overrides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportOverrideResponse'
+  /admin/support-overrides/{id}:
+    put:
+      tags: [Admin]
+      summary: Resolve a support override
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportOverrideResolutionRequest'
+      responses:
+        '200':
+          description: Resolved override
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportOverrideResponse'
+  /admin/analytics/spa/{spaId}:
+    get:
+      tags: [Admin]
+      summary: Get analytics for a spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAnalyticsResponse'
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: List provider audit logs for a spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: spaId
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProviderAuditLogResponse'
+  /admin/blackouts:
+    post:
+      tags: [Admin]
+      summary: Create blackout window
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlackoutWindowRequest'
+      responses:
+        '200':
+          description: Blackout created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlackoutWindowResponse'
+    get:
+      tags: [Admin]
+      summary: List blackout windows for spa
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: spaId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of blackouts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlackoutWindowResponse'
+  /s3/upload:
+    post:
+      tags: [Files]
+      summary: Upload a file to S3
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Upload response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+  /s3/download/{key}:
+    get:
+      tags: [Files]
+      summary: Download a file from S3
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /s3/{key}:
+    delete:
+      tags: [Files]
+      summary: Delete a file from S3
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Deleted
+  /s3/url/{key}:
+    get:
+      tags: [Files]
+      summary: Get a public URL for a file
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: URL string
+          content:
+            application/json:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        token:
+          type: string
+        tokenType:
+          type: string
+          default: Bearer
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          maxLength: 20
+    UserRegistrationDTO:
+      type: object
+      required: [username, password, name, lastName]
+      properties:
+        username:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          maxLength: 20
+        name:
+          type: string
+        lastName:
+          type: string
+        roleType:
+          $ref: '#/components/schemas/RoleType'
+        marketingOptIn:
+          type: boolean
+          default: true
+        acceptPrivacyPolicy:
+          type: boolean
+          default: false
+        consentVersion:
+          type: string
+          default: v1
+        consentSource:
+          type: string
+          default: registration
+        timezone:
+          type: string
+          default: UTC
+        locale:
+          type: string
+          default: en
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        marketingOptIn:
+          type: boolean
+        acceptPrivacyPolicy:
+          type: boolean
+        consentVersion:
+          type: string
+        consentSource:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    ConsentUpdateRequest:
+      type: object
+      required: [consentVersion]
+      properties:
+        marketingOptIn:
+          type: boolean
+        acceptPrivacyPolicy:
+          type: boolean
+        consentVersion:
+          type: string
+          maxLength: 64
+        consentSource:
+          type: string
+          maxLength: 128
+        timezone:
+          type: string
+          maxLength: 64
+        locale:
+          type: string
+          maxLength: 16
+    DataErasureRequest:
+      type: object
+      required: [reason, confirmationKeyword]
+      properties:
+        reason:
+          type: string
+          maxLength: 256
+        confirmationKeyword:
+          type: string
+          maxLength: 16
+    BookingCreateRequest:
+      type: object
+      required: [spaId, serviceId, slotId, guests, paymentMode]
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        slotId:
+          type: integer
+          format: int64
+        guests:
+          type: integer
+          minimum: 1
+        paymentMode:
+          type: string
+          description: ONLINE or OFFLINE
+        specialRequest:
+          type: string
+          maxLength: 2000
+        couponCode:
+          type: string
+          maxLength: 64
+        redeemLoyaltyPoints:
+          type: boolean
+    BookingCreateResponse:
+      type: object
+      properties:
+        booking:
+          $ref: '#/components/schemas/BookingResponse'
+    BookingResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        slotId:
+          type: integer
+          format: int64
+        guests:
+          type: integer
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+    BookingListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+    BookingCancelResponse:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        refundInitiated:
+          type: boolean
+    PaymentInitResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        amount:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        keyId:
+          type: string
+    PaymentLinkInitResponse:
+      type: object
+      properties:
+        paymentLinkId:
+          type: string
+        paymentLinkUrl:
+          type: string
+    RazorpayConfirmRequest:
+      type: object
+      required: [paymentId, orderId, signature]
+      properties:
+        paymentId:
+          type: string
+        orderId:
+          type: string
+        signature:
+          type: string
+    RefundRequestDto:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+        refundMethod:
+          type: string
+    AdminRefundDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE, REJECT, MANUAL]
+        note:
+          type: string
+    RefundResponseDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        bookingId:
+          type: integer
+          format: int64
+        status:
+          type: string
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        reason:
+          type: string
+    VoucherIssueRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    VoucherResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    InvoiceResponseDto:
+      type: object
+      properties:
+        invoiceUrl:
+          type: string
+        bookingId:
+          type: integer
+          format: int64
+    SpaRequestDTO:
+      type: object
+      required: [name, ownerName]
+      properties:
+        name:
+          type: string
+        ownerName:
+          type: string
+        description:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          $ref: '#/components/schemas/AddressDTO'
+    SpaResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+    SpaDetailResponse:
+      type: object
+      properties:
+        spa:
+          $ref: '#/components/schemas/SpaResponseDTO'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceSummaryResponse'
+    SpaSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        rating:
+          type: number
+          format: float
+        distanceKm:
+          type: number
+          format: double
+    ServiceSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        category:
+          type: string
+        durationMinutes:
+          type: integer
+        price:
+          type: number
+    PagedSpaSummaryResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpaSummaryResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+    WeekSlotsResponse:
+      type: object
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              slots:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SlotAvailabilityResponse'
+    SlotAvailabilityResponse:
+      type: object
+      properties:
+        slotId:
+          type: integer
+          format: int64
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+        price:
+          type: number
+    MapRouteResponse:
+      type: object
+      properties:
+        distanceMeters:
+          type: number
+        durationSeconds:
+          type: number
+        polyline:
+          type: string
+    MapProviderConfigResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+        apiKey:
+          type: string
+        baseUrl:
+          type: string
+        staticStyle:
+          type: string
+    MessageThreadCreateRequest:
+      type: object
+      required: [subject]
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        subject:
+          type: string
+        initialMessage:
+          type: string
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageAttachmentRequest'
+    MessageAttachmentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+    MessageThreadResponse:
+      type: object
+      properties:
+        threadId:
+          type: integer
+          format: int64
+        bookingId:
+          type: integer
+          format: int64
+        subject:
+          type: string
+        status:
+          $ref: '#/components/schemas/MessageThreadStatus'
+        lastMessageAt:
+          type: string
+          format: date-time
+        unreadCount:
+          type: integer
+    MessageThreadListResponse:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageThreadResponse'
+    ChatMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageAttachmentRequest'
+    ChatMessageResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        threadId:
+          type: integer
+          format: int64
+        senderType:
+          type: string
+          enum: [CUSTOMER, PROVIDER, ADMIN]
+        content:
+          type: string
+        moderationStatus:
+          $ref: '#/components/schemas/ModerationStatus'
+        moderationNote:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        moderatedAt:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageAttachmentResponse'
+    MessageAttachmentResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+    ModerationDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE, REJECT, HIDE]
+        note:
+          type: string
+    ChatMessageListResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessageResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+    NotificationSendRequest:
+      type: object
+      required: [title, body]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        title:
+          type: string
+        body:
+          type: string
+        channel:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    NotificationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        body:
+          type: string
+        read:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    NotificationListResponse:
+      type: object
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+    NotificationTemplateRequest:
+      type: object
+      required: [key, title, body]
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        channel:
+          type: string
+    NotificationTemplateResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        channel:
+          type: string
+    FaqRequest:
+      type: object
+      required: [question, answer]
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        category:
+          type: string
+    FaqResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        question:
+          type: string
+        answer:
+          type: string
+        category:
+          type: string
+    FaqListResponse:
+      type: object
+      properties:
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaqResponse'
+    ContentVariantRequest:
+      type: object
+      required: [experimentKey, variantKey, content]
+      properties:
+        experimentKey:
+          type: string
+        variantKey:
+          type: string
+        locale:
+          type: string
+        content:
+          type: object
+          additionalProperties: true
+    ContentVariantResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        experimentKey:
+          type: string
+        variantKey:
+          type: string
+        locale:
+          type: string
+        content:
+          type: object
+          additionalProperties: true
+    ContentVariantListResponse:
+      type: object
+      properties:
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentVariantResponse'
+    ReviewRequest:
+      type: object
+      required: [bookingId, rating]
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        rating:
+          type: number
+          format: float
+        comment:
+          type: string
+    ReviewResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        bookingId:
+          type: integer
+          format: int64
+        spaId:
+          type: integer
+          format: int64
+        rating:
+          type: number
+          format: float
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ReviewListResponse:
+      type: object
+      properties:
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+    SpaOnboardingStartRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+    SpaOnboardingDetailsRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        amenities:
+          type: array
+          items:
+            type: string
+    SpaKycRequest:
+      type: object
+      properties:
+        legalName:
+          type: string
+        pan:
+          type: string
+        gstin:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageAttachmentRequest'
+    SpaOnboardingSummaryResponse:
+      type: object
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        status:
+          type: string
+        kycStatus:
+          type: string
+        ownerUserId:
+          type: integer
+          format: int64
+    OnboardingDraftRequest:
+      type: object
+      properties:
+        resumeToken:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+    OnboardingDraftResponse:
+      type: object
+      properties:
+        resumeToken:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+          format: date-time
+    InventoryDayRequest:
+      type: object
+      required: [spaId, serviceId, date]
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlotAvailabilityResponse'
+    InventoryDayResponse:
+      type: object
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlotAvailabilityResponse'
+    InventoryCalendarResponse:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryDayResponse'
+    SupportOverrideRequest:
+      type: object
+      required: [spaId, reason]
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        requestedBy:
+          type: integer
+          format: int64
+    SupportOverrideResolutionRequest:
+      type: object
+      required: [resolution]
+      properties:
+        resolution:
+          type: string
+        notes:
+          type: string
+    SupportOverrideResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        spaId:
+          type: integer
+          format: int64
+        status:
+          type: string
+        reason:
+          type: string
+        resolution:
+          type: string
+    ProviderAnalyticsResponse:
+      type: object
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        totalBookings:
+          type: integer
+        revenue:
+          type: number
+          format: double
+    ProviderAuditLogResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        spaId:
+          type: integer
+          format: int64
+        actorType:
+          type: string
+        actorId:
+          type: integer
+          format: int64
+        action:
+          type: string
+        details:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    BlackoutWindowRequest:
+      type: object
+      required: [spaId, startTime, endTime]
+      properties:
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        reason:
+          type: string
+    BlackoutWindowResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        spaId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        reason:
+          type: string
+    UploadResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        url:
+          type: string
+    AddressDTO:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        postalCode:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    RoleType:
+      type: string
+      enum: [CUSTOMER, PROVIDER, ADMIN]
+    BookingStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, CANCELLED, COMPLETED]
+    MessageThreadStatus:
+      type: string
+      enum: [OPEN, CLOSED]
+    ModerationStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, HIDDEN]
