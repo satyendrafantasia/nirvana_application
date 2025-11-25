@@ -24,6 +24,7 @@ import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.BookingService;
 import com.nirvana.application.service.NotificationService;
+import com.nirvana.application.service.PricingService;
 import com.nirvana.application.service.RefundService;
 import com.nirvana.application.utils.CancellationEligibility;
 import com.nirvana.application.utils.CancellationEvaluator;
@@ -56,6 +57,7 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentService paymentService;
     private final NotificationService notificationService;
     private final RefundService refundService;
+    private final PricingService pricingService;
 
     @Override
     @Transactional
@@ -103,7 +105,19 @@ public class BookingServiceImpl implements BookingService {
                 ? service.getPriceCents()
                 : (service.getBasePriceCents() != null ? service.getBasePriceCents() : 0);
         int priceCents = unitPrice * guests;
-        int discountCents = 0; // placeholder for coupon/discount engine
+
+        boolean redeemLoyalty = Boolean.TRUE.equals(request.getRedeemLoyaltyPoints());
+        PricingService.PricingResult pricing = pricingService.evaluatePricing(
+                user,
+                spa,
+                service,
+                slot,
+                guests,
+                priceCents,
+                request.getCouponCode(),
+                redeemLoyalty);
+
+        int discountCents = pricing.discountCents();
         int taxCents = calculateTax(spa, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
 
@@ -117,6 +131,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setGuestCount(guests);
         booking.setPriceCents(priceCents);
         booking.setDiscountCents(discountCents);
+        booking.setCouponCode(pricing.appliedCouponCode());
         booking.setTaxCents(taxCents);
         booking.setDepositCents(0);
         booking.setRemainderCents(totalCents);
@@ -135,6 +150,12 @@ public class BookingServiceImpl implements BookingService {
         }
 
         Booking saved = bookingRepository.save(booking);
+
+        if (pricing.loyaltyPointsRedeemed() > 0) {
+            int remainingPoints = Math.max(0, (user.getLoyaltyPoints() == null ? 0 : user.getLoyaltyPoints()) - pricing.loyaltyPointsRedeemed());
+            user.setLoyaltyPoints(remainingPoints);
+            userRepository.save(user);
+        }
 
         // reserve capacity immediately to prevent overbooking even while payment is pending
         short updatedUnits = (short) (slot.getBookedUnits() + guests);

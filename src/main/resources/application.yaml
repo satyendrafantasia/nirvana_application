@@ -101,6 +101,9 @@
       auto-capture: true             # payment_capture = 1
       description-prefix: "Nirvana Spa Booking"
 
+  invoice:
+    pdf-base-url: https://cdn.nirvana.invalid/invoices
+
   notifications:
     sendgrid:
       enabled: false
@@ -110,6 +113,11 @@
       owner-fallback-email: ${SPA_OWNER_EMAIL:}
       owner-subject: "New booking confirmed"
       customer-subject: "Your booking is confirmed"
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-to-a-strong-secret}
+      expiration-minutes: 1440
 
 
 

@@ -25,6 +25,11 @@ public class BookingCreateRequest {
     @Size(max = 2000)
     private String specialRequest;
 
+    @Size(max = 64)
+    private String couponCode;
+
+    private Boolean redeemLoyaltyPoints;
+
     public Long getSpaId() {
         return spaId;
     }
@@ -71,5 +76,21 @@ public class BookingCreateRequest {
 
     public void setSpecialRequest(String specialRequest) {
         this.specialRequest = specialRequest;
+    }
+
+    public String getCouponCode() {
+        return couponCode;
+    }
+
+    public void setCouponCode(String couponCode) {
+        this.couponCode = couponCode;
+    }
+
+    public Boolean getRedeemLoyaltyPoints() {
+        return redeemLoyaltyPoints;
+    }
+
+    public void setRedeemLoyaltyPoints(Boolean redeemLoyaltyPoints) {
+        this.redeemLoyaltyPoints = redeemLoyaltyPoints;
     }
 }
