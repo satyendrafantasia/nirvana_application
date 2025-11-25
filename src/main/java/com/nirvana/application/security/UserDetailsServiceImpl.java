@@ -45,7 +45,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getPassword(),
-                user.getActive(),
+                Boolean.TRUE.equals(user.getIsActive()),
                 authorities
         );
     }

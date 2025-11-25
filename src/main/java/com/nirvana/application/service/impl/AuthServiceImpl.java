@@ -61,8 +61,6 @@ public class AuthServiceImpl implements AuthService {
                 .active(true)
                 .isActive(true)
                 .timezone("UTC")
-                .createdAt(OffsetDateTime.now())
-                .updatedAt(OffsetDateTime.now())
                 .build();
 
         User saved = userRepository.save(user);
