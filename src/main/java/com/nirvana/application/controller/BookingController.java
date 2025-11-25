@@ -4,6 +4,8 @@ import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
 import com.nirvana.application.model.dto.BookingListResponse;
+import com.nirvana.application.model.dto.BookingRescheduleRequest;
+import com.nirvana.application.model.dto.BookingRescheduleResponse;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.security.SecurityUtils;
 import com.nirvana.application.service.BookingService;
@@ -51,5 +53,14 @@ public class BookingController {
     public BookingCancelResponse cancelBooking(@PathVariable Long bookingId) {
         Long userId = SecurityUtils.getCurrentUserId();
         return bookingService.cancelBooking(bookingId, userId);
+    }
+
+    @PostMapping("/bookings/{bookingId}/reschedule")
+    public BookingRescheduleResponse rescheduleBooking(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody BookingRescheduleRequest request
+    ) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        return bookingService.rescheduleBooking(bookingId, userId, request);
     }
 }

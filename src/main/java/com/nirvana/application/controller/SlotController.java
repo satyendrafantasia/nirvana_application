@@ -1,7 +1,12 @@
 package com.nirvana.application.controller;
 
+import com.nirvana.application.model.dto.ProviderAvailabilitySyncRequest;
 import com.nirvana.application.model.dto.SlotAvailabilityResponse;
+import com.nirvana.application.model.dto.SlotHoldRequest;
+import com.nirvana.application.model.dto.SlotHoldResponse;
 import com.nirvana.application.model.dto.WeekSlotsResponse;
+import com.nirvana.application.security.SecurityUtils;
+import com.nirvana.application.service.BookingHoldService;
 import com.nirvana.application.service.impl.SlotAvailabilityService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -10,9 +15,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +31,7 @@ import java.util.List;
 public class SlotController {
 
     private final SlotAvailabilityService slotAvailabilityService;
+    private final BookingHoldService bookingHoldService;
 
     @GetMapping("/week")
     public WeekSlotsResponse getWeekSlots(
@@ -46,5 +54,30 @@ public class SlotController {
             @RequestParam(name = "guests", defaultValue = "1") @Min(1) int guests
     ) {
         return slotAvailabilityService.getAvailableSlotsForServiceOnDate(spaId, serviceId, date, guests);
+    }
+
+    @PostMapping("/{slotId}/hold")
+    public SlotHoldResponse holdSlot(
+            @PathVariable Long spaId,
+            @PathVariable Long serviceId,
+            @PathVariable Long slotId,
+            @Valid @RequestBody SlotHoldRequest request
+    ) {
+        request.setSpaId(spaId);
+        request.setServiceId(serviceId);
+        request.setSlotId(slotId);
+        Long userId = SecurityUtils.getCurrentUserId();
+        return bookingHoldService.holdSlot(userId, request);
+    }
+
+    @PostMapping("/{slotId}/sync")
+    public SlotAvailabilityResponse syncAvailability(
+            @PathVariable Long spaId,
+            @PathVariable Long serviceId,
+            @PathVariable Long slotId,
+            @Valid @RequestBody ProviderAvailabilitySyncRequest request
+    ) {
+        // serviceId is kept in the path for parity with other routes; SlotAvailabilityService will validate spa
+        return slotAvailabilityService.syncFromProvider(spaId, slotId, request);
     }
 }
