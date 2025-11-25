@@ -111,5 +111,10 @@
       owner-subject: "New booking confirmed"
       customer-subject: "Your booking is confirmed"
 
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-to-a-strong-secret}
+      expiration-minutes: 1440
+
 
 
