@@ -42,8 +42,8 @@ public class SendGridEmailService implements EmailService {
         }
 
         Email from = new Email(properties.getFromEmail(), properties.getFromName());
-        Email to = new Email(dto.getToEmail(), dto.getToName());
-        String subject = "Invoice " + dto.getInvoiceNumber();
+        Email to = new Email(dto.toEmail(), dto.toName());
+        String subject = "Invoice " + dto.invoiceNumber();
         String html = buildInvoiceBody(dto);
 
         Mail mail = new Mail(from, subject, to, new Content("text/html", html));
@@ -52,9 +52,9 @@ public class SendGridEmailService implements EmailService {
         NotificationLog logEntry = NotificationLog.builder()
                 .channel(NotificationChannel.EMAIL)
                 .status(NotificationStatus.QUEUED)
-                .destination(dto.getToEmail())
+                .destination(dto.toEmail())
                 .title(subject)
-                .message("Invoice ready for booking " + dto.getBookingReference())
+                .message("Invoice ready for booking " + dto.bookingReference())
                 .build();
 
         try {
@@ -66,16 +66,16 @@ public class SendGridEmailService implements EmailService {
             if (statusCode >= 400) {
                 logEntry.setStatus(NotificationStatus.FAILED);
                 logEntry.setErrorMessage(response.getBody());
-                log.error("Failed to send invoice email {} to {} status {}", dto.getInvoiceNumber(), dto.getToEmail(), statusCode);
+                log.error("Failed to send invoice email {} to {} status {}", dto.invoiceNumber(), dto.toEmail(), statusCode);
             } else {
                 logEntry.setStatus(NotificationStatus.SENT);
                 logEntry.setProviderMessageId(String.valueOf(statusCode));
-                log.info("Invoice email {} sent to {} with status {}", dto.getInvoiceNumber(), dto.getToEmail(), statusCode);
+                log.info("Invoice email {} sent to {} with status {}", dto.invoiceNumber(), dto.toEmail(), statusCode);
             }
         } catch (IOException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
             logEntry.setErrorMessage(e.getMessage());
-            log.error("Error sending invoice email {} to {}", dto.getInvoiceNumber(), dto.getToEmail(), e);
+            log.error("Error sending invoice email {} to {}", dto.invoiceNumber(), dto.toEmail(), e);
         } finally {
             notificationLogRepository.save(logEntry);
         }
@@ -83,30 +83,30 @@ public class SendGridEmailService implements EmailService {
 
     private String buildInvoiceBody(InvoiceEmailDto dto) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<p>Hello ").append(dto.getToName() != null ? dto.getToName() : "there").append(",</p>");
+        sb.append("<p>Hello ").append(dto.toName() != null ? dto.toName() : "there").append(",</p>");
         sb.append("<p>Your Nirvana invoice is ready.</p>");
         sb.append("<ul>");
-        sb.append("<li><strong>Invoice #</strong>: ").append(dto.getInvoiceNumber()).append("</li>");
-        sb.append("<li><strong>Booking Reference</strong>: ").append(dto.getBookingReference()).append("</li>");
-        if (dto.getBookingStartTs() != null) {
-            sb.append("<li><strong>Scheduled</strong>: ").append(DATE_TIME_FORMATTER.format(dto.getBookingStartTs())).append("</li>");
+        sb.append("<li><strong>Invoice #</strong>: ").append(dto.invoiceNumber()).append("</li>");
+        sb.append("<li><strong>Booking Reference</strong>: ").append(dto.bookingReference()).append("</li>");
+        if (dto.bookingStartTs() != null) {
+            sb.append("<li><strong>Scheduled</strong>: ").append(DATE_TIME_FORMATTER.format(dto.bookingStartTs())).append("</li>");
         }
-        sb.append("<li><strong>Spa</strong>: ").append(dto.getSpaName()).append("</li>");
-        sb.append("<li><strong>Service</strong>: ").append(dto.getServiceName()).append("</li>");
-        sb.append("<li><strong>Total</strong>: ").append(dto.getCurrency()).append(" ").append(dto.getTotalCents() / 100.0).append("</li>");
+        sb.append("<li><strong>Spa</strong>: ").append(dto.spaName()).append("</li>");
+        sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");
+        sb.append("<li><strong>Total</strong>: ").append(dto.currency()).append(" ").append(dto.totalCents() / 100.0).append("</li>");
         sb.append("</ul>");
         sb.append("<p>You can download your invoice here: <a href=\"")
-                .append(dto.getInvoicePdfUrl())
+                .append(dto.invoicePdfUrl())
                 .append("\">Invoice PDF</a></p>");
 
-        if (dto.getSpaAddressLine1() != null) {
+        if (dto.spaAddressLine1() != null) {
             sb.append("<p><strong>Spa address</strong>: ")
-                    .append(dto.getSpaAddressLine1());
-            if (dto.getSpaAddressLine2() != null) sb.append(", ").append(dto.getSpaAddressLine2());
-            if (dto.getSpaCity() != null) sb.append(", ").append(dto.getSpaCity());
-            if (dto.getSpaState() != null) sb.append(", ").append(dto.getSpaState());
-            if (dto.getSpaPostalCode() != null) sb.append(" - ").append(dto.getSpaPostalCode());
-            if (dto.getSpaCountry() != null) sb.append(", ").append(dto.getSpaCountry());
+                    .append(dto.spaAddressLine1());
+            if (dto.spaAddressLine2() != null) sb.append(", ").append(dto.spaAddressLine2());
+            if (dto.spaCity() != null) sb.append(", ").append(dto.spaCity());
+            if (dto.spaState() != null) sb.append(", ").append(dto.spaState());
+            if (dto.spaPostalCode() != null) sb.append(" - ").append(dto.spaPostalCode());
+            if (dto.spaCountry() != null) sb.append(", ").append(dto.spaCountry());
             sb.append("</p>");
         }
         return sb.toString();
