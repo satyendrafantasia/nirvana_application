@@ -3,6 +3,7 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.DaySlotsResponse;
+import com.nirvana.application.model.dto.ProviderAvailabilitySyncRequest;
 import com.nirvana.application.model.dto.SlotAvailabilityResponse;
 import com.nirvana.application.model.dto.WeekSlotsResponse;
 import com.nirvana.application.model.enums.SlotStatus;
@@ -28,6 +29,7 @@ public class SlotAvailabilityService {
     private final SlotRepository slotRepository;
     private final ScheduleRuleRepository scheduleRuleRepository;
     private final ClosureRepository closureRepository;
+    private final BookingHoldRepository bookingHoldRepository;
 
     // ---------- SINGLE DAY (you already had this flow) ----------
 
@@ -89,6 +91,7 @@ public class SlotAvailabilityService {
 
         // Fetch all slots for spa+service in range
         List<Slot> slots = slotRepository.findSlotsForServiceBetween(spaId, serviceId, from, to);
+        Map<Long, Integer> holdMap = buildHoldMap(slots);
 
         // Fetch all closures overlapping the whole range
         List<Closure> closures = closureRepository.findClosuresOverlapping(spaId, from, to);
@@ -117,9 +120,9 @@ public class SlotAvailabilityService {
                     Slot slot = entry.getKey();
                     LocalDate d = entry.getValue();
                     List<ScheduleRule> rules = rulesByDate.getOrDefault(d, List.of());
-                    return isSlotBookable(slot, rules, closures, zoneId, guests);
+                    return isSlotBookable(slot, rules, closures, zoneId, guests, holdMap.getOrDefault(slot.getId(), 0));
                 })
-                .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey(), guests)))
+                .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey(), guests, holdMap.getOrDefault(entry.getKey().getId(), 0))))
                 .collect(Collectors.groupingBy(
                         Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())
@@ -146,7 +149,8 @@ public class SlotAvailabilityService {
             List<ScheduleRule> rulesForDay,
             List<Closure> closures,
             ZoneId zoneId,
-            int guests
+            int guests,
+            int heldUnits
     ) {
         if (Boolean.TRUE.equals(slot.getIsBlocked())) {
             return false;
@@ -157,7 +161,7 @@ public class SlotAvailabilityService {
 
         short capacity = slot.getCapacityUnit();
         short booked = slot.getBookedUnits();
-        short remaining = (short) Math.max(0, capacity - booked);
+        short remaining = (short) Math.max(0, capacity - booked - heldUnits);
         if (remaining < guests) {
             return false;
         }
@@ -200,10 +204,23 @@ public class SlotAvailabilityService {
         return ZoneId.systemDefault().getId();
     }
 
-    private SlotAvailabilityResponse toDto(Slot slot, int guests) {
+    private Map<Long, Integer> buildHoldMap(List<Slot> slots) {
+        if (slots.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> slotIds = slots.stream().map(Slot::getId).toList();
+        List<Object[]> raw = bookingHoldRepository.findActiveHoldUnitsForSlots(slotIds, OffsetDateTime.now(ZoneOffset.UTC));
+        Map<Long, Integer> result = new HashMap<>();
+        for (Object[] row : raw) {
+            result.put((Long) row[0], ((Number) row[1]).intValue());
+        }
+        return result;
+    }
+
+    private SlotAvailabilityResponse toDto(Slot slot, int guests, int heldUnits) {
         short capacity = slot.getCapacityUnit();
         short booked = slot.getBookedUnits();
-        int remaining = Math.max(0, capacity - booked);
+        int remaining = Math.max(0, capacity - booked - heldUnits);
 
         String uiStatus;
         if (Boolean.TRUE.equals(slot.getIsBlocked())) {
@@ -222,5 +239,26 @@ public class SlotAvailabilityService {
                 slot.getRoomNumber(),
                 uiStatus
         );
+    }
+
+    @Transactional
+    public SlotAvailabilityResponse syncFromProvider(Long spaId, Long slotId, ProviderAvailabilitySyncRequest request) {
+        Slot slot = slotRepository.findByIdForUpdate(slotId)
+                .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + slotId));
+        if (!slot.getSpa().getId().equals(spaId)) {
+            throw new IllegalArgumentException("Slot does not belong to spa");
+        }
+
+        if (request.getCapacityUnit() != null && request.getCapacityUnit() > 0) {
+            slot.setCapacityUnit(request.getCapacityUnit());
+        }
+        if (request.getBookedUnits() != null && request.getBookedUnits() >= 0) {
+            slot.setBookedUnits(request.getBookedUnits());
+        }
+        slot.setStatus(request.getStatus());
+        slot.setHoldExpiresTs(request.getProviderHoldExpiresAt());
+
+        slotRepository.save(slot);
+        return toDto(slot, 1, 0);
     }
 }

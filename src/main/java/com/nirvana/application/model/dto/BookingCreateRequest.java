@@ -30,6 +30,8 @@ public class BookingCreateRequest {
 
     private Boolean redeemLoyaltyPoints;
 
+    private String holdToken;
+
     public Long getSpaId() {
         return spaId;
     }
@@ -92,5 +94,13 @@ public class BookingCreateRequest {
 
     public void setRedeemLoyaltyPoints(Boolean redeemLoyaltyPoints) {
         this.redeemLoyaltyPoints = redeemLoyaltyPoints;
+    }
+
+    public String getHoldToken() {
+        return holdToken;
+    }
+
+    public void setHoldToken(String holdToken) {
+        this.holdToken = holdToken;
     }
 }
