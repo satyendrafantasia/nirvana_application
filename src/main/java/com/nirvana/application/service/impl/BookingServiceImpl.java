@@ -1,6 +1,7 @@
 package com.nirvana.application.service.impl;
 
 import com.nirvana.application.model.Booking;
+import com.nirvana.application.model.BookingHold;
 import com.nirvana.application.model.Slot;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.User;
@@ -8,6 +9,8 @@ import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
 import com.nirvana.application.model.dto.BookingListResponse;
+import com.nirvana.application.model.dto.BookingRescheduleRequest;
+import com.nirvana.application.model.dto.BookingRescheduleResponse;
 import com.nirvana.application.model.dto.BookingSummaryResponse;
 import com.nirvana.application.model.dto.PagedResponse;
 import com.nirvana.application.model.enums.BookingStatus;
@@ -16,6 +19,7 @@ import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
 import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.model.enums.SlotStatus;
+import com.nirvana.application.repository.BookingHoldRepository;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.repository.ServiceRepository;
@@ -26,6 +30,7 @@ import com.nirvana.application.service.BookingService;
 import com.nirvana.application.service.NotificationService;
 import com.nirvana.application.service.PricingService;
 import com.nirvana.application.service.RefundService;
+import com.nirvana.application.service.WaitlistService;
 import com.nirvana.application.utils.CancellationEligibility;
 import com.nirvana.application.utils.CancellationEvaluator;
 import jakarta.persistence.EntityNotFoundException;
@@ -39,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -47,6 +53,8 @@ import java.util.UUID;
 public class BookingServiceImpl implements BookingService {
 
     private static final int CANCELLATION_CUTOFF_MINUTES = 15;
+    private static final int SAME_DAY_RESCHEDULE_CUTOFF_MINUTES = 60;
+    private static final int MAX_RESCHEDULES = 2;
 
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
@@ -58,6 +66,8 @@ public class BookingServiceImpl implements BookingService {
     private final NotificationService notificationService;
     private final RefundService refundService;
     private final PricingService pricingService;
+    private final BookingHoldRepository bookingHoldRepository;
+    private final WaitlistService waitlistService;
 
     @Override
     @Transactional
@@ -97,7 +107,30 @@ public class BookingServiceImpl implements BookingService {
         Slot slot = slotRepository.findByIdForUpdate(request.getSlotId())
                 .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + request.getSlotId()));
 
-        validateSlot(spa, service, slot, guests);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        bookingHoldRepository.deleteByExpiresAtBefore(now);
+
+        BookingHold hold = null;
+        if (request.getHoldToken() != null && !request.getHoldToken().isBlank()) {
+            hold = bookingHoldRepository.findByHoldToken(request.getHoldToken())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid hold token"));
+            if (hold.getExpiresAt().isBefore(now)) {
+                throw new IllegalStateException("Hold has expired");
+            }
+            if (!hold.getSlot().getId().equals(slot.getId())) {
+                throw new IllegalArgumentException("Hold does not belong to slot");
+            }
+            if (hold.getUser() != null && !hold.getUser().getId().equals(userId)) {
+                throw new IllegalArgumentException("Hold belongs to a different user");
+            }
+            if (hold.isConvertedToBooking()) {
+                throw new IllegalStateException("Hold already used for booking");
+            }
+        }
+
+        int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(slot.getId(), now)).orElse(0);
+        int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
+        validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
 
@@ -140,7 +173,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setStartTs(slot.getStartTs());
         booking.setEndTs(slot.getEndTs());
         booking.setScheduledBy(CancellationActor.USER);
-        booking.setLastStatusChangedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
 
         if (paymentMode == PaymentMode.OFFLINE) {
@@ -150,6 +183,11 @@ public class BookingServiceImpl implements BookingService {
         }
 
         Booking saved = bookingRepository.save(booking);
+
+        if (hold != null) {
+            hold.setConvertedToBooking(true);
+            bookingHoldRepository.save(hold);
+        }
 
         if (pricing.loyaltyPointsRedeemed() > 0) {
             int remainingPoints = Math.max(0, (user.getLoyaltyPoints() == null ? 0 : user.getLoyaltyPoints()) - pricing.loyaltyPointsRedeemed());
@@ -198,6 +236,61 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
+    public BookingRescheduleResponse rescheduleBooking(Long bookingId, Long userId, BookingRescheduleRequest request) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
+
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.NO_SHOW) {
+            throw new IllegalStateException("Booking cannot be rescheduled in current status: " + booking.getStatus());
+        }
+        if (booking.getRescheduleCount() != null && booking.getRescheduleCount() >= MAX_RESCHEDULES) {
+            throw new IllegalStateException("Maximum reschedule limit reached");
+        }
+        if (booking.getStartTs().isBefore(now)) {
+            throw new IllegalStateException("Cannot reschedule a past booking");
+        }
+        if (booking.getStartTs().toLocalDate().equals(now.toLocalDate())
+                && (request.getAllowSameDayChange() == null || !request.getAllowSameDayChange())
+                && booking.getStartTs().isBefore(now.plusMinutes(SAME_DAY_RESCHEDULE_CUTOFF_MINUTES))) {
+            throw new IllegalStateException("Same-day changes are locked within cutoff window");
+        }
+
+        Slot targetSlot = slotRepository.findByIdForUpdate(request.getTargetSlotId())
+                .orElseThrow(() -> new EntityNotFoundException("Target slot not found"));
+        Slot currentSlot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Current slot not found"));
+
+        Spa spa = booking.getSpa();
+        com.nirvana.application.model.Service service = booking.getService();
+
+        int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(targetSlot.getId(), now)).orElse(0);
+        validateSlot(spa, service, targetSlot, booking.getGuestCount(), activeHolds);
+
+        releaseCapacity(currentSlot, booking.getGuestCount());
+        short updatedUnits = (short) (targetSlot.getBookedUnits() + booking.getGuestCount());
+        targetSlot.setBookedUnits(updatedUnits);
+        if (updatedUnits >= targetSlot.getCapacityUnit()) {
+            targetSlot.setStatus(SlotStatus.BOOKED);
+        }
+
+        booking.setSlot(targetSlot);
+        booking.setStartTs(targetSlot.getStartTs());
+        booking.setEndTs(targetSlot.getEndTs());
+        booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
+        booking.setLastStatusChangedAt(now);
+        booking.setCancellationReasonText(request.getReason());
+        bookingRepository.save(booking);
+
+        slotRepository.save(currentSlot);
+        slotRepository.save(targetSlot);
+        waitlistService.tryNotifySlotAvailable(currentSlot);
+
+        return new BookingRescheduleResponse(booking.getId(), booking.getStatus(), booking.getStartTs(), booking.getEndTs(), booking.getRescheduleCount());
+    }
+
+    @Override
+    @Transactional
     public BookingCancelResponse cancelBooking(Long bookingId, Long userId) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
@@ -230,6 +323,12 @@ public class BookingServiceImpl implements BookingService {
         booking.setCancelledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         bookingRepository.save(booking);
+
+        Slot slot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Slot not found for booking"));
+        releaseCapacity(slot, booking.getGuestCount());
+        slotRepository.save(slot);
+        waitlistService.tryNotifySlotAvailable(slot);
 
         notificationService.notifyCustomerBookingCancelled(booking);
         notificationService.notifySpaOwnerBookingCancelled(booking);
@@ -283,7 +382,7 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
-    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests) {
+    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests, int activeHolds) {
         if (!slot.getSpa().getId().equals(spa.getId())) {
             throw new IllegalArgumentException("Slot does not belong to Spa");
         }
@@ -299,9 +398,17 @@ public class BookingServiceImpl implements BookingService {
         if (slot.getStatus() != SlotStatus.OPEN) {
             throw new IllegalStateException("Slot is not open for booking");
         }
-        int remaining = slot.getCapacityUnit() - slot.getBookedUnits();
+        int remaining = slot.getCapacityUnit() - slot.getBookedUnits() - activeHolds;
         if (remaining < guests) {
             throw new IllegalStateException("Not enough capacity left in slot");
+        }
+    }
+
+    private void releaseCapacity(Slot slot, int guests) {
+        int updated = Math.max(0, slot.getBookedUnits() - guests);
+        slot.setBookedUnits((short) updated);
+        if (slot.getStatus() == SlotStatus.BOOKED && updated < slot.getCapacityUnit()) {
+            slot.setStatus(SlotStatus.OPEN);
         }
     }
 

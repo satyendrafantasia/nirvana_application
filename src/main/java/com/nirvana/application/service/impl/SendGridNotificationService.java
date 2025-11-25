@@ -4,6 +4,8 @@ import com.nirvana.application.config.SendGridProperties;
 import com.nirvana.application.model.Booking;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.User;
+import com.nirvana.application.model.WaitlistEntry;
+import com.nirvana.application.model.Slot;
 import com.nirvana.application.service.NotificationService;
 import com.sendgrid.Method;
 import com.sendgrid.Request;
@@ -58,6 +60,27 @@ public class SendGridNotificationService implements NotificationService {
         String subject = properties.getCustomerSubject() + " - " + booking.getBookingReference();
         String body = buildCustomerBody(booking);
         sendEmail(user.getEmail(), subject, body);
+    }
+
+    @Override
+    public void notifyWaitlistUserSlotAvailable(WaitlistEntry entry, Slot slot) {
+        String email = entry.getContactEmail();
+        if (email == null && entry.getUser() != null) {
+            email = entry.getUser().getEmail();
+        }
+        if (email == null || email.isBlank()) {
+            log.warn("Skipping waitlist notification for entry {} due to missing email", entry.getId());
+            return;
+        }
+
+        String subject = "A slot just opened up!";
+        String body = "<p>Your waitlisted slot is now available.</p>"
+                + "<ul>"
+                + "<li><strong>Spa:</strong> " + safe(slot.getSpa() != null ? slot.getSpa().getName() : null) + "</li>"
+                + "<li><strong>Starts at:</strong> " + formatStartTime(slot.getStartTs(), slot.getSpa()) + "</li>"
+                + "</ul>"
+                + "<p>Return to the app to confirm your booking.</p>";
+        sendEmail(email, subject, body);
     }
 
     private void sendEmail(String toEmail, String subject, String htmlContent) {
@@ -131,6 +154,20 @@ public class SendGridNotificationService implements NotificationService {
         }
 
         Spa spa = booking.getSpa();
+        if (spa != null && spa.getTimezone() != null) {
+            try {
+                return start.atZoneSameInstant(ZoneId.of(spa.getTimezone())).format(DATE_TIME_FORMATTER);
+            } catch (Exception e) {
+                log.warn("Unable to format start time with timezone {}: {}", spa.getTimezone(), e.getMessage());
+            }
+        }
+        return start.format(DATE_TIME_FORMATTER);
+    }
+
+    private String formatStartTime(OffsetDateTime start, Spa spa) {
+        if (start == null) {
+            return "N/A";
+        }
         if (spa != null && spa.getTimezone() != null) {
             try {
                 return start.atZoneSameInstant(ZoneId.of(spa.getTimezone())).format(DATE_TIME_FORMATTER);
