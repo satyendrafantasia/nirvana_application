@@ -36,7 +36,7 @@ public class UserPrincipal implements UserDetails {
                 user.getUsername(),
                 user.getEmail(),
                 user.getPassword(),
-                Boolean.TRUE.equals(user.getIsActive()),
+                user.getActive(),
                 buildAuthorities(user.getRoles())
         );
     }
