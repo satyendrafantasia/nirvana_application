@@ -1,5 +1,4 @@
--- Availability holds and waitlist tables
-CREATE TABLE booking_hold (
+CREATE TABLE IF NOT EXISTS booking_hold (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NULL,
     spa_id BIGINT NOT NULL,
@@ -20,10 +19,12 @@ CREATE TABLE booking_hold (
     CONSTRAINT fk_booking_hold_slot FOREIGN KEY (slot_id) REFERENCES slot(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+DROP INDEX IF EXISTS idx_hold_user ON booking_hold;
 CREATE INDEX idx_hold_user ON booking_hold (user_id, expires_at);
+DROP INDEX IF EXISTS idx_hold_slot ON booking_hold;
 CREATE INDEX idx_hold_slot ON booking_hold (slot_id, expires_at);
 
-CREATE TABLE waitlist_entry (
+CREATE TABLE IF NOT EXISTS waitlist_entry (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NULL,
     spa_id BIGINT NOT NULL,
@@ -46,5 +47,7 @@ CREATE TABLE waitlist_entry (
     CONSTRAINT fk_waitlist_slot FOREIGN KEY (slot_id) REFERENCES slot(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+DROP INDEX IF EXISTS idx_waitlist_slot ON waitlist_entry;
 CREATE INDEX idx_waitlist_slot ON waitlist_entry (slot_id, active, created_at);
+DROP INDEX IF EXISTS idx_waitlist_user ON waitlist_entry;
 CREATE INDEX idx_waitlist_user ON waitlist_entry (user_id, active, created_at);
