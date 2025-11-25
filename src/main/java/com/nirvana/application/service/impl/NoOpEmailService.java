@@ -25,12 +25,12 @@ public class NoOpEmailService implements EmailService {
         NotificationLog logEntry = NotificationLog.builder()
                 .channel(NotificationChannel.EMAIL)
                 .status(NotificationStatus.SENT)
-                .destination(dto.getToEmail())
-                .title("Invoice " + dto.getInvoiceNumber())
-                .message("Invoice ready for booking " + dto.getBookingReference())
+                .destination(dto.toEmail())
+                .title("Invoice " + dto.invoiceNumber())
+                .message("Invoice ready for booking " + dto.bookingReference())
                 .build();
         notificationLogRepository.save(logEntry);
-        log.info("Recorded invoice email log for {} (sendgrid disabled)", dto.getToEmail());
+        log.info("Recorded invoice email log for {} (sendgrid disabled)", dto.toEmail());
 
     }
 }
