@@ -72,6 +72,11 @@
     max-file-size: 10MB
     max-request-size: 20MB
 
+  google:
+    places:
+      api-key: ${GOOGLE_PLACES_API_KEY:}
+      base-url: https://maps.googleapis.com/maps/api/place
+
 
   aws:
     s3:
@@ -95,6 +100,16 @@
       currency: INR
       auto-capture: true             # payment_capture = 1
       description-prefix: "Nirvana Spa Booking"
+
+  notifications:
+    sendgrid:
+      enabled: false
+      api-key: ${SENDGRID_API_KEY:}
+      from-email: ${SENDGRID_FROM_EMAIL:no-reply@nirvana.local}
+      from-name: ${SENDGRID_FROM_NAME:Nirvana}
+      owner-fallback-email: ${SPA_OWNER_EMAIL:}
+      owner-subject: "New booking confirmed"
+      customer-subject: "Your booking is confirmed"
 
 
 
