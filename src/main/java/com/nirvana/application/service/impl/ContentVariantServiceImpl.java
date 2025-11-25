@@ -20,10 +20,17 @@ public class ContentVariantServiceImpl implements ContentVariantService {
 
     @Override
     @Transactional(readOnly = true)
-    public ContentVariantListResponse listActiveVariants(String experimentKey) {
-        List<ContentVariant> variants = experimentKey == null
-                ? contentVariantRepository.findByIsActiveTrueOrderByCreatedAtDesc()
-                : contentVariantRepository.findByIsActiveTrueAndExperimentKeyOrderByCreatedAtDesc(experimentKey);
+    public ContentVariantListResponse listActiveVariants(String experimentKey, String locale) {
+        List<ContentVariant> variants;
+        if (experimentKey == null) {
+            variants = locale == null
+                    ? contentVariantRepository.findByIsActiveTrueOrderByCreatedAtDesc()
+                    : contentVariantRepository.findByIsActiveTrueAndLocaleOrderByCreatedAtDesc(locale);
+        } else {
+            variants = locale == null
+                    ? contentVariantRepository.findByIsActiveTrueAndExperimentKeyOrderByCreatedAtDesc(experimentKey)
+                    : contentVariantRepository.findByIsActiveTrueAndExperimentKeyAndLocaleOrderByCreatedAtDesc(experimentKey, locale);
+        }
 
         List<ContentVariantResponse> responses = variants.stream()
                 .map(this::toResponse)
@@ -38,6 +45,7 @@ public class ContentVariantServiceImpl implements ContentVariantService {
         variant.setExperimentKey(request.getExperimentKey());
         variant.setVariantKey(request.getVariantKey());
         variant.setContent(request.getContent());
+        variant.setLocale(request.getLocale() == null || request.getLocale().isBlank() ? "en" : request.getLocale());
         variant.setIsActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive());
         ContentVariant saved = contentVariantRepository.save(variant);
         return toResponse(saved);
@@ -49,7 +57,8 @@ public class ContentVariantServiceImpl implements ContentVariantService {
                 variant.getExperimentKey(),
                 variant.getVariantKey(),
                 variant.getContent(),
-                variant.getIsActive()
+                variant.getIsActive(),
+                variant.getLocale()
         );
     }
 }

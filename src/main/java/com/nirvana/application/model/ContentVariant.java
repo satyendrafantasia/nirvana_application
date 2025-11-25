@@ -34,6 +34,9 @@ public class ContentVariant {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "locale", nullable = false, length = 16)
+    private String locale = "en";
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 

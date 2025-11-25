@@ -19,6 +19,9 @@ public class ContentVariantRequest {
 
     private Boolean isActive = true;
 
+    @Size(max = 16)
+    private String locale = "en";
+
     public String getExperimentKey() {
         return experimentKey;
     }
@@ -49,5 +52,13 @@ public class ContentVariantRequest {
 
     public void setIsActive(Boolean active) {
         isActive = active;
+    }
+
+    public String getLocale() {
+        return locale;
+    }
+
+    public void setLocale(String locale) {
+        this.locale = locale;
     }
 }

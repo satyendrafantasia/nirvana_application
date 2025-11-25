@@ -10,8 +10,10 @@ import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.repository.PaymentRepository;
+import com.nirvana.application.service.CurrencyConversionService;
 import com.nirvana.application.service.InvoiceService;
 import com.nirvana.application.service.NotificationService;
+import com.nirvana.application.service.NotificationSchedulingService;
 import com.razorpay.Order;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
@@ -44,6 +46,8 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final InvoiceService invoiceService; // you already have this
     private final NotificationService notificationService;
+    private final CurrencyConversionService currencyConversionService;
+    private final NotificationSchedulingService notificationSchedulingService;
 
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
 
@@ -79,6 +83,20 @@ public class PaymentService {
             throw new IllegalStateException("Invalid amount for booking: " + amountSubunits);
         }
 
+        CurrencyConversionService.ConversionResult conversion = currencyConversionService.convert(
+                amountSubunits,
+                booking.getCurrency(),
+                razorpayProps.getCurrency()
+        );
+        amountSubunits = conversion.convertedCents();
+
+        CurrencyConversionService.ConversionResult conversion = currencyConversionService.convert(
+                amountSubunits,
+                booking.getCurrency(),
+                razorpayProps.getCurrency()
+        );
+        amountSubunits = conversion.convertedCents();
+
         try {
             JSONObject orderReq = new JSONObject();
             orderReq.put("amount", amountSubunits);                    // paise
@@ -93,6 +111,7 @@ public class PaymentService {
             payment.setGateway(GATEWAY_RAZORPAY);
             payment.setAmountCents(amountSubunits);
             payment.setCurrency(razorpayProps.getCurrency());
+            payment.setCurrencyConversionRate(conversion.rateUsed());
             payment.setPaymentStatus(PaymentStatus.INIT);
             payment.setIntentId(razorpayOrder.get("id"));              // order_xxx
             payment.setTotalPrice(
@@ -190,8 +209,7 @@ public class PaymentService {
             invoiceService.generateInvoiceForBooking(bookingId);
 
             if (previousStatus != BookingStatus.CONFIRMED) {
-                notificationService.notifySpaOwnerBookingConfirmed(booking);
-                notificationService.notifyCustomerBookingConfirmed(booking);
+                notificationSchedulingService.scheduleBookingNotifications(booking);
             }
 
             log.info("Payment {} confirmed for booking {}",

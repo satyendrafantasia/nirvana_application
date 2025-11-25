@@ -30,4 +30,16 @@ public class UserRegistrationDTO {
 
     private RoleType roleType;
 
+    private Boolean marketingOptIn = Boolean.TRUE;
+
+    private Boolean acceptPrivacyPolicy = Boolean.FALSE;
+
+    private String consentVersion = "v1";
+
+    private String consentSource = "registration";
+
+    private String timezone = "UTC";
+
+    private String locale = "en";
+
 }
