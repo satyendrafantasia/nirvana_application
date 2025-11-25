@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class NotificationLog extends BaseEntity {
 
     @Id
@@ -34,10 +35,17 @@ public class NotificationLog extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
+    @Builder.Default
     private NotificationStatus status = NotificationStatus.QUEUED;
 
     @Column(name = "template_code", length = 128)
     private String templateCode;
+
+    @Column(name = "title", length = 255)
+    private String title;
+
+    @Column(name = "message", columnDefinition = "text")
+    private String message;
 
     @Column(name = "destination", nullable = false, length = 255)
     private String destination; // email or phone
@@ -51,11 +59,12 @@ public class NotificationLog extends BaseEntity {
     @Column(name = "sent_at")
     private OffsetDateTime sentAt;
 
+    @Column(name = "read_at")
+    private OffsetDateTime readAt;
+
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
     @Version
     private Long version;
-
-    // getters/setters
 }
