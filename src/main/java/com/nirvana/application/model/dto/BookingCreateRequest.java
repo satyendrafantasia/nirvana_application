@@ -40,6 +40,8 @@ public class BookingCreateRequest {
 
     private String holdToken;
 
+    private Boolean payWithPackage;
+
     public Long getSpaId() {
         return spaId;
     }
@@ -134,5 +136,13 @@ public class BookingCreateRequest {
 
     public void setHoldToken(String holdToken) {
         this.holdToken = holdToken;
+    }
+
+    public Boolean getPayWithPackage() {
+        return payWithPackage;
+    }
+
+    public void setPayWithPackage(Boolean payWithPackage) {
+        this.payWithPackage = payWithPackage;
     }
 }
