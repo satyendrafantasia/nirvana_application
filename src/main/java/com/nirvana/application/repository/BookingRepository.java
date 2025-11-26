@@ -26,11 +26,51 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByIdAndUserId(Long bookingId, Long userId);
 
+    @EntityGraph(attributePaths = {"user", "service", "therapist"})
+    Page<Booking> findWithDetailsBySpaId(Long spaId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "service", "therapist"})
+    Page<Booking> findWithDetailsBySpaIdAndStartTsBetween(Long spaId, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+
     @Query("select count(b) from Booking b where b.spa.id = :spaId and b.status = :status")
     long countBySpaAndStatus(@Param("spaId") Long spaId, @Param("status") BookingStatus status);
 
     @Query("select sum(b.priceCents + b.taxCents) from Booking b where b.spa.id = :spaId and b.status = 'COMPLETED'")
     Long sumGrossRevenueBySpa(@Param("spaId") Long spaId);
+
+    @Query("""
+            select count(b) from Booking b
+            where b.spa.id = :spaId
+              and (:from is null or b.startTs >= :from)
+              and (:to is null or b.startTs < :to)
+            """)
+    long countBySpaAndRange(@Param("spaId") Long spaId,
+                            @Param("from") OffsetDateTime from,
+                            @Param("to") OffsetDateTime to);
+
+    @Query("""
+            select count(b) from Booking b
+            where b.spa.id = :spaId
+              and b.status = :status
+              and (:from is null or b.startTs >= :from)
+              and (:to is null or b.startTs < :to)
+            """)
+    long countBySpaStatusAndRange(@Param("spaId") Long spaId,
+                                  @Param("status") BookingStatus status,
+                                  @Param("from") OffsetDateTime from,
+                                  @Param("to") OffsetDateTime to);
+
+    @Query("""
+            select b.startTs, (b.priceCents + b.taxCents) as revenue
+            from Booking b
+            where b.spa.id = :spaId
+              and b.status = 'COMPLETED'
+              and (:from is null or b.startTs >= :from)
+              and (:to is null or b.startTs < :to)
+            """)
+    List<Object[]> findCompletedRevenueTimeline(@Param("spaId") Long spaId,
+                                                @Param("from") OffsetDateTime from,
+                                                @Param("to") OffsetDateTime to);
 
     @Query("""
             SELECT DISTINCT b.therapist.id, b.startTs, b.endTs
