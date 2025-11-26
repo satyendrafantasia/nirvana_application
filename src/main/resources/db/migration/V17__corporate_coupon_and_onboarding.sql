@@ -76,9 +76,9 @@ CREATE TABLE corporate_coupon_usage_log (
     usage_datetime datetime(6) NOT NULL,
     session_number INT,
     notes VARCHAR(1000),
-    CONSTRAINT fk_usage_coupon FOREIGN KEY (corporate_employee_coupon_id) REFERENCES corporate_employee_coupon(id),
-    CONSTRAINT fk_usage_user FOREIGN KEY (user_id) REFERENCES app_user(id),
-    CONSTRAINT fk_usage_corporate FOREIGN KEY (corporate_id) REFERENCES corporate(id),
+    CONSTRAINT fk_corp_coupon_usage_coupon FOREIGN KEY (corporate_employee_coupon_id) REFERENCES corporate_employee_coupon(id),
+    CONSTRAINT fk_corp_coupon_usage_user FOREIGN KEY (user_id) REFERENCES app_user(id),
+    CONSTRAINT fk_corp_coupon_usage_corporate FOREIGN KEY (corporate_id) REFERENCES corporate(id),
     INDEX idx_coupon_usage_coupon (corporate_employee_coupon_id, usage_datetime)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
