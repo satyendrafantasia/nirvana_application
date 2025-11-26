@@ -33,4 +33,14 @@ public class NoOpEmailService implements EmailService {
         log.info("Recorded invoice email log for {} (sendgrid disabled)", dto.toEmail());
 
     }
+
+    @Override
+    public void sendCorporateEmployeeInvite(String employeeEmail, String username, String tempPassword) {
+        log.info("Corporate invite email noop for {}", employeeEmail);
+    }
+
+    @Override
+    public void sendCorporateBenefitsActivated(String employeeEmail, String dealName) {
+        log.info("Corporate benefits activation email noop for {}", employeeEmail);
+    }
 }

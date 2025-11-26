@@ -81,6 +81,16 @@ public class SendGridEmailService implements EmailService {
         }
     }
 
+    @Override
+    public void sendCorporateEmployeeInvite(String employeeEmail, String username, String tempPassword) {
+        log.info("Sending corporate invite to {} with username {}", employeeEmail, username);
+    }
+
+    @Override
+    public void sendCorporateBenefitsActivated(String employeeEmail, String dealName) {
+        log.info("Sending corporate benefits activation email to {} for deal {}", employeeEmail, dealName);
+    }
+
     private String buildInvoiceBody(InvoiceEmailDto dto) {
         StringBuilder sb = new StringBuilder();
         sb.append("<p>Hello ").append(dto.toName() != null ? dto.toName() : "there").append(",</p>");
