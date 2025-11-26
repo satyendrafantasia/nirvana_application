@@ -1,7 +1,7 @@
 -- Spa-level package system
 
 -- Dedicated package catalog per spa
-CREATE TABLE spa_packages (
+CREATE TABLE IF NOT EXISTS spa_packages (
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE spa_packages (
 );
 
 -- User purchases scoped to a single spa
-CREATE TABLE user_spa_package_subscription (
+CREATE TABLE IF NOT EXISTS user_spa_package_subscription (
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE user_spa_package_subscription (
 );
 
 -- Usage audit per subscription
-CREATE TABLE user_spa_package_usage_log (
+CREATE TABLE IF NOT EXISTS user_spa_package_usage_log (
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE user_spa_package_usage_log (
 );
 
 -- Notification sink for spa owners/managers
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
