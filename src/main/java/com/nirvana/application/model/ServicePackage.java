@@ -45,7 +45,7 @@ public class ServicePackage extends BaseEntity {
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "spa_packages",
+            name = "service_package_spa",
             joinColumns = @JoinColumn(name = "package_id"),
             inverseJoinColumns = @JoinColumn(name = "spa_id")
     )

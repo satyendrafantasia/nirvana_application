@@ -14,12 +14,12 @@ CREATE TABLE packages (
     UNIQUE KEY uk_packages_type (package_type)
 );
 
-CREATE TABLE spa_packages (
+CREATE TABLE service_package_spa (
     package_id BIGINT NOT NULL,
     spa_id BIGINT NOT NULL,
     PRIMARY KEY (package_id, spa_id),
-    CONSTRAINT fk_spa_packages_package FOREIGN KEY (package_id) REFERENCES packages(id),
-    CONSTRAINT fk_spa_packages_spa FOREIGN KEY (spa_id) REFERENCES spa(id)
+    CONSTRAINT fk_service_package_spa_package FOREIGN KEY (package_id) REFERENCES packages(id),
+    CONSTRAINT fk_service_package_spa_spa FOREIGN KEY (spa_id) REFERENCES spa(id)
 );
 
 CREATE TABLE user_package_subscription (
