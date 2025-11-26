@@ -98,11 +98,43 @@ CREATE TABLE IF NOT EXISTS corporate_onboarding_upload (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 ALTER TABLE booking
-    ADD COLUMN IF NOT EXISTS corporate_employee_coupon_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS corporate_employee_coupon_id BIGINT NULL;
+
+ALTER TABLE booking
     ADD COLUMN IF NOT EXISTS payment_source_type VARCHAR(32) DEFAULT 'NORMAL';
 
-ALTER TABLE booking
-    DROP FOREIGN KEY IF EXISTS fk_booking_corporate_coupon;
+SET @fk_booking_coupon := (
+    SELECT CONSTRAINT_NAME
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'booking'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+      AND CONSTRAINT_NAME = 'fk_booking_corporate_coupon'
+    LIMIT 1
+);
 
-ALTER TABLE booking
-    ADD CONSTRAINT fk_booking_corporate_coupon FOREIGN KEY (corporate_employee_coupon_id) REFERENCES corporate_employee_coupon(id);
+SET @drop_fk_sql := IF(@fk_booking_coupon IS NOT NULL,
+    'ALTER TABLE booking DROP FOREIGN KEY fk_booking_corporate_coupon',
+    'SELECT 1');
+
+PREPARE stmt FROM @drop_fk_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @fk_booking_coupon := (
+    SELECT CONSTRAINT_NAME
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'booking'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+      AND CONSTRAINT_NAME = 'fk_booking_corporate_coupon'
+    LIMIT 1
+);
+
+SET @add_fk_sql := IF(@fk_booking_coupon IS NULL,
+    'ALTER TABLE booking ADD CONSTRAINT fk_booking_corporate_coupon FOREIGN KEY (corporate_employee_coupon_id) REFERENCES corporate_employee_coupon(id)',
+    'SELECT 1');
+
+PREPARE stmt FROM @add_fk_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
