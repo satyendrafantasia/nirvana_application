@@ -22,6 +22,15 @@ PREPARE stmt FROM @legacy_rename_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- Ensure legacy global package-to-spa join table exists for schema validation
+CREATE TABLE IF NOT EXISTS service_package_spa (
+    package_id BIGINT NOT NULL,
+    spa_id BIGINT NOT NULL,
+    PRIMARY KEY (package_id, spa_id),
+    CONSTRAINT fk_service_package_spa_package FOREIGN KEY (package_id) REFERENCES packages(id),
+    CONSTRAINT fk_service_package_spa_spa FOREIGN KEY (spa_id) REFERENCES spa(id)
+);
+
 -- Dedicated package catalog per spa
 CREATE TABLE IF NOT EXISTS spa_packages (
     id BIGINT NOT NULL AUTO_INCREMENT,
