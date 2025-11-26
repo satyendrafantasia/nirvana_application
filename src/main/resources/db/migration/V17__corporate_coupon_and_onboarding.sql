@@ -97,11 +97,37 @@ CREATE TABLE IF NOT EXISTS corporate_onboarding_upload (
     CONSTRAINT fk_onboarding_deal FOREIGN KEY (corporate_deal_id) REFERENCES corporate_deal(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-ALTER TABLE booking
-    ADD COLUMN IF NOT EXISTS corporate_employee_coupon_id BIGINT NULL;
+SET @coupon_col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'booking'
+      AND COLUMN_NAME = 'corporate_employee_coupon_id'
+);
 
-ALTER TABLE booking
-    ADD COLUMN IF NOT EXISTS payment_source_type VARCHAR(32) DEFAULT 'NORMAL';
+SET @add_coupon_col_sql := IF(@coupon_col_exists = 0,
+    'ALTER TABLE booking ADD COLUMN corporate_employee_coupon_id BIGINT NULL',
+    'SELECT 1');
+
+PREPARE stmt FROM @add_coupon_col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @payment_source_col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'booking'
+      AND COLUMN_NAME = 'payment_source_type'
+);
+
+SET @add_payment_source_col_sql := IF(@payment_source_col_exists = 0,
+    "ALTER TABLE booking ADD COLUMN payment_source_type VARCHAR(32) DEFAULT 'NORMAL'",
+    'SELECT 1');
+
+PREPARE stmt FROM @add_payment_source_col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @fk_booking_coupon := (
     SELECT CONSTRAINT_NAME
