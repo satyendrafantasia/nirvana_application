@@ -81,10 +81,10 @@ CREATE TABLE IF NOT EXISTS user_spa_package_usage_log (
     PRIMARY KEY (id),
     KEY idx_user_spa_usage (user_id, spa_id),
     KEY idx_spa_subscription_usage (user_spa_package_subscription_id),
-    CONSTRAINT fk_usage_subscription FOREIGN KEY (user_spa_package_subscription_id) REFERENCES user_spa_package_subscription(id),
-    CONSTRAINT fk_usage_user FOREIGN KEY (user_id) REFERENCES app_user(id),
-    CONSTRAINT fk_usage_spa FOREIGN KEY (spa_id) REFERENCES spa(id),
-    CONSTRAINT fk_usage_booking FOREIGN KEY (booking_id) REFERENCES booking(id)
+    CONSTRAINT fk_user_spa_pkg_usage_subscription FOREIGN KEY (user_spa_package_subscription_id) REFERENCES user_spa_package_subscription(id),
+    CONSTRAINT fk_user_spa_pkg_usage_user FOREIGN KEY (user_id) REFERENCES app_user(id),
+    CONSTRAINT fk_user_spa_pkg_usage_spa FOREIGN KEY (spa_id) REFERENCES spa(id),
+    CONSTRAINT fk_user_spa_pkg_usage_booking FOREIGN KEY (booking_id) REFERENCES booking(id)
 );
 
 -- Notification sink for spa owners/managers
