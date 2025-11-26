@@ -86,12 +86,6 @@ INSERT IGNORE INTO spa (
    DATE_SUB(@now, INTERVAL 2 YEAR), 'VERIFIED', 60, 4, 120, 'Nirvana Marylebone', 'Maya Manager', '+44-20-7946-0958', 4.7,
    1240, JSON_ARRAY('city-centre', 'luxury'), 18, 35210, 1, 'https://nirvana.test', 1, b'1', b'1');
 
--- Generate 100 additional spa locations with consistent dependent records for broader API testing
-WITH RECURSIVE spa_seed AS (
-  SELECT 2 AS id
-  UNION ALL
-  SELECT id + 1 FROM spa_seed WHERE id < 101
-)
 INSERT IGNORE INTO spa (
   id, created_at, updated_at, address_line1, address_line2, address_type, city, country,
   country_code, formatted_address, geo_source, google_place_id, landmark, latitude, locality,
@@ -158,18 +152,18 @@ SELECT
   1,
   b'1',
   b'1'
-FROM spa_seed;
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 -- Spa rooms
 INSERT IGNORE INTO spa_room (id, created_at, updated_at, is_active, capacity, code, meta, name, version, spa_id) VALUES
   (1, @now, @now, b'1', 2, 'RM-DELUXE', NULL, 'Deluxe Room', 1, 1),
   (2, @now, @now, b'1', 1, 'RM-COUPLE', NULL, 'Couple Suite', 1, 1);
 
-WITH RECURSIVE spa_seed AS (
-  SELECT 2 AS id
-  UNION ALL
-  SELECT id + 1 FROM spa_seed WHERE id < 101
-)
 INSERT IGNORE INTO spa_room (id, created_at, updated_at, is_active, capacity, code, meta, name, version, spa_id)
 SELECT
   1000 + id,
@@ -182,18 +176,18 @@ SELECT
   CONCAT('Therapy Room ', id),
   1,
   id
-FROM spa_seed;
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 -- Operating hours
 INSERT IGNORE INTO schedule_rule (id, applies_from, applies_to, close_local, is_holiday, meta, note, open_local, version, weekday, spa_id) VALUES
   (1, CURDATE(), NULL, '21:00:00', b'0', NULL, 'Standard hours', '09:00:00', 1, 1, 1),
   (2, CURDATE(), NULL, '21:00:00', b'0', NULL, 'Standard hours', '09:00:00', 1, 5, 1);
 
-WITH RECURSIVE spa_seed AS (
-  SELECT 2 AS id
-  UNION ALL
-  SELECT id + 1 FROM spa_seed WHERE id < 101
-)
 INSERT IGNORE INTO schedule_rule (id, applies_from, applies_to, close_local, is_holiday, meta, note, open_local, version, weekday, spa_id)
 SELECT
   2000 + id,
@@ -207,7 +201,12 @@ SELECT
   1,
   MOD(id, 7) + 1,
   id
-FROM spa_seed;
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 -- Services
 INSERT IGNORE INTO service (
@@ -223,11 +222,6 @@ INSERT IGNORE INTO service (
    45, 45, NULL, 'ANY', JSON_ARRAY('https://cdn.nirvana/facial.jpg'), b'1', b'1', 1, NULL, 1, 'Hydrating Facial',
    NULL, 8000, 'FAC-45', 'Skincare', NULL, 1, 1);
 
-WITH RECURSIVE spa_seed AS (
-  SELECT 2 AS id
-  UNION ALL
-  SELECT id + 1 FROM spa_seed WHERE id < 101
-)
 INSERT IGNORE INTO service (
   id, created_at, updated_at, base_price_cents, buffer_min, cancellation_policy_json, category, currency,
   description, duration_min, duration_minutes, equipment_required, gender_allowed, images, is_active,
@@ -262,7 +256,12 @@ SELECT
   NULL,
   1,
   id
-FROM spa_seed;
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 -- Therapist roster
 INSERT IGNORE INTO therapist (
