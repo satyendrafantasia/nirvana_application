@@ -159,6 +159,9 @@ public class BookingServiceImpl implements BookingService {
         }
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
+        String paymentMethod = request.getPaymentMethod() != null
+                ? request.getPaymentMethod().trim().toUpperCase()
+                : "RAZORPAY";
 
         int unitPrice = service.getPriceCents() != null
                 ? service.getPriceCents()
@@ -234,7 +237,11 @@ public class BookingServiceImpl implements BookingService {
         BookingCreateResponse response = buildResponse(saved, totalCents);
 
         if (paymentMode == PaymentMode.ONLINE) {
-            response.setRazorpay(paymentService.initiateRazorpayPayment(saved.getId()));
+            if ("UPI".equals(paymentMethod)) {
+                response.setUpi(paymentService.initiateUpiPayment(saved.getId()));
+            } else {
+                response.setRazorpay(paymentService.initiateRazorpayPayment(saved.getId()));
+            }
         }
 
         return response;

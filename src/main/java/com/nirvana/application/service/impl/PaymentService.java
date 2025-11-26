@@ -5,6 +5,8 @@ import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.PaymentInitResponse;
 import com.nirvana.application.model.dto.PaymentLinkInitResponse;
 import com.nirvana.application.model.dto.RazorpayConfirmRequest;
+import com.nirvana.application.model.dto.UpiPaymentConfirmRequest;
+import com.nirvana.application.model.dto.UpiPaymentInitResponse;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
@@ -28,10 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
@@ -50,6 +55,8 @@ public class PaymentService {
     private final NotificationSchedulingService notificationSchedulingService;
 
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
+    private static final String GATEWAY_UPI = "UPI";
+    private static final int UPI_EXPIRY_MINUTES = 30;
 
     // ------------------ ORDER-BASED CHECKOUT ------------------
 
@@ -211,6 +218,153 @@ public class PaymentService {
             log.error("Error verifying Razorpay signature for booking {}", bookingId, e);
             throw new RuntimeException("Error verifying payment", e);
         }
+    }
+
+    // ------------------ UPI (QR / DEEPLINK) ------------------
+
+    @Transactional
+    public UpiPaymentInitResponse initiateUpiPayment(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new IllegalStateException("Booking not in PENDING_PAYMENT: " + booking.getStatus());
+        }
+        if (booking.getPaymentMode() != PaymentMode.ONLINE) {
+            throw new IllegalStateException("Payment can only be initiated for ONLINE mode bookings");
+        }
+
+        Spa spa = booking.getSpa();
+        SpaManager manager = spa.getSpaManager();
+        if (manager == null || manager.getUpiId() == null || manager.getUpiId().isBlank()) {
+            throw new IllegalStateException("UPI is not configured for this spa");
+        }
+
+        Optional<Payment> existing = paymentRepository.findByBookingIdAndGateway(bookingId, GATEWAY_UPI);
+        if (existing.isPresent()
+                && (existing.get().getPaymentStatus() == PaymentStatus.INIT
+                || existing.get().getPaymentStatus() == PaymentStatus.PENDING)) {
+            return buildUpiInitResponse(booking, manager, existing.get());
+        }
+
+        int amountSubunits = booking.getRemainderCents();
+        if (amountSubunits <= 0) {
+            throw new IllegalStateException("Invalid amount for booking: " + amountSubunits);
+        }
+
+        String intentId = "upi_" + booking.getBookingReference();
+        if (paymentRepository.existsByIntentId(intentId)) {
+            intentId = intentId + "_" + UUID.randomUUID();
+        }
+
+        Payment payment = new Payment();
+        payment.setBooking(booking);
+        payment.setGateway(GATEWAY_UPI);
+        payment.setAmountCents(amountSubunits);
+        payment.setCurrency(booking.getCurrency());
+        payment.setPaymentStatus(PaymentStatus.INIT);
+        payment.setIntentId(intentId);
+        payment.setPaymentMethod("UPI");
+        payment.setTotalPrice(BigDecimal.valueOf(amountSubunits).movePointLeft(2));
+
+        paymentRepository.save(payment);
+
+        return buildUpiInitResponse(booking, manager, payment);
+    }
+
+    @Transactional
+    public void confirmUpiPayment(Long bookingId, UpiPaymentConfirmRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
+        if (booking.getPaymentMode() != PaymentMode.ONLINE) {
+            throw new IllegalStateException("Cannot confirm payment for OFFLINE bookings");
+        }
+
+        Payment payment = paymentRepository
+                .findByBookingIdAndGateway(bookingId, GATEWAY_UPI)
+                .orElseThrow(() -> new EntityNotFoundException("Payment not found for booking " + bookingId));
+
+        if (!requireNonNull(payment.getIntentId()).equals(request.getPaymentIntentId())) {
+            throw new IllegalArgumentException("Intent id mismatch");
+        }
+
+        if (payment.getPaymentStatus() == PaymentStatus.COMPLETED
+                || payment.getPaymentStatus() == PaymentStatus.CAPTURED) {
+            return;
+        }
+
+        if (!request.isSuccess()) {
+            payment.setPaymentStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            return;
+        }
+
+        if (paymentRepository.existsByTransactionId(request.getTransactionReference())) {
+            log.info("UPI transaction {} already processed, skipping", request.getTransactionReference());
+            return;
+        }
+
+        payment.setPaymentStatus(PaymentStatus.COMPLETED);
+        payment.setTransactionId(request.getTransactionReference());
+        payment.setBankTxnId(request.getPayerVpa());
+        payment.setCapturedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        paymentRepository.save(payment);
+
+        BookingStatus previousStatus = booking.getStatus();
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setLastStatusChangedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        bookingRepository.save(booking);
+
+        invoiceService.generateInvoiceForBooking(bookingId);
+
+        if (previousStatus != BookingStatus.CONFIRMED) {
+            notificationSchedulingService.scheduleBookingNotifications(booking);
+        }
+    }
+
+    private UpiPaymentInitResponse buildUpiInitResponse(Booking booking, SpaManager manager, Payment payment) {
+        BigDecimal amountMajor = BigDecimal
+                .valueOf(payment.getAmountCents())
+                .movePointLeft(2);
+
+        String note = "Booking #" + booking.getBookingReference();
+        String payeeName = booking.getSpa().getName();
+        String deepLink = buildUpiDeepLink(manager.getUpiId(), payeeName, amountMajor, payment.getCurrency(),
+                payment.getIntentId(), note);
+
+        OffsetDateTime expiresAt = booking.getStartTs() != null
+                ? booking.getStartTs().minusMinutes(UPI_EXPIRY_MINUTES)
+                : OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(UPI_EXPIRY_MINUTES);
+
+        return UpiPaymentInitResponse.builder()
+                .bookingId(booking.getId())
+                .bookingReference(booking.getBookingReference())
+                .amount(amountMajor)
+                .currency(payment.getCurrency())
+                .payeeName(payeeName)
+                .upiId(manager.getUpiId())
+                .upiDeepLink(deepLink)
+                .qrImageUrl(manager.getUpiQrImageUrl())
+                .transactionRef(payment.getIntentId())
+                .expiresAt(expiresAt)
+                .build();
+    }
+
+    private String buildUpiDeepLink(String upiId, String payeeName, BigDecimal amount, String currency,
+                                    String transactionRef, String note) {
+        StringBuilder builder = new StringBuilder("upi://pay?");
+        builder.append("pa=").append(encode(upiId));
+        builder.append("&pn=").append(encode(payeeName));
+        builder.append("&am=").append(amount);
+        builder.append("&cu=").append(encode(currency));
+        builder.append("&tr=").append(encode(transactionRef));
+        builder.append("&tn=").append(encode(note));
+        return builder.toString();
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     // ------------------ RETRY PAYMENT ------------------

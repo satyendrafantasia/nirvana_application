@@ -11,6 +11,7 @@ public class BookingCreateResponse {
     private Integer totalCents;
     private String currency;
     private PaymentInitResponse razorpay;
+    private UpiPaymentInitResponse upi;
 
     public Long getBookingId() {
         return bookingId;
@@ -90,5 +91,13 @@ public class BookingCreateResponse {
 
     public void setRazorpay(PaymentInitResponse razorpay) {
         this.razorpay = razorpay;
+    }
+
+    public UpiPaymentInitResponse getUpi() {
+        return upi;
+    }
+
+    public void setUpi(UpiPaymentInitResponse upi) {
+        this.upi = upi;
     }
 }

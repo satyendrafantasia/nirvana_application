@@ -27,6 +27,9 @@ public class BookingCreateRequest {
     @NotNull
     private String paymentMode; // ONLINE | OFFLINE
 
+    // Preferred online payment method (e.g., RAZORPAY | UPI).
+    private String paymentMethod;
+
     @Size(max = 2000)
     private String specialRequest;
 
@@ -91,6 +94,14 @@ public class BookingCreateRequest {
 
     public void setPaymentMode(String paymentMode) {
         this.paymentMode = paymentMode;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
     }
 
     public String getSpecialRequest() {
