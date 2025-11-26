@@ -80,6 +80,16 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "provider_assigned_id")
     private ProviderUser providerAssigned;
 
+    /**
+     * Explicit therapist selection by the guest (if spa allows it).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "therapist_id")
+    private Therapist therapist;
+
+    @Column(name = "therapist_type", length = 128)
+    private String therapistType;
+
     // -------- TIME SNAPSHOTS --------
 
     /**
