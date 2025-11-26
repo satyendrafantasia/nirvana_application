@@ -106,6 +106,9 @@ public class Spa extends BaseEntity {
     @Column(name = "is_featured", nullable = false)
     private Boolean isFeatured = false;
 
+    @Column(name = "allow_therapist_selection", nullable = false)
+    private Boolean allowTherapistSelection = false;
+
     // ratings & metrics
     @Column(name = "rating_avg")
     private Float ratingAvg = 0f;

@@ -4,6 +4,7 @@ import com.nirvana.application.model.Booking;
 import com.nirvana.application.model.BookingHold;
 import com.nirvana.application.model.Slot;
 import com.nirvana.application.model.Spa;
+import com.nirvana.application.model.Therapist;
 import com.nirvana.application.model.User;
 import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
@@ -25,6 +26,7 @@ import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.SlotRepository;
 import com.nirvana.application.repository.SpaRepository;
+import com.nirvana.application.repository.TherapistRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.BookingService;
 import com.nirvana.application.service.NotificationService;
@@ -68,6 +70,7 @@ public class BookingServiceImpl implements BookingService {
     private final PricingService pricingService;
     private final BookingHoldRepository bookingHoldRepository;
     private final WaitlistService waitlistService;
+    private final TherapistRepository therapistRepository;
 
     @Override
     @Transactional
@@ -132,6 +135,16 @@ public class BookingServiceImpl implements BookingService {
         int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
         validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
+        Therapist therapist = null;
+        if (request.getTherapistId() != null) {
+            if (!Boolean.TRUE.equals(spa.getAllowTherapistSelection())) {
+                throw new IllegalArgumentException("Spa does not allow therapist selection");
+            }
+            therapist = therapistRepository.findById(request.getTherapistId())
+                    .orElseThrow(() -> new EntityNotFoundException("Therapist not found: " + request.getTherapistId()));
+            validateTherapistSelection(spa, service, slot, therapist);
+        }
+
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
 
         int unitPrice = service.getPriceCents() != null
@@ -175,6 +188,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setScheduledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
+        booking.setTherapist(therapist);
 
         if (paymentMode == PaymentMode.OFFLINE) {
             booking.setStatus(BookingStatus.CONFIRMED);
@@ -401,6 +415,24 @@ public class BookingServiceImpl implements BookingService {
         int remaining = slot.getCapacityUnit() - slot.getBookedUnits() - activeHolds;
         if (remaining < guests) {
             throw new IllegalStateException("Not enough capacity left in slot");
+        }
+    }
+
+    private void validateTherapistSelection(Spa spa, com.nirvana.application.model.Service service, Slot slot, Therapist therapist) {
+        if (!therapist.getSpa().getId().equals(spa.getId())) {
+            throw new IllegalArgumentException("Therapist does not belong to spa");
+        }
+        if (Boolean.FALSE.equals(therapist.getIsActive()) || Boolean.FALSE.equals(therapist.getIsAvailable())) {
+            throw new IllegalStateException("Therapist is not available for booking");
+        }
+        boolean supportsService = (therapist.getService() != null && therapist.getService().getId().equals(service.getId()))
+                || therapist.getServices().stream().anyMatch(s -> s.getId().equals(service.getId()));
+        if (!supportsService) {
+            throw new IllegalArgumentException("Therapist does not offer selected service");
+        }
+        boolean hasConflict = bookingRepository.existsActiveTherapistConflict(therapist.getId(), slot.getStartTs(), slot.getEndTs());
+        if (hasConflict) {
+            throw new IllegalStateException("Therapist is already booked for this time");
         }
     }
 

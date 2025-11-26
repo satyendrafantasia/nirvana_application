@@ -5,6 +5,7 @@ import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.DaySlotsResponse;
 import com.nirvana.application.model.dto.ProviderAvailabilitySyncRequest;
 import com.nirvana.application.model.dto.SlotAvailabilityResponse;
+import com.nirvana.application.model.dto.TherapistAvailabilityResponse;
 import com.nirvana.application.model.dto.WeekSlotsResponse;
 import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.*;
@@ -30,6 +31,8 @@ public class SlotAvailabilityService {
     private final ScheduleRuleRepository scheduleRuleRepository;
     private final ClosureRepository closureRepository;
     private final BookingHoldRepository bookingHoldRepository;
+    private final TherapistRepository therapistRepository;
+    private final BookingRepository bookingRepository;
 
     // ---------- SINGLE DAY (you already had this flow) ----------
 
@@ -93,6 +96,14 @@ public class SlotAvailabilityService {
         List<Slot> slots = slotRepository.findSlotsForServiceBetween(spaId, serviceId, from, to);
         Map<Long, Integer> holdMap = buildHoldMap(slots);
 
+        boolean therapistSelectionEnabled = Boolean.TRUE.equals(spa.getAllowTherapistSelection());
+        List<Therapist> therapistsForService = therapistSelectionEnabled
+                ? therapistRepository.findActiveAvailableForSpaAndService(spaId, serviceId)
+                : List.of();
+        Map<Long, List<TherapistBookingWindow>> therapistBookings = therapistSelectionEnabled
+                ? buildTherapistBookings(therapistsForService, from, to)
+                : Map.of();
+
         // Fetch all closures overlapping the whole range
         List<Closure> closures = closureRepository.findClosuresOverlapping(spaId, from, to);
 
@@ -122,7 +133,13 @@ public class SlotAvailabilityService {
                     List<ScheduleRule> rules = rulesByDate.getOrDefault(d, List.of());
                     return isSlotBookable(slot, rules, closures, zoneId, guests, holdMap.getOrDefault(slot.getId(), 0));
                 })
-                .map(entry -> Map.entry(entry.getValue(), toDto(entry.getKey(), guests, holdMap.getOrDefault(entry.getKey().getId(), 0))))
+                .map(entry -> Map.entry(entry.getValue(), toDto(
+                        entry.getKey(),
+                        guests,
+                        holdMap.getOrDefault(entry.getKey().getId(), 0),
+                        therapistSelectionEnabled,
+                        buildTherapistAvailability(entry.getKey(), therapistSelectionEnabled, therapistsForService, therapistBookings)
+                )))
                 .collect(Collectors.groupingBy(
                         Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())
@@ -217,7 +234,60 @@ public class SlotAvailabilityService {
         return result;
     }
 
-    private SlotAvailabilityResponse toDto(Slot slot, int guests, int heldUnits) {
+    private Map<Long, List<TherapistBookingWindow>> buildTherapistBookings(List<Therapist> therapists, OffsetDateTime from, OffsetDateTime to) {
+        if (therapists.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> therapistIds = therapists.stream().map(Therapist::getId).toList();
+        List<Object[]> raw = bookingRepository.findActiveTherapistBookings(therapistIds, from, to);
+        Map<Long, List<TherapistBookingWindow>> bookingsByTherapist = new HashMap<>();
+        for (Object[] row : raw) {
+            Long therapistId = (Long) row[0];
+            OffsetDateTime start = (OffsetDateTime) row[1];
+            OffsetDateTime end = (OffsetDateTime) row[2];
+            bookingsByTherapist.computeIfAbsent(therapistId, k -> new ArrayList<>())
+                    .add(new TherapistBookingWindow(start, end));
+        }
+        return bookingsByTherapist;
+    }
+
+    private List<TherapistAvailabilityResponse> buildTherapistAvailability(
+            Slot slot,
+            boolean therapistSelectionEnabled,
+            List<Therapist> therapists,
+            Map<Long, List<TherapistBookingWindow>> existingBookings
+    ) {
+        if (!therapistSelectionEnabled || therapists.isEmpty()) {
+            return List.of();
+        }
+        OffsetDateTime slotStart = slot.getStartTs();
+        OffsetDateTime slotEnd = slot.getEndTs();
+        return therapists.stream()
+                .filter(therapist -> isTherapistFree(slotStart, slotEnd, existingBookings.getOrDefault(therapist.getId(), List.of())))
+                .map(therapist -> new TherapistAvailabilityResponse(
+                        therapist.getId(),
+                        therapist.getName(),
+                        therapist.getDisplayName(),
+                        therapist.getProfileImageUrl(),
+                        true
+                ))
+                .toList();
+    }
+
+    private boolean isTherapistFree(OffsetDateTime slotStart, OffsetDateTime slotEnd, List<TherapistBookingWindow> bookings) {
+        return bookings.stream().noneMatch(b -> slotStart.isBefore(b.end()) && slotEnd.isAfter(b.start()));
+    }
+
+    private record TherapistBookingWindow(OffsetDateTime start, OffsetDateTime end) {
+    }
+
+    private SlotAvailabilityResponse toDto(
+            Slot slot,
+            int guests,
+            int heldUnits,
+            boolean therapistSelectionEnabled,
+            List<TherapistAvailabilityResponse> therapists
+    ) {
         short capacity = slot.getCapacityUnit();
         short booked = slot.getBookedUnits();
         int remaining = Math.max(0, capacity - booked - heldUnits);
@@ -237,7 +307,9 @@ public class SlotAvailabilityService {
                 slot.getEndTs(),
                 remaining,
                 slot.getRoomNumber(),
-                uiStatus
+                uiStatus,
+                therapistSelectionEnabled,
+                therapistSelectionEnabled ? therapists : List.of()
         );
     }
 
@@ -259,6 +331,7 @@ public class SlotAvailabilityService {
         slot.setHoldExpiresTs(request.getProviderHoldExpiresAt());
 
         slotRepository.save(slot);
-        return toDto(slot, 1, 0);
+        boolean therapistSelectionEnabled = Boolean.TRUE.equals(slot.getSpa().getAllowTherapistSelection());
+        return toDto(slot, 1, 0, therapistSelectionEnabled, List.of());
     }
 }
