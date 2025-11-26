@@ -1,7 +1,6 @@
 package com.nirvana.application.api;
 
-import com.nirvana.application.exception.BusinessException;
-import com.nirvana.application.exception.NotFoundException;
+import com.nirvana.application.exception.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -95,6 +94,24 @@ public class GlobalExceptionHandler {
 
         ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, "Constraint violation", request.getRequestURI(), cid)
                 .fieldErrors(fieldErrors)
+                .build();
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler({CorporateNotFoundException.class, CorporateDealNotFoundException.class, CorporateEmployeeNotFoundException.class, CorporateCouponNotFoundException.class})
+    public ResponseEntity<ApiErrorResponse> handleCorporateNotFound(RuntimeException ex, HttpServletRequest request) {
+        String cid = UUID.randomUUID().toString();
+        ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), cid)
+                .fieldErrors(null)
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler({CorporateCouponExpiredException.class, CorporateCouponExhaustedException.class, NoActiveCorporateCouponException.class, CorporateOnboardingParseException.class})
+    public ResponseEntity<ApiErrorResponse> handleCorporateValidation(RuntimeException ex, HttpServletRequest request) {
+        String cid = UUID.randomUUID().toString();
+        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), cid)
+                .fieldErrors(null)
                 .build();
         return ResponseEntity.badRequest().body(body);
     }
