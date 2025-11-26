@@ -24,6 +24,13 @@ public class SpaManager {
     private User user;
 
 
+    @Column(name = "upi_id", length = 255)
+    private String upiId;
+
+    @Column(name = "upi_qr_image_url", length = 1000)
+    private String upiQrImageUrl;
+
+
 
     @OneToOne(mappedBy = "spaManager", fetch = FetchType.LAZY)
     private Spa spa;
