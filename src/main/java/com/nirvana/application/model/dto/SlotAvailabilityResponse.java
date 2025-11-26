@@ -2,6 +2,7 @@
 package com.nirvana.application.model.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record SlotAvailabilityResponse(
         Long slotId,
@@ -9,5 +10,7 @@ public record SlotAvailabilityResponse(
         OffsetDateTime endTs,
         int remainingCapacityUnits,
         String roomNumber,
-        String status
+        String status,
+        boolean therapistSelectionEnabled,
+        List<TherapistAvailabilityResponse> therapists
 ) {}

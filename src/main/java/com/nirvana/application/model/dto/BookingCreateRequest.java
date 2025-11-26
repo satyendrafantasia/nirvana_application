@@ -19,6 +19,8 @@ public class BookingCreateRequest {
     @Min(1)
     private Integer guests;
 
+    private Long therapistId;
+
     @NotNull
     private String paymentMode; // ONLINE | OFFLINE
 
@@ -62,6 +64,14 @@ public class BookingCreateRequest {
 
     public void setGuests(Integer guests) {
         this.guests = guests;
+    }
+
+    public Long getTherapistId() {
+        return therapistId;
+    }
+
+    public void setTherapistId(Long therapistId) {
+        this.therapistId = therapistId;
     }
 
     public String getPaymentMode() {
