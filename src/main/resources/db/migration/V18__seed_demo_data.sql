@@ -278,6 +278,58 @@ INSERT IGNORE INTO therapist_service (therapist_id, service_id) VALUES
   (1, 1),
   (1, 2);
 
+-- Generate a therapist per demo spa to support booking scenarios at scale
+INSERT IGNORE INTO therapist (
+  id, created_at, updated_at, bio, certifications, country_of_origin, currency, display_name, email, ethnicity,
+  experience_years, gender, hourly_rate_cents, images, is_active, is_available, languages, last_seen_at, meta,
+  name, phone, profile_image_url, rating_avg, rating_count, reviews, type, version, service_id, spa_id
+)
+SELECT
+  2000 + id,
+  @now,
+  @now,
+  CONCAT('Therapist for spa ', id, ' experienced in Swedish and aromatherapy.'),
+  JSON_ARRAY('Swedish Massage', 'Aromatherapy'),
+  'India',
+  'INR',
+  CONCAT('Therapist ', id),
+  CONCAT('therapist', id, '@nirvana.test'),
+  'Asian',
+  MOD(id, 15) + 1,
+  IF(MOD(id, 2) = 0, 'FEMALE', 'MALE'),
+  2500 + (id * 5),
+  JSON_ARRAY(CONCAT('https://cdn.nirvana/therapists/', id, '.jpg')),
+  b'1',
+  b'1',
+  JSON_ARRAY('English', 'Hindi'),
+  DATE_SUB(@now, INTERVAL (id % 10) HOUR),
+  NULL,
+  CONCAT('Therapist ', id),
+  CONCAT('+91-90', LPAD(id, 6, '0')),
+  NULL,
+  4.0 + (MOD(id, 10) * 0.05),
+  20 + id,
+  NULL,
+  'STAFF',
+  1,
+  3000 + id,
+  id
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
+
+INSERT IGNORE INTO therapist_service (therapist_id, service_id)
+SELECT 2000 + id, 3000 + id
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
+
 -- Slots for availability
 INSERT IGNORE INTO slot (
   id, created_at, updated_at, booked_units, capacity_unit, end_ts, hold_expires_ts, hold_token, is_blocked, meta,
@@ -285,6 +337,36 @@ INSERT IGNORE INTO slot (
 ) VALUES
   (1, @now, @now, 0, 1, DATE_ADD(@now, INTERVAL 1 HOUR), NULL, NULL, b'0', NULL, 'Deluxe Room', @now, 'OPEN', 1, 1, 1, 1, 1),
   (2, @now, @now, 0, 1, DATE_ADD(@now, INTERVAL 2 HOUR), NULL, NULL, b'0', NULL, 'Couple Suite', DATE_ADD(@now, INTERVAL 1 HOUR), 'OPEN', 1, 2, 2, 1, 2);
+
+INSERT IGNORE INTO slot (
+  id, created_at, updated_at, booked_units, capacity_unit, end_ts, hold_expires_ts, hold_token, is_blocked, meta,
+  room_number, start_ts, status, version, assigned_provider_user_id, service_id, spa_id, room_id
+)
+SELECT
+  40000 + id,
+  @now,
+  @now,
+  0,
+  1,
+  DATE_ADD(DATE_ADD(@now, INTERVAL id HOUR), INTERVAL 1 HOUR),
+  NULL,
+  NULL,
+  b'0',
+  NULL,
+  CONCAT('Room ', id),
+  DATE_ADD(@now, INTERVAL id HOUR),
+  'OPEN',
+  1,
+  1,
+  3000 + id,
+  id,
+  1000 + id
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 -- Membership catalog
 INSERT IGNORE INTO membership_plan (id, created_at, updated_at, is_active, benefits, currency, description, duration_days, meta, name, price_cents, version, spa_id) VALUES
@@ -344,6 +426,79 @@ INSERT IGNORE INTO booking (
    @now, NULL, NULL, JSON_OBJECT('cancellation', '24hrs'), 12000, 'First visit notes', b'0', 'NONE', 8000, 0, 'USER', @now,
    'CONFIRMED', JSON_OBJECT('tax_rate', 0.18), 2160, 500, 1, 1, 1, 'FEMALE', 1, 1, 1, 4, 1, 1, 1, 'ONLINE', 'STANDARD', 'NORMAL', NULL);
 
+-- Create 100 additional bookings spread across demo spas
+INSERT IGNORE INTO booking (
+  id, created_at, updated_at, arrived_at, booking_reference, cancellation_reason_code, cancellation_reason_text,
+  cancelled_at, cancelled_by, channel, completed_at, coupon_code, currency, customer_notes, deposit_cents,
+  discount_cents, end_ts, external_booking_id, guest_count, invoice_url, ip_address, is_test_booking, items,
+  last_status_changed_at, meta, no_show_marked_at, policy_snapshot, price_cents, provider_notes, rating_given,
+  refund_status, remainder_cents, reschedule_count, scheduled_by, start_ts, status, tax_breakdown, tax_cents,
+  tip_cents, version, provider_assigned_id, therapist_id, therapist_type, service_id, slot_id, spa_id, user_id,
+  coupon_id, user_membership_id, package_subscription_id, payment_mode, payment_type, payment_source_type,
+  corporate_employee_coupon_id
+)
+SELECT
+  1000 + id,
+  @now,
+  @now,
+  NULL,
+  CONCAT('BOOK-', LPAD(id, 4, '0')),
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'WEB',
+  NULL,
+  NULL,
+  IF(MOD(id, 5) = 0, 'GBP', 'INR'),
+  CONCAT('Demo booking for spa ', id),
+  1500,
+  500,
+  DATE_ADD(DATE_ADD(@now, INTERVAL id HOUR), INTERVAL 1 HOUR),
+  NULL,
+  1,
+  NULL,
+  '127.0.0.1',
+  b'0',
+  JSON_OBJECT('services', JSON_ARRAY(3000 + id)),
+  @now,
+  NULL,
+  NULL,
+  JSON_OBJECT('cancellation', '24hrs'),
+  7000 + (id * 5),
+  CONCAT('Notes for booking ', id),
+  b'0',
+  'NONE',
+  4000 + id,
+  0,
+  'USER',
+  DATE_ADD(@now, INTERVAL id HOUR),
+  'CONFIRMED',
+  JSON_OBJECT('tax_rate', 0.18),
+  900 + id,
+  0,
+  1,
+  1,
+  2000 + id,
+  'GENERAL',
+  3000 + id,
+  40000 + id,
+  id,
+  4,
+  NULL,
+  NULL,
+  NULL,
+  'ONLINE',
+  'STANDARD',
+  'NORMAL',
+  NULL
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
+
 INSERT IGNORE INTO booking_event (id, actor_id, actor_type, created_at, event_payload, new_status, prev_status, reason, version, booking_id) VALUES
   (1, 4, 'CUSTOMER', @now, JSON_OBJECT('note','Initial confirmation'), 'CONFIRMED', NULL, 'Booked via web', 1, 1);
 
@@ -374,6 +529,46 @@ INSERT IGNORE INTO invoice (id, created_at, updated_at, currency, discount_cents
 
 INSERT IGNORE INTO payment (id, created_at, updated_at, amount_cents, bank_txn_id, captured_at, card_brand, card_last4, currency, currency_conversion_rate, fee_cents, gateway, intent_id, meta, payment_method, payment_status, payout_id, payout_status, refunded_at, refunded_cents, settlement_date, settlement_status, total_price, transaction_id, version, booking_id) VALUES
   (1, @now, @now, 12000, 'BANK123', @now, 'VISA', '4242', 'GBP', 1.0, 300, 'RAZORPAY', 'INTENT-1', NULL, 'CARD', 'COMPLETED', NULL, NULL, NULL, 0, NULL, NULL, 120.00, 'TXN-0001', 1, 1);
+
+INSERT IGNORE INTO payment (
+  id, created_at, updated_at, amount_cents, bank_txn_id, captured_at, card_brand, card_last4, currency,
+  currency_conversion_rate, fee_cents, gateway, intent_id, meta, payment_method, payment_status, payout_id,
+  payout_status, refunded_at, refunded_cents, settlement_date, settlement_status, total_price, transaction_id,
+  version, booking_id
+)
+SELECT
+  50000 + id,
+  @now,
+  @now,
+  7000 + (id * 5),
+  CONCAT('BANK', LPAD(id, 4, '0')),
+  @now,
+  'VISA',
+  '4242',
+  IF(MOD(id, 5) = 0, 'GBP', 'INR'),
+  1.0,
+  200 + id,
+  'RAZORPAY',
+  CONCAT('INTENT-', id),
+  NULL,
+  'CARD',
+  'COMPLETED',
+  NULL,
+  NULL,
+  NULL,
+  0,
+  NULL,
+  NULL,
+  (7000 + (id * 5)) / 100,
+  CONCAT('TXN-', LPAD(id, 4, '0')),
+  1,
+  1000 + id
+FROM (
+  SELECT (ones.n + tens.n * 10 + 2) AS id
+  FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS ones
+  CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS tens
+) AS spa_seed
+WHERE id <= 101;
 
 INSERT IGNORE INTO payment_refund (id, created_at, updated_at, booking_id, payment_id, requested_by, processed_by, amount_cents, currency, reason, status, prefer_voucher, gateway_refund_id, voucher_code, processed_at, meta) VALUES
   (1, @now, @now, 1, 1, 4, 1, 1000, 'GBP', 'Goodwill gesture', 'COMPLETED', b'0', 'GATE-REF-1', 'VCHR-001', @now, NULL);
