@@ -1,4 +1,4 @@
-CREATE TABLE corporate (
+CREATE TABLE IF NOT EXISTS corporate (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE corporate (
     UNIQUE KEY uk_corporate_domain (domain)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE corporate_deal (
+CREATE TABLE IF NOT EXISTS corporate_deal (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE corporate_deal (
     INDEX idx_corporate_deal_corp (corporate_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE corporate_employee (
+CREATE TABLE IF NOT EXISTS corporate_employee (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE corporate_employee (
     UNIQUE KEY uk_corporate_employee_email (employee_email, corporate_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE corporate_employee_coupon (
+CREATE TABLE IF NOT EXISTS corporate_employee_coupon (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE corporate_employee_coupon (
     INDEX idx_employee_coupon_user (user_id, status, expiry_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE corporate_coupon_usage_log (
+CREATE TABLE IF NOT EXISTS corporate_coupon_usage_log (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE corporate_coupon_usage_log (
     INDEX idx_coupon_usage_coupon (corporate_employee_coupon_id, usage_datetime)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE corporate_onboarding_upload (
+CREATE TABLE IF NOT EXISTS corporate_onboarding_upload (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     created_at datetime(6) NOT NULL,
     updated_at datetime(6) NOT NULL,
@@ -98,6 +98,11 @@ CREATE TABLE corporate_onboarding_upload (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 ALTER TABLE booking
-    ADD COLUMN corporate_employee_coupon_id BIGINT NULL,
-    ADD COLUMN payment_source_type VARCHAR(32) DEFAULT 'NORMAL',
+    ADD COLUMN IF NOT EXISTS corporate_employee_coupon_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS payment_source_type VARCHAR(32) DEFAULT 'NORMAL';
+
+ALTER TABLE booking
+    DROP FOREIGN KEY IF EXISTS fk_booking_corporate_coupon;
+
+ALTER TABLE booking
     ADD CONSTRAINT fk_booking_corporate_coupon FOREIGN KEY (corporate_employee_coupon_id) REFERENCES corporate_employee_coupon(id);
