@@ -5,4 +5,8 @@ import com.nirvana.application.model.dto.InvoiceEmailDto;
 
 public interface EmailService {
     void sendInvoiceEmail(InvoiceEmailDto dto);
+
+    void sendCorporateEmployeeInvite(String employeeEmail, String username, String tempPassword);
+
+    void sendCorporateBenefitsActivated(String employeeEmail, String dealName);
 }
