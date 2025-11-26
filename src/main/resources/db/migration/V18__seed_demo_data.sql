@@ -86,15 +86,128 @@ INSERT IGNORE INTO spa (
    DATE_SUB(@now, INTERVAL 2 YEAR), 'VERIFIED', 60, 4, 120, 'Nirvana Marylebone', 'Maya Manager', '+44-20-7946-0958', 4.7,
    1240, JSON_ARRAY('city-centre', 'luxury'), 18, 35210, 1, 'https://nirvana.test', 1, b'1', b'1');
 
+-- Generate 100 additional spa locations with consistent dependent records for broader API testing
+WITH RECURSIVE spa_seed AS (
+  SELECT 2 AS id
+  UNION ALL
+  SELECT id + 1 FROM spa_seed WHERE id < 101
+)
+INSERT IGNORE INTO spa (
+  id, created_at, updated_at, address_line1, address_line2, address_type, city, country,
+  country_code, formatted_address, geo_source, google_place_id, landmark, latitude, locality,
+  longitude, meta, postal_code, state, timezone, amenities, business_reg_number, commission_pct,
+  default_currency, description, email, established_at, facebook_url, gstin, images, instagram_url,
+  is_active, is_featured, is_verified, kyc_approved_at, kyc_rejected_at, kyc_rejected_reason,
+  kyc_requested_at, kyc_status, max_advance_booking_days, max_concurrent_services,
+  min_notice_minutes, name, owner_name, phone, rating_avg, rating_count, tags, tax_percent,
+  total_bookings, version, website_url, spa_manager_id, allow_therapist_selection, allow_therapist_type_selection
+)
+SELECT
+  id,
+  @now,
+  @now,
+  CONCAT(id, ' Wellness Street'),
+  CONCAT('Suite ', LPAD(id, 3, '0')),
+  'COMMERCIAL',
+  CONCAT('City ', MOD(id, 20) + 1),
+  'India',
+  'IN',
+  CONCAT(id, ' Wellness Street, City ', MOD(id, 20) + 1),
+  'MAPS',
+  CONCAT('place_', id),
+  CONCAT('Landmark ', id),
+  12.900000 + (id * 0.01),
+  CONCAT('Locality ', MOD(id, 15) + 1),
+  77.500000 + (id * 0.01),
+  JSON_OBJECT('parking', IF(MOD(id, 2) = 0, 'valet', 'street')),
+  CONCAT('560', LPAD(id, 3, '0')),
+  'Karnataka',
+  'Asia/Kolkata',
+  JSON_ARRAY('Sauna', 'Steam', 'Pool'),
+  CONCAT('BRN-', LPAD(id, 4, '0')),
+  18,
+  'INR',
+  CONCAT('Demo spa location ', id, ' for API load testing'),
+  CONCAT('location', id, '@nirvana.test'),
+  DATE_SUB(@now, INTERVAL (id * 3) DAY),
+  NULL,
+  CONCAT('GSTIN', LPAD(id, 4, '0')),
+  JSON_ARRAY(CONCAT('https://cdn.nirvana/spa', id, '/hero.jpg')),
+  NULL,
+  b'1',
+  IF(MOD(id, 10) = 0, b'1', b'0'),
+  b'1',
+  DATE_SUB(@now, INTERVAL (id * 2) DAY),
+  NULL,
+  NULL,
+  DATE_SUB(@now, INTERVAL (id * 2) DAY),
+  'VERIFIED',
+  45,
+  3,
+  90,
+  CONCAT('Nirvana Location ', id),
+  CONCAT('Owner ', id),
+  CONCAT('+91-90000', LPAD(id, 4, '0')),
+  4.0 + (MOD(id, 10) * 0.02),
+  100 + id,
+  JSON_ARRAY('franchise', 'demo'),
+  18,
+  2000 + id,
+  1,
+  CONCAT('https://nirvana.test/spa/', id),
+  1,
+  b'1',
+  b'1'
+FROM spa_seed;
+
 -- Spa rooms
 INSERT IGNORE INTO spa_room (id, created_at, updated_at, is_active, capacity, code, meta, name, version, spa_id) VALUES
   (1, @now, @now, b'1', 2, 'RM-DELUXE', NULL, 'Deluxe Room', 1, 1),
   (2, @now, @now, b'1', 1, 'RM-COUPLE', NULL, 'Couple Suite', 1, 1);
 
+WITH RECURSIVE spa_seed AS (
+  SELECT 2 AS id
+  UNION ALL
+  SELECT id + 1 FROM spa_seed WHERE id < 101
+)
+INSERT IGNORE INTO spa_room (id, created_at, updated_at, is_active, capacity, code, meta, name, version, spa_id)
+SELECT
+  1000 + id,
+  @now,
+  @now,
+  b'1',
+  IF(MOD(id, 3) = 0, 3, 2),
+  CONCAT('RM-', LPAD(id, 3, '0')),
+  NULL,
+  CONCAT('Therapy Room ', id),
+  1,
+  id
+FROM spa_seed;
+
 -- Operating hours
 INSERT IGNORE INTO schedule_rule (id, applies_from, applies_to, close_local, is_holiday, meta, note, open_local, version, weekday, spa_id) VALUES
   (1, CURDATE(), NULL, '21:00:00', b'0', NULL, 'Standard hours', '09:00:00', 1, 1, 1),
   (2, CURDATE(), NULL, '21:00:00', b'0', NULL, 'Standard hours', '09:00:00', 1, 5, 1);
+
+WITH RECURSIVE spa_seed AS (
+  SELECT 2 AS id
+  UNION ALL
+  SELECT id + 1 FROM spa_seed WHERE id < 101
+)
+INSERT IGNORE INTO schedule_rule (id, applies_from, applies_to, close_local, is_holiday, meta, note, open_local, version, weekday, spa_id)
+SELECT
+  2000 + id,
+  CURDATE(),
+  NULL,
+  '21:00:00',
+  b'0',
+  NULL,
+  CONCAT('Standard hours for spa ', id),
+  '08:00:00',
+  1,
+  MOD(id, 7) + 1,
+  id
+FROM spa_seed;
 
 -- Services
 INSERT IGNORE INTO service (
@@ -109,6 +222,47 @@ INSERT IGNORE INTO service (
   (2, @now, @now, 8000, 10, JSON_OBJECT('window_hours', 6), 'Facial', 'GBP', 'Refreshing facial treatment',
    45, 45, NULL, 'ANY', JSON_ARRAY('https://cdn.nirvana/facial.jpg'), b'1', b'1', 1, NULL, 1, 'Hydrating Facial',
    NULL, 8000, 'FAC-45', 'Skincare', NULL, 1, 1);
+
+WITH RECURSIVE spa_seed AS (
+  SELECT 2 AS id
+  UNION ALL
+  SELECT id + 1 FROM spa_seed WHERE id < 101
+)
+INSERT IGNORE INTO service (
+  id, created_at, updated_at, base_price_cents, buffer_min, cancellation_policy_json, category, currency,
+  description, duration_min, duration_minutes, equipment_required, gender_allowed, images, is_active,
+  is_visible_on_marketplace, max_persons, meta, min_persons, name, price_breakdown, price_cents,
+  service_code, sub_category, therapist_gender_preference, version, spa_id
+)
+SELECT
+  3000 + id,
+  @now,
+  @now,
+  5000 + (id * 10),
+  10,
+  JSON_OBJECT('window_hours', 24),
+  'Massage',
+  'INR',
+  CONCAT('Signature relaxation massage at location ', id),
+  50,
+  50,
+  NULL,
+  'ANY',
+  JSON_ARRAY(CONCAT('https://cdn.nirvana/spa', id, '/service.jpg')),
+  b'1',
+  b'1',
+  1,
+  NULL,
+  1,
+  CONCAT('Relaxation Massage ', id),
+  NULL,
+  5000 + (id * 10),
+  CONCAT('SRV-', LPAD(id, 4, '0')),
+  'Relaxation',
+  NULL,
+  1,
+  id
+FROM spa_seed;
 
 -- Therapist roster
 INSERT IGNORE INTO therapist (
