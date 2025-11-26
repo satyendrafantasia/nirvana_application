@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
@@ -29,4 +31,27 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("select sum(b.priceCents + b.taxCents) from Booking b where b.spa.id = :spaId and b.status = 'COMPLETED'")
     Long sumGrossRevenueBySpa(@Param("spaId") Long spaId);
+
+    @Query("""
+            SELECT DISTINCT b.therapist.id, b.startTs, b.endTs
+            FROM Booking b
+            WHERE b.therapist.id IN :therapistIds
+              AND b.status NOT IN (com.nirvana.application.model.enums.BookingStatus.CANCELLED, com.nirvana.application.model.enums.BookingStatus.NO_SHOW)
+              AND b.startTs < :rangeEnd AND b.endTs > :rangeStart
+            """)
+    List<Object[]> findActiveTherapistBookings(
+            @Param("therapistIds") List<Long> therapistIds,
+            @Param("rangeStart") OffsetDateTime rangeStart,
+            @Param("rangeEnd") OffsetDateTime rangeEnd);
+
+    @Query("""
+            SELECT COUNT(b) > 0 FROM Booking b
+            WHERE b.therapist.id = :therapistId
+              AND b.status NOT IN (com.nirvana.application.model.enums.BookingStatus.CANCELLED, com.nirvana.application.model.enums.BookingStatus.NO_SHOW)
+              AND b.startTs < :slotEnd AND b.endTs > :slotStart
+            """)
+    boolean existsActiveTherapistConflict(
+            @Param("therapistId") Long therapistId,
+            @Param("slotStart") OffsetDateTime slotStart,
+            @Param("slotEnd") OffsetDateTime slotEnd);
 }
