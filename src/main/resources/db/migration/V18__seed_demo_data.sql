@@ -201,8 +201,10 @@ INSERT IGNORE INTO waitlist_entry (id, user_id, spa_id, service_id, slot_id, gue
   (1, 4, 1, 1, NULL, 1, 'customer@nirvana.test', '+10000000004', TRUE, FALSE, NULL, NULL, @now, @now, 1);
 
 -- Operational controls
-INSERT IGNORE INTO closure (id, created_at, updated_at, description, end_ts, meta, scope, start_ts, type, version, spa_id) VALUES
-  (1, @now, @now, 'Maintenance window', DATE_ADD(@now, INTERVAL 1 DAY), NULL, 'FULL', @now, 'MAINTENANCE', 1, 1);
+INSERT IGNORE INTO closure (
+  id, end_ts, is_recurring, meta, reason, rrule, scope, start_ts, type, version, spa_id
+) VALUES
+  (1, DATE_ADD(@now, INTERVAL 1 DAY), b'0', NULL, 'Maintenance window', NULL, 'FULL', @now, 'MAINTENANCE', 1, 1);
 
 INSERT IGNORE INTO blackout_window (id, spa_id, provider_id, start_ts, end_ts, reason, created_by, created_at, updated_at) VALUES
   (1, 1, 1, DATE_ADD(@now, INTERVAL 3 DAY), DATE_ADD(@now, INTERVAL 3 DAY + INTERVAL 2 HOUR), 'Staff training', 'Maya Manager', @now, @now);
