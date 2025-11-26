@@ -5,5 +5,6 @@ public record TherapistAvailabilityResponse(
         String name,
         String displayName,
         String profileImageUrl,
+        String type,
         boolean available
 ) {}

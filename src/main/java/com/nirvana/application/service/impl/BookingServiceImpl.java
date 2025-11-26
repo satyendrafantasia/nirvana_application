@@ -135,14 +135,27 @@ public class BookingServiceImpl implements BookingService {
         int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
         validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
+        boolean therapistSelectionEnabled = Boolean.TRUE.equals(spa.getAllowTherapistSelection());
+        String requestedTherapistType = request.getTherapistType();
         Therapist therapist = null;
         if (request.getTherapistId() != null) {
-            if (!Boolean.TRUE.equals(spa.getAllowTherapistSelection())) {
+            if (!therapistSelectionEnabled) {
                 throw new IllegalArgumentException("Spa does not allow therapist selection");
             }
             therapist = therapistRepository.findById(request.getTherapistId())
                     .orElseThrow(() -> new EntityNotFoundException("Therapist not found: " + request.getTherapistId()));
             validateTherapistSelection(spa, service, slot, therapist);
+            if (requestedTherapistType != null && therapist.getType() != null
+                    && !therapist.getType().equalsIgnoreCase(requestedTherapistType)) {
+                throw new IllegalArgumentException("Therapist does not match requested type");
+            }
+            requestedTherapistType = therapist.getType();
+        }
+
+        if (therapist == null && requestedTherapistType != null && !requestedTherapistType.isBlank()) {
+            therapist = pickAvailableTherapistForType(spa, service, slot, requestedTherapistType.trim());
+            validateTherapistSelection(spa, service, slot, therapist);
+            requestedTherapistType = therapist.getType();
         }
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
@@ -189,6 +202,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
         booking.setTherapist(therapist);
+        booking.setTherapistType(requestedTherapistType);
 
         if (paymentMode == PaymentMode.OFFLINE) {
             booking.setStatus(BookingStatus.CONFIRMED);
@@ -434,6 +448,20 @@ public class BookingServiceImpl implements BookingService {
         if (hasConflict) {
             throw new IllegalStateException("Therapist is already booked for this time");
         }
+    }
+
+    private Therapist pickAvailableTherapistForType(Spa spa, com.nirvana.application.model.Service service, Slot slot, String therapistType) {
+        List<Therapist> candidates = therapistRepository.findActiveAvailableForSpaServiceAndType(
+                spa.getId(),
+                service.getId(),
+                therapistType
+        );
+        OffsetDateTime start = slot.getStartTs();
+        OffsetDateTime end = slot.getEndTs();
+        return candidates.stream()
+                .filter(candidate -> !bookingRepository.existsActiveTherapistConflict(candidate.getId(), start, end))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No available therapist of requested type for this slot"));
     }
 
     private void releaseCapacity(Slot slot, int guests) {

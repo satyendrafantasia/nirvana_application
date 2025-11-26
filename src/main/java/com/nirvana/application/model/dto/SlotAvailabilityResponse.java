@@ -12,5 +12,7 @@ public record SlotAvailabilityResponse(
         String roomNumber,
         String status,
         boolean therapistSelectionEnabled,
-        List<TherapistAvailabilityResponse> therapists
+        boolean therapistTypeSelectionEnabled,
+        List<TherapistAvailabilityResponse> therapists,
+        List<TherapistTypeAvailabilityResponse> therapistTypes
 ) {}

@@ -6,6 +6,7 @@ import com.nirvana.application.model.dto.DaySlotsResponse;
 import com.nirvana.application.model.dto.ProviderAvailabilitySyncRequest;
 import com.nirvana.application.model.dto.SlotAvailabilityResponse;
 import com.nirvana.application.model.dto.TherapistAvailabilityResponse;
+import com.nirvana.application.model.dto.TherapistTypeAvailabilityResponse;
 import com.nirvana.application.model.dto.WeekSlotsResponse;
 import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.*;
@@ -97,12 +98,8 @@ public class SlotAvailabilityService {
         Map<Long, Integer> holdMap = buildHoldMap(slots);
 
         boolean therapistSelectionEnabled = Boolean.TRUE.equals(spa.getAllowTherapistSelection());
-        List<Therapist> therapistsForService = therapistSelectionEnabled
-                ? therapistRepository.findActiveAvailableForSpaAndService(spaId, serviceId)
-                : List.of();
-        Map<Long, List<TherapistBookingWindow>> therapistBookings = therapistSelectionEnabled
-                ? buildTherapistBookings(therapistsForService, from, to)
-                : Map.of();
+        List<Therapist> therapistsForService = therapistRepository.findActiveAvailableForSpaAndService(spaId, serviceId);
+        Map<Long, List<TherapistBookingWindow>> therapistBookings = buildTherapistBookings(therapistsForService, from, to);
 
         // Fetch all closures overlapping the whole range
         List<Closure> closures = closureRepository.findClosuresOverlapping(spaId, from, to);
@@ -138,7 +135,9 @@ public class SlotAvailabilityService {
                         guests,
                         holdMap.getOrDefault(entry.getKey().getId(), 0),
                         therapistSelectionEnabled,
-                        buildTherapistAvailability(entry.getKey(), therapistSelectionEnabled, therapistsForService, therapistBookings)
+                        true,
+                        therapistSelectionEnabled ? buildTherapistAvailability(entry.getKey(), therapistsForService, therapistBookings) : List.of(),
+                        buildTherapistTypeAvailability(entry.getKey(), therapistsForService, therapistBookings)
                 )))
                 .collect(Collectors.groupingBy(
                         Map.Entry::getKey,
@@ -253,11 +252,10 @@ public class SlotAvailabilityService {
 
     private List<TherapistAvailabilityResponse> buildTherapistAvailability(
             Slot slot,
-            boolean therapistSelectionEnabled,
             List<Therapist> therapists,
             Map<Long, List<TherapistBookingWindow>> existingBookings
     ) {
-        if (!therapistSelectionEnabled || therapists.isEmpty()) {
+        if (therapists.isEmpty()) {
             return List.of();
         }
         OffsetDateTime slotStart = slot.getStartTs();
@@ -269,8 +267,31 @@ public class SlotAvailabilityService {
                         therapist.getName(),
                         therapist.getDisplayName(),
                         therapist.getProfileImageUrl(),
+                        therapist.getType(),
                         true
                 ))
+                .toList();
+    }
+
+    private List<TherapistTypeAvailabilityResponse> buildTherapistTypeAvailability(
+            Slot slot,
+            List<Therapist> therapists,
+            Map<Long, List<TherapistBookingWindow>> existingBookings
+    ) {
+        if (therapists.isEmpty()) {
+            return List.of();
+        }
+        OffsetDateTime slotStart = slot.getStartTs();
+        OffsetDateTime slotEnd = slot.getEndTs();
+        Map<String, Integer> availableByType = new HashMap<>();
+        therapists.stream()
+                .filter(therapist -> therapist.getType() != null && !therapist.getType().isBlank())
+                .filter(therapist -> isTherapistFree(slotStart, slotEnd, existingBookings.getOrDefault(therapist.getId(), List.of())))
+                .forEach(therapist -> availableByType.merge(therapist.getType(), 1, Integer::sum));
+
+        return availableByType.entrySet().stream()
+                .map(entry -> new TherapistTypeAvailabilityResponse(entry.getKey(), entry.getValue()))
+                .sorted(Comparator.comparing(TherapistTypeAvailabilityResponse::type))
                 .toList();
     }
 
@@ -286,7 +307,9 @@ public class SlotAvailabilityService {
             int guests,
             int heldUnits,
             boolean therapistSelectionEnabled,
-            List<TherapistAvailabilityResponse> therapists
+            boolean therapistTypeSelectionEnabled,
+            List<TherapistAvailabilityResponse> therapists,
+            List<TherapistTypeAvailabilityResponse> therapistTypes
     ) {
         short capacity = slot.getCapacityUnit();
         short booked = slot.getBookedUnits();
@@ -309,7 +332,9 @@ public class SlotAvailabilityService {
                 slot.getRoomNumber(),
                 uiStatus,
                 therapistSelectionEnabled,
-                therapistSelectionEnabled ? therapists : List.of()
+                therapistTypeSelectionEnabled,
+                therapistSelectionEnabled ? therapists : List.of(),
+                therapistTypeSelectionEnabled ? therapistTypes : List.of()
         );
     }
 
@@ -332,6 +357,6 @@ public class SlotAvailabilityService {
 
         slotRepository.save(slot);
         boolean therapistSelectionEnabled = Boolean.TRUE.equals(slot.getSpa().getAllowTherapistSelection());
-        return toDto(slot, 1, 0, therapistSelectionEnabled, List.of());
+        return toDto(slot, 1, 0, therapistSelectionEnabled, true, List.of(), List.of());
     }
 }

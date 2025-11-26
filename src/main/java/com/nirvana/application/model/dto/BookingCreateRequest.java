@@ -21,6 +21,9 @@ public class BookingCreateRequest {
 
     private Long therapistId;
 
+    @Size(max = 128)
+    private String therapistType;
+
     @NotNull
     private String paymentMode; // ONLINE | OFFLINE
 
@@ -72,6 +75,14 @@ public class BookingCreateRequest {
 
     public void setTherapistId(Long therapistId) {
         this.therapistId = therapistId;
+    }
+
+    public String getTherapistType() {
+        return therapistType;
+    }
+
+    public void setTherapistType(String therapistType) {
+        this.therapistType = therapistType;
     }
 
     public String getPaymentMode() {

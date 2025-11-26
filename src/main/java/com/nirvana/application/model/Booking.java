@@ -87,6 +87,9 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "therapist_id")
     private Therapist therapist;
 
+    @Column(name = "therapist_type", length = 128)
+    private String therapistType;
+
     // -------- TIME SNAPSHOTS --------
 
     /**
