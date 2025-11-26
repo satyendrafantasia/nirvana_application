@@ -58,6 +58,27 @@ public class SlotAvailabilityService {
             int days,
             int guests
     ) {
+        return getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SlotAvailabilityResponse> getTherapistAvailabilityForServiceOnDate(
+            Long spaId,
+            Long serviceId,
+            LocalDate date
+    ) {
+        WeekSlotsResponse week = getAvailableSlotsForServiceRange(spaId, serviceId, date, 1, 1, true);
+        return week.days().isEmpty() ? List.of() : week.days().get(0).slots();
+    }
+
+    private WeekSlotsResponse getAvailableSlotsForServiceRange(
+            Long spaId,
+            Long serviceId,
+            LocalDate startDate,
+            int days,
+            int guests,
+            boolean forceTherapistVisibility
+    ) {
         if (guests <= 0) {
             throw new IllegalArgumentException("guests must be > 0");
         }
@@ -97,7 +118,8 @@ public class SlotAvailabilityService {
         List<Slot> slots = slotRepository.findSlotsForServiceBetween(spaId, serviceId, from, to);
         Map<Long, Integer> holdMap = buildHoldMap(slots);
 
-        boolean therapistSelectionEnabled = Boolean.TRUE.equals(spa.getAllowTherapistSelection());
+        boolean therapistSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistSelection());
+        boolean therapistTypeSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistSelection());
         List<Therapist> therapistsForService = therapistRepository.findActiveAvailableForSpaAndService(spaId, serviceId);
         Map<Long, List<TherapistBookingWindow>> therapistBookings = buildTherapistBookings(therapistsForService, from, to);
 
@@ -135,9 +157,9 @@ public class SlotAvailabilityService {
                         guests,
                         holdMap.getOrDefault(entry.getKey().getId(), 0),
                         therapistSelectionEnabled,
-                        true,
+                        therapistTypeSelectionEnabled,
                         therapistSelectionEnabled ? buildTherapistAvailability(entry.getKey(), therapistsForService, therapistBookings) : List.of(),
-                        buildTherapistTypeAvailability(entry.getKey(), therapistsForService, therapistBookings)
+                        therapistTypeSelectionEnabled ? buildTherapistTypeAvailability(entry.getKey(), therapistsForService, therapistBookings) : List.of()
                 )))
                 .collect(Collectors.groupingBy(
                         Map.Entry::getKey,
