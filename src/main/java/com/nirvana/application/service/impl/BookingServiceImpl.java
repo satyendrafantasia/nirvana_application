@@ -14,6 +14,8 @@ import com.nirvana.application.model.dto.BookingRescheduleRequest;
 import com.nirvana.application.model.dto.BookingRescheduleResponse;
 import com.nirvana.application.model.dto.BookingSummaryResponse;
 import com.nirvana.application.model.dto.PagedResponse;
+import com.nirvana.application.model.dto.PackageUsageConsumeRequest;
+import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.CancellationActor;
 import com.nirvana.application.model.enums.PaymentMode;
@@ -30,6 +32,7 @@ import com.nirvana.application.repository.TherapistRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.BookingService;
 import com.nirvana.application.service.NotificationService;
+import com.nirvana.application.service.PackageSubscriptionService;
 import com.nirvana.application.service.PricingService;
 import com.nirvana.application.service.RefundService;
 import com.nirvana.application.service.WaitlistService;
@@ -71,6 +74,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingHoldRepository bookingHoldRepository;
     private final WaitlistService waitlistService;
     private final TherapistRepository therapistRepository;
+    private final PackageSubscriptionService packageSubscriptionService;
 
     @Override
     @Transactional
@@ -159,6 +163,17 @@ public class BookingServiceImpl implements BookingService {
         }
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
+        boolean payWithPackage = Boolean.TRUE.equals(request.getPayWithPackage());
+        if (payWithPackage) {
+            paymentMode = PaymentMode.OFFLINE;
+            var eligibility = packageSubscriptionService.canUsePackage(userId, spa.getId());
+            if (!eligibility.isCanUse()) {
+                String reason = eligibility.getReason() != null
+                        ? eligibility.getReason()
+                        : "Package not eligible for this booking";
+                throw new IllegalStateException(reason);
+            }
+        }
         String paymentMethod = request.getPaymentMethod() != null
                 ? request.getPaymentMethod().trim().toUpperCase()
                 : "RAZORPAY";
@@ -182,6 +197,7 @@ public class BookingServiceImpl implements BookingService {
         int discountCents = pricing.discountCents();
         int taxCents = calculateTax(spa, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
+        int payableCents = payWithPackage ? 0 : totalCents;
 
         Booking booking = new Booking();
         booking.setSpa(spa);
@@ -196,7 +212,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setCouponCode(pricing.appliedCouponCode());
         booking.setTaxCents(taxCents);
         booking.setDepositCents(0);
-        booking.setRemainderCents(totalCents);
+        booking.setRemainderCents(payableCents);
         booking.setRefundStatus(RefundStatus.NONE);
         booking.setCustomerNotes(request.getSpecialRequest());
         booking.setStartTs(slot.getStartTs());
@@ -204,6 +220,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setScheduledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
+        booking.setPaymentType(payWithPackage ? BookingPaymentType.PAID_BY_PACKAGE : BookingPaymentType.STANDARD);
         booking.setTherapist(therapist);
         booking.setTherapistType(requestedTherapistType);
 
@@ -234,16 +251,28 @@ public class BookingServiceImpl implements BookingService {
         }
         slotRepository.save(slot);
 
-        BookingCreateResponse response = buildResponse(saved, totalCents);
-
+        com.nirvana.application.model.dto.PaymentInitResponse razorpayInit = null;
+        com.nirvana.application.model.dto.UpiPaymentInitResponse upiInit = null;
         if (paymentMode == PaymentMode.ONLINE) {
             if ("UPI".equals(paymentMethod)) {
-                response.setUpi(paymentService.initiateUpiPayment(saved.getId()));
+                upiInit = paymentService.initiateUpiPayment(saved.getId());
             } else {
-                response.setRazorpay(paymentService.initiateRazorpayPayment(saved.getId()));
+                razorpayInit = paymentService.initiateRazorpayPayment(saved.getId());
             }
         }
 
+        if (payWithPackage) {
+            PackageUsageConsumeRequest consumeRequest = new PackageUsageConsumeRequest();
+            consumeRequest.setBookingId(saved.getId());
+            consumeRequest.setSpaId(spa.getId());
+            packageSubscriptionService.consumePackageSession(userId, consumeRequest);
+            saved = bookingRepository.findById(saved.getId())
+                    .orElse(saved);
+        }
+
+        BookingCreateResponse response = buildResponse(saved, payableCents);
+        response.setRazorpay(razorpayInit);
+        response.setUpi(upiInit);
         return response;
     }
 
@@ -498,6 +527,9 @@ public class BookingServiceImpl implements BookingService {
         response.setDiscountCents(booking.getDiscountCents());
         response.setTotalCents(totalCents);
         response.setCurrency(booking.getCurrency());
+        response.setPaymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null);
+        response.setPackageSubscriptionId(
+                booking.getPackageSubscription() != null ? booking.getPackageSubscription().getId() : null);
         return response;
     }
 

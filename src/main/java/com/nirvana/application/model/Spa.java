@@ -6,7 +6,9 @@ import lombok.*;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 @Entity
 @Table(name = "spa", indexes = {
         @Index(name = "idx_spa_city_state", columnList = "city,state"), // you'll update to address fields in queries
@@ -78,6 +80,10 @@ public class Spa extends BaseEntity {
     @OneToMany(fetch = FetchType.LAZY)
     @JoinColumn(name = "entity_id") // with entity_type='SPA'
     private List<MediaAsset> mediaAssets;
+
+    @ManyToMany(mappedBy = "eligibleSpas", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<ServicePackage> supportedPackages = new HashSet<>();
 
 
     // KYC
