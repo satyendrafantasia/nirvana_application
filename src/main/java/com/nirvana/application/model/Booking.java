@@ -1,4 +1,5 @@
 package com.nirvana.application.model;
+import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.BookingChannel;
 import com.nirvana.application.model.enums.PaymentMode;
@@ -63,6 +64,10 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "user_membership_id")
     private UserMembership userMembership;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "package_subscription_id")
+    private UserPackageSubscription packageSubscription;
+
 
 
     /**
@@ -126,6 +131,10 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_mode", length = 16)
     private PaymentMode paymentMode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", length = 32)
+    private BookingPaymentType paymentType = BookingPaymentType.STANDARD;
 
 
     @Enumerated(EnumType.STRING)

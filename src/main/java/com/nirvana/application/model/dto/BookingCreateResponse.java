@@ -5,6 +5,8 @@ public class BookingCreateResponse {
     private String bookingReference;
     private String status;
     private String paymentMode;
+    private String paymentType;
+    private Long packageSubscriptionId;
     private Integer priceCents;
     private Integer taxCents;
     private Integer discountCents;
@@ -43,6 +45,22 @@ public class BookingCreateResponse {
 
     public void setPaymentMode(String paymentMode) {
         this.paymentMode = paymentMode;
+    }
+
+    public String getPaymentType() {
+        return paymentType;
+    }
+
+    public void setPaymentType(String paymentType) {
+        this.paymentType = paymentType;
+    }
+
+    public Long getPackageSubscriptionId() {
+        return packageSubscriptionId;
+    }
+
+    public void setPackageSubscriptionId(Long packageSubscriptionId) {
+        this.packageSubscriptionId = packageSubscriptionId;
     }
 
     public Integer getPriceCents() {

@@ -1,6 +1,11 @@
 package com.nirvana.application.exception;
 
 import jakarta.persistence.EntityNotFoundException;
+import com.nirvana.application.exception.NoActivePackageException;
+import com.nirvana.application.exception.NoRemainingSessionsException;
+import com.nirvana.application.exception.PackageNotEligibleForSpaException;
+import com.nirvana.application.exception.PackagePaymentFailedException;
+import com.nirvana.application.exception.SpaNotInPackageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -37,5 +42,22 @@ public class LegacyExceptionHandler {
         ex.getBindingResult().getFieldErrors()
                 .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
         return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler({
+            NoActivePackageException.class,
+            NoRemainingSessionsException.class,
+            PackageNotEligibleForSpaException.class,
+            SpaNotInPackageException.class
+    })
+    public ResponseEntity<Map<String, String>> handlePackageValidation(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PackagePaymentFailedException.class)
+    public ResponseEntity<Map<String, String>> handlePackagePayment(PackagePaymentFailedException ex) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
+                .body(Map.of("message", ex.getMessage()));
     }
 }
