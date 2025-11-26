@@ -1,4 +1,26 @@
--- Spa-level package system
+
+-- Guard: if a legacy spa_packages table exists without an id column, rename it so
+-- the new catalog can be created with the correct primary key layout.
+SET @legacy_spa_packages := (
+    SELECT COUNT(*)
+    FROM information_schema.tables t
+    WHERE t.table_schema = DATABASE()
+      AND t.table_name = 'spa_packages'
+      AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns c
+          WHERE c.table_schema = DATABASE()
+            AND c.table_name = 'spa_packages'
+            AND c.column_name = 'id'
+      )
+);
+SET @legacy_rename_sql := (
+    SELECT IF(@legacy_spa_packages > 0,
+              'RENAME TABLE spa_packages TO spa_packages_legacy_without_id;',
+              'SELECT 1')
+);
+PREPARE stmt FROM @legacy_rename_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Dedicated package catalog per spa
 CREATE TABLE IF NOT EXISTS spa_packages (
