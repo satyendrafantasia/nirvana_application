@@ -1,8 +1,10 @@
 package com.nirvana.application.model;
+import com.nirvana.application.model.corporate.CorporateEmployeeCoupon;
 import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.BookingChannel;
 import com.nirvana.application.model.enums.PaymentMode;
+import com.nirvana.application.model.enums.PaymentSourceType;
 import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.model.enums.CancellationActor;
 import jakarta.persistence.*;
@@ -56,6 +58,10 @@ public class Booking extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coupon_id")
     private Coupon coupon;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "corporate_employee_coupon_id")
+    private CorporateEmployeeCoupon corporateEmployeeCoupon;
 
     @OneToOne(mappedBy = "booking", fetch = FetchType.LAZY)
     private Invoice invoice;
@@ -135,6 +141,10 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_type", length = 32)
     private BookingPaymentType paymentType = BookingPaymentType.STANDARD;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_source_type", length = 32)
+    private PaymentSourceType paymentSourceType = PaymentSourceType.NORMAL;
 
 
     @Enumerated(EnumType.STRING)
