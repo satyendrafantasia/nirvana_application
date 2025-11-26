@@ -207,7 +207,7 @@ INSERT IGNORE INTO closure (
   (1, DATE_ADD(@now, INTERVAL 1 DAY), b'0', NULL, 'Maintenance window', NULL, 'FULL', @now, 'MAINTENANCE', 1, 1);
 
 INSERT IGNORE INTO blackout_window (id, spa_id, provider_id, start_ts, end_ts, reason, created_by, created_at, updated_at) VALUES
-  (1, 1, 1, DATE_ADD(@now, INTERVAL 3 DAY), DATE_ADD(@now, INTERVAL 3 DAY + INTERVAL 2 HOUR), 'Staff training', 'Maya Manager', @now, @now);
+  (1, 1, 1, DATE_ADD(@now, INTERVAL 3 DAY), DATE_ADD(DATE_ADD(@now, INTERVAL 3 DAY), INTERVAL 2 HOUR), 'Staff training', 'Maya Manager', @now, @now);
 
 INSERT IGNORE INTO provider_leave (id, created_at, updated_at, end_ts, reason, start_ts, status, version, approved_by_user_id, provider_user_id, spa_id) VALUES
   (1, @now, @now, DATE_ADD(@now, INTERVAL 2 DAY), 'Medical leave', DATE_ADD(@now, INTERVAL 1 DAY), 'APPROVED', 1, 2, 1, 1);
@@ -273,7 +273,7 @@ INSERT IGNORE INTO support_override (id, spa_id, booking_id, override_type, stat
 
 -- Compliance and localization add-ons
 INSERT IGNORE INTO blackout_window (id, spa_id, provider_id, start_ts, end_ts, reason, created_by, created_at, updated_at) VALUES
-  (2, 1, NULL, DATE_ADD(@now, INTERVAL 5 DAY), DATE_ADD(@now, INTERVAL 5 DAY + INTERVAL 3 HOUR), 'Public holiday', 'Admin', @now, @now);
+  (2, 1, NULL, DATE_ADD(@now, INTERVAL 5 DAY), DATE_ADD(DATE_ADD(@now, INTERVAL 5 DAY), INTERVAL 3 HOUR), 'Public holiday', 'Admin', @now, @now);
 
 -- Corporate onboarding
 INSERT IGNORE INTO corporate (id, created_at, updated_at, name, domain, contact_person, contact_email, status) VALUES
