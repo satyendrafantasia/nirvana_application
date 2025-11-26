@@ -11,4 +11,5 @@ public interface CorporateDealService {
     List<CorporateDealResponse> listCorporateDeals(Long corporateId);
     CorporateDealResponse activateDeal(Long corporateId, Long dealId);
     CorporateDealResponse deactivateDeal(Long corporateId, Long dealId);
+    CorporateDealResponse confirmPayment(Long corporateId, Long dealId);
 }

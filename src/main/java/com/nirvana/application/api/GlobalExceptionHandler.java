@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    @ExceptionHandler({CorporateCouponExpiredException.class, CorporateCouponExhaustedException.class, NoActiveCorporateCouponException.class, CorporateOnboardingParseException.class})
+    @ExceptionHandler({CorporateCouponExpiredException.class, CorporateCouponExhaustedException.class, NoActiveCorporateCouponException.class, CorporateOnboardingParseException.class, CorporatePaymentPendingException.class})
     public ResponseEntity<ApiErrorResponse> handleCorporateValidation(RuntimeException ex, HttpServletRequest request) {
         String cid = UUID.randomUUID().toString();
         ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), cid)

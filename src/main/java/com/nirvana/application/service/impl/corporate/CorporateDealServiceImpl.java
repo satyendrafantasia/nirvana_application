@@ -7,6 +7,7 @@ import com.nirvana.application.model.corporate.CorporateDeal;
 import com.nirvana.application.model.dto.corporate.CorporateDealResponse;
 import com.nirvana.application.model.dto.corporate.CreateCorporateDealRequest;
 import com.nirvana.application.model.enums.CorporateDealStatus;
+import com.nirvana.application.model.enums.CorporatePaymentStatus;
 import com.nirvana.application.repository.corporate.CorporateDealRepository;
 import com.nirvana.application.repository.corporate.CorporateRepository;
 import com.nirvana.application.service.corporate.CorporateDealService;
@@ -84,6 +85,17 @@ public class CorporateDealServiceImpl implements CorporateDealService {
             throw new CorporateNotFoundException(corporateId);
         }
         deal.setStatus(CorporateDealStatus.INACTIVE);
+        return toResponse(deal);
+    }
+
+    @Override
+    public CorporateDealResponse confirmPayment(Long corporateId, Long dealId) {
+        CorporateDeal deal = corporateDealRepository.findById(dealId)
+                .orElseThrow(() -> new CorporateDealNotFoundException(dealId));
+        if (!deal.getCorporate().getId().equals(corporateId)) {
+            throw new CorporateNotFoundException(corporateId);
+        }
+        deal.setCorporatePaymentStatus(CorporatePaymentStatus.PAID);
         return toResponse(deal);
     }
 

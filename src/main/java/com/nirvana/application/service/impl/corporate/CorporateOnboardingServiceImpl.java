@@ -3,6 +3,7 @@ package com.nirvana.application.service.impl.corporate;
 import com.nirvana.application.exception.CorporateDealNotFoundException;
 import com.nirvana.application.exception.CorporateNotFoundException;
 import com.nirvana.application.exception.CorporateOnboardingParseException;
+import com.nirvana.application.exception.CorporatePaymentPendingException;
 import com.nirvana.application.model.Role;
 import com.nirvana.application.model.User;
 import com.nirvana.application.model.corporate.Corporate;
@@ -11,9 +12,11 @@ import com.nirvana.application.model.corporate.CorporateEmployee;
 import com.nirvana.application.model.corporate.CorporateEmployeeCoupon;
 import com.nirvana.application.model.corporate.CorporateOnboardingUpload;
 import com.nirvana.application.model.dto.corporate.CorporateEmployeeUploadResponse;
+import com.nirvana.application.model.dto.corporate.CorporateOnboardingUploadStatusResponse;
 import com.nirvana.application.model.enums.CorporateCouponStatus;
 import com.nirvana.application.model.enums.CorporateEmployeeStatus;
 import com.nirvana.application.model.enums.CorporateOnboardingStatus;
+import com.nirvana.application.model.enums.CorporatePaymentStatus;
 import com.nirvana.application.model.enums.RoleType;
 import com.nirvana.application.repository.RoleRepository;
 import com.nirvana.application.repository.UserRepository;
@@ -57,6 +60,20 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
                 .orElseThrow(() -> new CorporateNotFoundException(corporateId));
         CorporateDeal deal = corporateDealRepository.findById(corporateDealId)
                 .orElseThrow(() -> new CorporateDealNotFoundException(corporateDealId));
+
+        if (!CorporatePaymentStatus.PAID.equals(deal.getCorporatePaymentStatus())) {
+            CorporateOnboardingUpload pendingUpload = CorporateOnboardingUpload.builder()
+                    .corporate(corporate)
+                    .corporateDeal(deal)
+                    .originalFileName(file.getOriginalFilename())
+                    .status(CorporateOnboardingStatus.PENDING_PAYMENT)
+                    .totalRecords(0)
+                    .successCount(0)
+                    .failureCount(0)
+                    .build();
+            onboardingUploadRepository.save(pendingUpload);
+            throw new CorporatePaymentPendingException("Corporate deal payment is not confirmed. Admin approval required before onboarding.");
+        }
 
         CorporateOnboardingUpload upload = CorporateOnboardingUpload.builder()
                 .corporate(corporate)
@@ -105,10 +122,31 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
         upload.setFailureCount(failures.size());
         if (!failures.isEmpty() && success > 0) {
             upload.setStatus(CorporateOnboardingStatus.PARTIALLY_PROCESSED);
+        } else if (success == 0 && !failures.isEmpty()) {
+            upload.setStatus(CorporateOnboardingStatus.FAILED);
         }
         onboardingUploadRepository.save(upload);
 
         return new CorporateEmployeeUploadResponse(upload.getId(), seenEmails.size(), success, failures.size(), failures);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CorporateOnboardingUploadStatusResponse> listUploads(Long corporateId) {
+        return onboardingUploadRepository.findByCorporateIdOrderByCreatedAtDesc(corporateId)
+                .stream()
+                .map(upload -> new CorporateOnboardingUploadStatusResponse(
+                        upload.getId(),
+                        upload.getCorporate().getId(),
+                        upload.getCorporateDeal().getId(),
+                        upload.getOriginalFileName(),
+                        upload.getStatus(),
+                        upload.getTotalRecords(),
+                        upload.getSuccessCount(),
+                        upload.getFailureCount(),
+                        upload.getCreatedAt()
+                ))
+                .toList();
     }
 
     private void processEmployeeEmail(String email, Corporate corporate, CorporateDeal deal) {

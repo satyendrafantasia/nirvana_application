@@ -41,11 +41,21 @@ public class CorporateController {
         return corporateDealService.listCorporateDeals(corporateId);
     }
 
+    @PostMapping("/{corporateId}/deals/{dealId}/payment/confirm")
+    public CorporateDealResponse confirmDealPayment(@PathVariable Long corporateId, @PathVariable Long dealId) {
+        return corporateDealService.confirmPayment(corporateId, dealId);
+    }
+
     @PostMapping(value = "/{corporateId}/deals/{dealId}/employees/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CorporateEmployeeUploadResponse uploadEmployees(@PathVariable Long corporateId,
                                                            @PathVariable Long dealId,
                                                            @RequestPart("file") MultipartFile file) {
         return corporateOnboardingService.uploadEmployeeFile(corporateId, dealId, file);
+    }
+
+    @GetMapping("/{corporateId}/onboarding/uploads")
+    public List<CorporateOnboardingUploadStatusResponse> listOnboardingUploads(@PathVariable Long corporateId) {
+        return corporateOnboardingService.listUploads(corporateId);
     }
 
     @GetMapping("/{corporateId}/employees")
