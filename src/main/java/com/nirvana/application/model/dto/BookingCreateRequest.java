@@ -1,45 +1,59 @@
 package com.nirvana.application.model.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+@Schema(name = "BookingCreateRequest", description = "Payload to create a booking for a spa service.")
 public class BookingCreateRequest {
 
     @NotNull
+    @Schema(description = "Spa identifier where booking is being created", example = "101")
     private Long spaId;
 
     @NotNull
+    @Schema(description = "Service identifier for the booking", example = "501")
     private Long serviceId;
 
     @NotNull
+    @Schema(description = "Selected slot identifier", example = "9001")
     private Long slotId;
 
     @NotNull
     @Min(1)
+    @Schema(description = "Number of guests included in booking", example = "1")
     private Integer guests;
 
+    @Schema(description = "Preferred therapist identifier if applicable", example = "300")
     private Long therapistId;
 
     @Size(max = 128)
+    @Schema(description = "Requested therapist type", example = "FEMALE")
     private String therapistType;
 
     @NotNull
+    @Schema(description = "Payment mode for the booking", example = "ONLINE")
     private String paymentMode; // ONLINE | OFFLINE
 
-    // Preferred online payment method (e.g., RAZORPAY | UPI).
+    @Schema(description = "Preferred online payment method", example = "RAZORPAY")
     private String paymentMethod;
 
     @Size(max = 2000)
+    @Schema(description = "Special request notes for the spa", example = "Need a quiet room")
     private String specialRequest;
 
     @Size(max = 64)
+    @Schema(description = "Coupon code applied to booking", example = "WELCOME50")
     private String couponCode;
 
+    @Schema(description = "Whether loyalty points should be redeemed", example = "true")
     private Boolean redeemLoyaltyPoints;
 
+    @Schema(description = "Hold token for reserved slot if applicable")
     private String holdToken;
 
+    @Schema(description = "Whether to consume an available package instead of direct payment", example = "false")
     private Boolean payWithPackage;
 
     public Long getSpaId() {
