@@ -16,6 +16,7 @@ import com.nirvana.application.service.CurrencyConversionService;
 import com.nirvana.application.service.InvoiceService;
 import com.nirvana.application.service.NotificationService;
 import com.nirvana.application.service.NotificationSchedulingService;
+import com.nirvana.application.security.PaymentMfaVerifier;
 import com.razorpay.Order;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
@@ -53,6 +54,7 @@ public class PaymentService {
     private final NotificationService notificationService;
     private final CurrencyConversionService currencyConversionService;
     private final NotificationSchedulingService notificationSchedulingService;
+    private final PaymentMfaVerifier paymentMfaVerifier;
 
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
     private static final String GATEWAY_UPI = "UPI";
@@ -63,6 +65,7 @@ public class PaymentService {
     @Transactional
     public PaymentInitResponse initiateRazorpayPayment(Long bookingId) {
         ensureRazorpayEnabled();
+        paymentMfaVerifier.verifyPaymentChallenge();
 
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
@@ -152,6 +155,7 @@ public class PaymentService {
 
     @Transactional
     public void confirmRazorpayPayment(Long bookingId, RazorpayConfirmRequest request) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -224,6 +228,7 @@ public class PaymentService {
 
     @Transactional
     public UpiPaymentInitResponse initiateUpiPayment(Long bookingId) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -274,6 +279,7 @@ public class PaymentService {
 
     @Transactional
     public void confirmUpiPayment(Long bookingId, UpiPaymentConfirmRequest request) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -374,6 +380,7 @@ public class PaymentService {
      */
     @Transactional
     public PaymentInitResponse retryRazorpayPayment(Long bookingId) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
