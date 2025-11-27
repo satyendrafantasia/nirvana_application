@@ -3,9 +3,12 @@ package com.nirvana.application.model.dto;
 // src/main/java/com/nirvana/application/model/dto/SpaDetailResponse.java
 
 import com.nirvana.application.model.enums.KycStatus;
+import com.nirvana.application.model.enums.spa.TherapistType;
 
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 
 public record SpaDetailResponse(
         Long id,
@@ -61,8 +64,23 @@ public record SpaDetailResponse(
         Integer maxAdvanceBookingDays,
         Integer minNoticeMinutes,
 
+        // Operating hours & availability
+        String openTimeLocal,
+        String closeTimeLocal,
+        List<DayOfWeek> workingDays,
+
+        // Therapist preferences
+        Boolean allowTherapistSelection,
+        Boolean allowTherapistTypeSelection,
+        Set<TherapistType> therapistTypesAvailable,
+        List<Long> therapistIds,
+
+        // Services
+        List<Long> serviceIds,
+
         // Experience
         List<String> images,
+        List<String> videos,
         List<String> amenities,
         List<String> tags,
 
