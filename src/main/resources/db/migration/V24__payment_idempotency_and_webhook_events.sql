@@ -1,0 +1,15 @@
+ALTER TABLE payment
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255) UNIQUE,
+    ADD COLUMN IF NOT EXISTS receipt_url VARCHAR(1000);
+
+CREATE TABLE IF NOT EXISTS payment_webhook_event (
+    id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(255) NOT NULL UNIQUE,
+    gateway VARCHAR(64) NOT NULL,
+    payment_id VARCHAR(255),
+    payload TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE booking
+    ADD COLUMN IF NOT EXISTS refund_route VARCHAR(32);

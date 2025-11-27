@@ -138,6 +138,9 @@
     rate-limiting:
       enabled: true
       requests: 120
+    payments:
+      reconcile-threshold-minutes: 15
+      reconcile-interval-ms: 300000
       per-user-requests: 90
       window-seconds: 60
       block-seconds: 120
