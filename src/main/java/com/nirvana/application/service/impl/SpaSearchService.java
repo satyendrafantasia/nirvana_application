@@ -287,7 +287,7 @@ public class SpaSearchService {
     }
 
     private SpaSummaryResponse toSummary(Spa spa, Double distanceKm) {
-        var thumbnailAsset = mediaAssetRepository
+        Optional<MediaAsset> thumbnailAsset = mediaAssetRepository
                 .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE);
 
         String thumbnail = null;

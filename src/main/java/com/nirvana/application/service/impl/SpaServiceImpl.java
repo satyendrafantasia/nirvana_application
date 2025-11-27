@@ -4,7 +4,7 @@ import com.nirvana.application.exception.BusinessException;
 import com.nirvana.application.exception.NotFoundException;
 import com.nirvana.application.model.Address;
 import com.nirvana.application.model.MediaAsset;
-import com.nirvana.application.model.Service;
+
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.Therapist;
 import com.nirvana.application.model.dto.AddressDTO;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-@Service
+@org.springframework.stereotype.Service
 @RequiredArgsConstructor
 public class SpaServiceImpl implements SpaService {
 
@@ -268,7 +268,7 @@ public class SpaServiceImpl implements SpaService {
             return;
         }
 
-        List<Service> services = serviceRepository.findAllById(serviceIds);
+        List<com.nirvana.application.model.Service> services = serviceRepository.findAllById(serviceIds);
         if (services.size() != serviceIds.size()) {
             throw new BusinessException("One or more serviceIds are invalid");
         }
@@ -363,7 +363,7 @@ public class SpaServiceImpl implements SpaService {
                 : Collections.emptyList();
 
         List<Long> serviceIds = spa.getServices() != null
-                ? spa.getServices().stream().map(Service::getId).toList()
+                ? spa.getServices().stream().map(com.nirvana.application.model.Service::getId).toList()
                 : Collections.emptyList();
 
         List<MediaAsset> sortedAssets = spa.getMediaAssets() != null
