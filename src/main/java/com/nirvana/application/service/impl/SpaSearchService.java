@@ -286,11 +286,13 @@ public class SpaSearchService {
     }
 
     private SpaSummaryResponse toSummary(Spa spa, Double distanceKm) {
-        String thumbnail = mediaAssetRepository
-                .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE)
-                .map(MediaAsset::getObjectKey)
-                .map(s3Service::getFileUrl)
-                .orElse(null);
+        var thumbnailAsset = mediaAssetRepository
+                .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE);
+
+        String thumbnail = null;
+        if (thumbnailAsset.isPresent()) {
+            thumbnail = s3Service.getFileUrl(thumbnailAsset.get().getObjectKey());
+        }
 
         Integer startingPriceCents = null; // TODO: compute/denormalize later
 
