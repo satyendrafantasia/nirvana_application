@@ -15,6 +15,9 @@ public class AuthResponse {
     @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String accessToken;
 
+    @Schema(description = "Refresh token used to rotate sessions without re-login", example = "4ca8f4d1-9a73-4b5f-93da-8cf7aef6c4c9")
+    private String refreshToken;
+
     @Schema(description = "Token type prefix", example = "Bearer")
     private String tokenType;
 
@@ -26,4 +29,7 @@ public class AuthResponse {
 
     @Schema(description = "Granted authorities for the user", example = "[\"ROLE_USER\"]")
     private Set<String> roles;
+
+    @Schema(description = "True when an additional MFA challenge is required for sensitive actions")
+    private boolean mfaRequired;
 }
