@@ -26,6 +26,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByIntentId(String intentId);
 
+    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
+
     boolean existsByTransactionId(String transactionId);
 
     boolean existsByIntentId(String intentId);

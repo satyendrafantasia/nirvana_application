@@ -21,6 +21,7 @@ import java.util.UUID;
 @Builder
 @Table(name = "payment", indexes = {
         @Index(name = "uk_payment_intent", columnList = "intent_id", unique = true),
+        @Index(name = "uk_payment_idempotency", columnList = "idempotency_key", unique = true),
         @Index(name = "idx_payment_booking", columnList = "booking_id")
 })
 public class Payment extends BaseEntity {
@@ -36,6 +37,9 @@ public class Payment extends BaseEntity {
 
     @Column(name = "intent_id", unique = true)
     private String intentId;
+
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -70,6 +74,9 @@ public class Payment extends BaseEntity {
 
     @Column(name = "meta", columnDefinition = "json")
     private String metaJson;
+
+    @Column(name = "receipt_url")
+    private String receiptUrl;
 
     // expanded
     @Column(name = "payment_method")

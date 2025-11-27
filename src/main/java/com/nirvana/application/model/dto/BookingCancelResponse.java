@@ -2,6 +2,7 @@ package com.nirvana.application.model.dto;
 
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.RefundStatus;
+import com.nirvana.application.model.enums.RefundRoute;
 import lombok.Builder;
 import lombok.Value;
 
@@ -14,4 +15,5 @@ public class BookingCancelResponse {
     boolean refundInitiated;
     Integer refundAmountCents;
     RefundStatus refundStatus;
+    RefundRoute refundRoute;
 }
