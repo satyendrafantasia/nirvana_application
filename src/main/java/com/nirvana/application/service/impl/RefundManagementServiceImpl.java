@@ -2,6 +2,7 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.*;
+import com.nirvana.application.model.enums.AdminActionType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.PaymentStatus;
 import com.nirvana.application.model.enums.RefundRequestStatus;
@@ -11,6 +12,8 @@ import com.nirvana.application.repository.PaymentRefundRepository;
 import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.repository.VoucherRepository;
+import com.nirvana.application.service.AuditTrailService;
+import com.nirvana.application.service.PaymentService;
 import com.nirvana.application.service.RefundManagementService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -34,6 +38,7 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     private final PaymentService paymentService;
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
+    private final AuditTrailService auditTrailService;
 
     @Override
     @Transactional
@@ -97,6 +102,14 @@ public class RefundManagementServiceImpl implements RefundManagementService {
             refund.setProcessedAt(OffsetDateTime.now(ZoneOffset.UTC));
             PaymentRefund saved = paymentRefundRepository.save(refund);
             updateBookingRefundStatus(refund.getBooking(), RefundStatus.REJECTED);
+            auditTrailService.record(
+                    AdminActionType.STATUS_CHANGE,
+                    "REFUND",
+                    refund.getId(),
+                    adminUserId,
+                    Map.of("previousStatus", RefundRequestStatus.REQUESTED.name()),
+                    Map.of("status", RefundRequestStatus.REJECTED.name(), "reason", request.reason()),
+                    request.reason());
             return toDto(saved);
         }
 
@@ -112,6 +125,14 @@ public class RefundManagementServiceImpl implements RefundManagementService {
             refund.setProcessedAt(OffsetDateTime.now(ZoneOffset.UTC));
             PaymentRefund saved = paymentRefundRepository.save(refund);
             updateBookingRefundStatus(refund.getBooking(), RefundStatus.COMPLETED);
+            auditTrailService.record(
+                    AdminActionType.UPDATE,
+                    "REFUND",
+                    refund.getId(),
+                    adminUserId,
+                    Map.of("previousStatus", RefundRequestStatus.PROCESSING.name()),
+                    Map.of("status", RefundRequestStatus.COMPLETED.name(), "voucherCode", voucher.getCode()),
+                    request.reason());
             return toDto(saved);
         }
 
@@ -130,6 +151,17 @@ public class RefundManagementServiceImpl implements RefundManagementService {
         refund.setReason(request.reason());
         refund.setProcessedAt(OffsetDateTime.now(ZoneOffset.UTC));
         PaymentRefund saved = paymentRefundRepository.save(refund);
+
+        auditTrailService.record(
+                AdminActionType.UPDATE,
+                "REFUND",
+                refund.getId(),
+                adminUserId,
+                Map.of("previousStatus", RefundRequestStatus.PROCESSING.name()),
+                Map.of("status", RefundRequestStatus.COMPLETED.name(),
+                        "amountCents", amountCents,
+                        "paymentId", payment.getId()),
+                request.reason());
 
         updateBookingRefundStatus(refund.getBooking(), RefundStatus.COMPLETED);
         return toDto(saved);

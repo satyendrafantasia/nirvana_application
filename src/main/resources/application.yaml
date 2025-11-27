@@ -54,6 +54,12 @@
     endpoint:
       health:
         show-details: when-authorized
+    tracing:
+      sampling:
+        probability: 1.0
+    otlp:
+      tracing:
+        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
 
   springdoc:
     api-docs:
@@ -153,6 +159,13 @@
         - /v3/api-docs/swagger-config
         - /swagger-ui/index.html
         - /swagger-ui/
+
+  operations:
+    sla:
+      availability-target: 0.995
+      availability-window-days: 30
+      notification-target: 0.98
+      notification-window-days: 7
 
   currency:
     base: INR

@@ -3,6 +3,7 @@ package com.nirvana.application.repository;
 
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.repository.projection.SpaDistanceProjection;
+import com.nirvana.application.model.enums.KycStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -129,4 +130,17 @@ public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificatio
     List<Spa> findBySpaManager_User_Id(Long userId);
 
     Optional<Spa> findByAddress_GooglePlaceId(String googlePlaceId);
+
+    long countByIsActiveTrueAndIsVerifiedFalse();
+
+    long countByKycStatus(KycStatus status);
+
+    @Query("""
+        SELECT COUNT(s) FROM Spa s
+        WHERE s.isActive = true
+          AND NOT EXISTS (
+                SELECT 1 FROM MediaAsset m WHERE m.spa.id = s.id
+          )
+        """)
+    long countActiveSpasWithoutMedia();
 }
