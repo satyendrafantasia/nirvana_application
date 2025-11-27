@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,8 +21,10 @@ public class UpiPaymentController {
     private final PaymentService paymentService;
 
     @PostMapping("/initiate")
-    public ResponseEntity<UpiPaymentInitResponse> initiate(@PathVariable Long bookingId) {
-        return ResponseEntity.ok(paymentService.initiateUpiPayment(bookingId));
+    public ResponseEntity<UpiPaymentInitResponse> initiate(
+            @PathVariable Long bookingId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(paymentService.initiateUpiPayment(bookingId, idempotencyKey));
     }
 
     @PostMapping("/confirm")

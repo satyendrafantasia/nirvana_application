@@ -3,6 +3,7 @@ package com.nirvana.application.controller;
 
 import com.nirvana.application.model.dto.PaymentInitResponse;
 import com.nirvana.application.model.dto.PaymentLinkInitResponse;
+import com.nirvana.application.model.dto.PaymentTimelineResponse;
 import com.nirvana.application.model.dto.RazorpayConfirmRequest;
 import com.nirvana.application.service.impl.PaymentService;
 import jakarta.validation.Valid;
@@ -37,8 +38,9 @@ public class PaymentController {
             @ApiResponse(responseCode = "200", description = "Order created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaymentInitResponse.class)))
     })
     public ResponseEntity<PaymentInitResponse> createOrder(
-            @Parameter(description = "Booking identifier") @PathVariable Long bookingId) {
-        return ResponseEntity.ok(paymentService.initiateRazorpayPayment(bookingId));
+            @Parameter(description = "Booking identifier") @PathVariable Long bookingId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(paymentService.initiateRazorpayPayment(bookingId, idempotencyKey));
     }
 
     /**
@@ -69,9 +71,10 @@ public class PaymentController {
             @ApiResponse(responseCode = "200", description = "Retry order created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaymentInitResponse.class)))
     })
     public ResponseEntity<PaymentInitResponse> retry(
-            @Parameter(description = "Booking identifier") @PathVariable Long bookingId) {
+            @Parameter(description = "Booking identifier") @PathVariable Long bookingId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        return ResponseEntity.ok(paymentService.retryRazorpayPayment(bookingId));
+        return ResponseEntity.ok(paymentService.initiateRazorpayPayment(bookingId, idempotencyKey));
     }
 
     /**
@@ -84,8 +87,25 @@ public class PaymentController {
             @ApiResponse(responseCode = "200", description = "Payment link created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaymentLinkInitResponse.class)))
     })
     public ResponseEntity<PaymentLinkInitResponse> createPaymentLink(
-            @Parameter(description = "Booking identifier") @PathVariable Long bookingId) {
+            @Parameter(description = "Booking identifier") @PathVariable Long bookingId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        return ResponseEntity.ok(paymentService.createPaymentLinkForBooking(bookingId));
+        return ResponseEntity.ok(paymentService.createPaymentLinkForBooking(bookingId, idempotencyKey));
+    }
+
+    @Operation(summary = "Download receipt", description = "Return invoice PDF URL for a booking")
+    @ApiResponse(responseCode = "200", description = "Receipt located")
+    @GetMapping("/receipt")
+    public ResponseEntity<String> getReceipt(
+            @Parameter(description = "Booking identifier") @PathVariable Long bookingId) {
+        return ResponseEntity.ok(paymentService.fetchReceiptUrl(bookingId));
+    }
+
+    @Operation(summary = "Payment timeline", description = "Detailed events for support/CS view")
+    @ApiResponse(responseCode = "200", description = "Timeline returned", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaymentTimelineResponse.class)))
+    @GetMapping("/timeline")
+    public ResponseEntity<PaymentTimelineResponse> getTimeline(
+            @Parameter(description = "Booking identifier") @PathVariable Long bookingId) {
+        return ResponseEntity.ok(paymentService.getPaymentTimelineForBooking(bookingId));
     }
 }

@@ -15,6 +15,7 @@ public class PaymentInitResponse {
 
     String razorpayKeyId;   // public key for checkout
     String razorpayOrderId; // order_xxx
+    String idempotencyKey;
     BigDecimal amount;      // in major unit (₹)
     String currency;        // "INR"
     String description;
@@ -24,4 +25,6 @@ public class PaymentInitResponse {
     String customerPhone;
 
     OffsetDateTime expiresAt;
+
+    String receiptUrl;
 }

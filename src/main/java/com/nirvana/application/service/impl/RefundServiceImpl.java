@@ -3,6 +3,8 @@ package com.nirvana.application.service.impl;
 import com.nirvana.application.model.Booking;
 import com.nirvana.application.model.Payment;
 import com.nirvana.application.model.enums.PaymentStatus;
+import com.nirvana.application.model.enums.RefundRoute;
+import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.service.RefundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +20,7 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     @Transactional
-    public void processRefund(Payment payment, Booking booking) {
+    public void processRefund(Payment payment, Booking booking, RefundRoute route, Integer refundAmountCents) {
         if (payment == null || booking == null) {
             throw new IllegalArgumentException("Payment and booking are required for refund");
         }
@@ -28,8 +30,14 @@ public class RefundServiceImpl implements RefundService {
             return;
         }
 
+        if (route == RefundRoute.WALLET_CREDIT) {
+            log.info("Queueing wallet credit for booking {} amount {}", booking.getId(), refundAmountCents);
+            booking.setRefundStatus(RefundStatus.PROCESSING);
+            return;
+        }
+
         try {
-            paymentService.refundBookingPayment(booking.getId(), payment.getAmountCents(), "User cancelled booking");
+            paymentService.refundBookingPayment(booking.getId(), refundAmountCents, "User cancelled booking");
         } catch (Exception ex) {
             log.error("Failed to refund payment for booking {}", booking.getId(), ex);
             throw ex;
