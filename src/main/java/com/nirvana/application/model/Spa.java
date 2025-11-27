@@ -35,7 +35,7 @@ public class Spa extends BaseEntity {
     // Address embedded, no OneToOne
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "timezone", column = @Column(name = "address_timezone"))
+            @AttributeOverride(name = "timezone", column = @Column(name = "timezone", insertable = false, updatable = false))
     })
     private Address address;
 
