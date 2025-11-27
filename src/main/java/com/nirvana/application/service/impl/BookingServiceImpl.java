@@ -20,6 +20,7 @@ import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.CancellationActor;
 import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
+import com.nirvana.application.model.enums.RefundRoute;
 import com.nirvana.application.model.enums.RefundStatus;
 import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.BookingHoldRepository;
@@ -376,8 +377,12 @@ public class BookingServiceImpl implements BookingService {
         boolean refundInitiated = false;
         Integer refundAmountCents = null;
 
+        booking.setRefundRoute(Optional.ofNullable(eligibility.refundRoute()).orElse(RefundRoute.ORIGINAL_METHOD));
+
         if (booking.getPaymentMode() == PaymentMode.ONLINE) {
-            refundAmountCents = processRefundIfNeeded(booking, now);
+            refundAmountCents = processRefundIfNeeded(booking, now,
+                    Optional.ofNullable(eligibility.feePercent()).orElse(0),
+                    booking.getRefundRoute());
             refundInitiated = refundAmountCents != null && refundAmountCents > 0;
         }
 
@@ -404,23 +409,26 @@ public class BookingServiceImpl implements BookingService {
                 .refundInitiated(refundInitiated)
                 .refundAmountCents(refundAmountCents)
                 .refundStatus(booking.getRefundStatus())
+                .refundRoute(booking.getRefundRoute())
                 .build();
     }
 
-    private Integer processRefundIfNeeded(Booking booking, OffsetDateTime now) {
+    private Integer processRefundIfNeeded(Booking booking, OffsetDateTime now, int feePercent, RefundRoute route) {
         return paymentRepository
                 .findFirstByBookingIdAndPaymentStatusIn(
                         booking.getId(),
                         List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED))
                 .map(payment -> {
-                    refundService.processRefund(payment, booking);
+                    int feeCents = Math.max(0, (int) Math.round(payment.getAmountCents() * (feePercent / 100.0)));
+                    int refundable = Math.max(0, payment.getAmountCents() - feeCents);
+                    refundService.processRefund(payment, booking, route, refundable);
                     payment.setPaymentStatus(PaymentStatus.REFUNDED);
-                    payment.setRefundedCents(payment.getAmountCents());
+                    payment.setRefundedCents(refundable);
                     payment.setRefundedAt(now);
                     paymentRepository.save(payment);
                     booking.setRefundStatus(RefundStatus.COMPLETED);
                     bookingRepository.save(booking);
-                    return payment.getAmountCents();
+                    return refundable;
                 })
                 .orElse(null);
     }
