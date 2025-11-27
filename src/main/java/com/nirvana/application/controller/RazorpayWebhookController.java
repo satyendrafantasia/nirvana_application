@@ -3,7 +3,9 @@ package com.nirvana.application.controller;
 import com.nirvana.application.config.RazorpayProperties;
 import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.model.Payment;
+import com.nirvana.application.model.PaymentWebhookEvent;
 import com.nirvana.application.model.enums.PaymentStatus;
+import com.nirvana.application.repository.PaymentWebhookEventRepository;
 import com.razorpay.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +26,7 @@ public class RazorpayWebhookController {
 
     private final RazorpayProperties props;
     private final PaymentRepository paymentRepository;
+    private final PaymentWebhookEventRepository webhookEventRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/webhook")
@@ -42,6 +45,13 @@ public class RazorpayWebhookController {
 
         try {
             JsonNode root = objectMapper.readTree(payload);
+            String eventId = root.path("id").asText();
+            if (eventId != null && !eventId.isBlank()
+                    && webhookEventRepository.findByEventId(eventId).isPresent()) {
+                log.info("Skipping duplicate webhook event {}", eventId);
+                return ResponseEntity.ok().build();
+            }
+
             String event = root.path("event").asText();
 
             switch (event) {
@@ -49,6 +59,14 @@ public class RazorpayWebhookController {
                 case "payment.failed" -> handlePaymentFailed(root);
                 case "refund.processed" -> handleRefundProcessed(root);
                 default -> log.info("Ignoring unsupported Razorpay event: {}", event);
+            }
+            if (eventId != null && !eventId.isBlank()) {
+                PaymentWebhookEvent record = new PaymentWebhookEvent();
+                record.setEventId(eventId);
+                record.setGateway("razorpay");
+                record.setPaymentId(root.path("payload").path("payment").path("entity").path("id").asText(null));
+                record.setPayload(payload);
+                webhookEventRepository.save(record);
             }
         } catch (Exception e) {
             log.error("Error processing Razorpay webhook payload", e);

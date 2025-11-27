@@ -4,6 +4,8 @@ import com.nirvana.application.config.RazorpayProperties;
 import com.nirvana.application.model.*;
 import com.nirvana.application.model.dto.PaymentInitResponse;
 import com.nirvana.application.model.dto.PaymentLinkInitResponse;
+import com.nirvana.application.model.dto.PaymentTimelineEvent;
+import com.nirvana.application.model.dto.PaymentTimelineResponse;
 import com.nirvana.application.model.dto.RazorpayConfirmRequest;
 import com.nirvana.application.model.dto.UpiPaymentConfirmRequest;
 import com.nirvana.application.model.dto.UpiPaymentInitResponse;
@@ -16,6 +18,7 @@ import com.nirvana.application.service.CurrencyConversionService;
 import com.nirvana.application.service.InvoiceService;
 import com.nirvana.application.service.NotificationService;
 import com.nirvana.application.service.NotificationSchedulingService;
+import com.nirvana.application.security.PaymentMfaVerifier;
 import com.razorpay.Order;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
@@ -34,6 +37,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,6 +58,7 @@ public class PaymentService {
     private final NotificationService notificationService;
     private final CurrencyConversionService currencyConversionService;
     private final NotificationSchedulingService notificationSchedulingService;
+    private final PaymentMfaVerifier paymentMfaVerifier;
 
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
     private static final String GATEWAY_UPI = "UPI";
@@ -61,8 +67,9 @@ public class PaymentService {
     // ------------------ ORDER-BASED CHECKOUT ------------------
 
     @Transactional
-    public PaymentInitResponse initiateRazorpayPayment(Long bookingId) {
+    public PaymentInitResponse initiateRazorpayPayment(Long bookingId, String idempotencyKey) {
         ensureRazorpayEnabled();
+        paymentMfaVerifier.verifyPaymentChallenge();
 
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
@@ -74,9 +81,7 @@ public class PaymentService {
             throw new IllegalStateException("Payment can only be initiated for ONLINE mode bookings");
         }
 
-        // idempotent: reuse existing INIT/PENDING payment if it exists
-        Optional<Payment> existing = paymentRepository
-                .findByBookingIdAndGateway(bookingId, GATEWAY_RAZORPAY);
+        Optional<Payment> existing = findExistingPayment(bookingId, idempotencyKey, GATEWAY_RAZORPAY);
         if (existing.isPresent()
                 && (existing.get().getPaymentStatus() == PaymentStatus.INIT
                 || existing.get().getPaymentStatus() == PaymentStatus.PENDING)) {
@@ -109,6 +114,7 @@ public class PaymentService {
             Payment payment = new Payment();
             payment.setBooking(booking);
             payment.setGateway(GATEWAY_RAZORPAY);
+            payment.setIdempotencyKey(resolveIdempotencyKey(idempotencyKey));
             payment.setAmountCents(amountSubunits);
             payment.setCurrency(razorpayProps.getCurrency());
             payment.setCurrencyConversionRate(conversion.rateUsed());
@@ -137,6 +143,7 @@ public class PaymentService {
                 .bookingReference(booking.getBookingReference())
                 .razorpayKeyId(razorpayProps.getKeyId())
                 .razorpayOrderId(payment.getIntentId())
+                .idempotencyKey(payment.getIdempotencyKey())
                 .amount(amountMajor)
                 .currency(payment.getCurrency())
                 .description(razorpayProps.getDescriptionPrefix()
@@ -145,6 +152,7 @@ public class PaymentService {
                 .customerEmail(booking.getUser().getEmail())
                 .customerPhone(booking.getUser().getPhone())
                 .expiresAt(booking.getStartTs().minusMinutes(30))
+                .receiptUrl(payment.getReceiptUrl())
                 .build();
     }
 
@@ -152,6 +160,7 @@ public class PaymentService {
 
     @Transactional
     public void confirmRazorpayPayment(Long bookingId, RazorpayConfirmRequest request) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -206,7 +215,9 @@ public class PaymentService {
             bookingRepository.save(booking);
 
             // Generate invoice (idempotent)
-            invoiceService.generateInvoiceForBooking(bookingId);
+            var invoice = invoiceService.generateInvoiceForBooking(bookingId);
+            payment.setReceiptUrl(invoice.pdfUrl());
+            paymentRepository.save(payment);
 
             if (previousStatus != BookingStatus.CONFIRMED) {
                 notificationSchedulingService.scheduleBookingNotifications(booking);
@@ -223,7 +234,8 @@ public class PaymentService {
     // ------------------ UPI (QR / DEEPLINK) ------------------
 
     @Transactional
-    public UpiPaymentInitResponse initiateUpiPayment(Long bookingId) {
+    public UpiPaymentInitResponse initiateUpiPayment(Long bookingId, String idempotencyKey) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -240,7 +252,7 @@ public class PaymentService {
             throw new IllegalStateException("UPI is not configured for this spa");
         }
 
-        Optional<Payment> existing = paymentRepository.findByBookingIdAndGateway(bookingId, GATEWAY_UPI);
+        Optional<Payment> existing = findExistingPayment(bookingId, idempotencyKey, GATEWAY_UPI);
         if (existing.isPresent()
                 && (existing.get().getPaymentStatus() == PaymentStatus.INIT
                 || existing.get().getPaymentStatus() == PaymentStatus.PENDING)) {
@@ -260,6 +272,7 @@ public class PaymentService {
         Payment payment = new Payment();
         payment.setBooking(booking);
         payment.setGateway(GATEWAY_UPI);
+        payment.setIdempotencyKey(resolveIdempotencyKey(idempotencyKey));
         payment.setAmountCents(amountSubunits);
         payment.setCurrency(booking.getCurrency());
         payment.setPaymentStatus(PaymentStatus.INIT);
@@ -274,6 +287,7 @@ public class PaymentService {
 
     @Transactional
     public void confirmUpiPayment(Long bookingId, UpiPaymentConfirmRequest request) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -316,7 +330,9 @@ public class PaymentService {
         booking.setLastStatusChangedAt(OffsetDateTime.now(ZoneOffset.UTC));
         bookingRepository.save(booking);
 
-        invoiceService.generateInvoiceForBooking(bookingId);
+        var invoice = invoiceService.generateInvoiceForBooking(bookingId);
+        payment.setReceiptUrl(invoice.pdfUrl());
+        paymentRepository.save(payment);
 
         if (previousStatus != BookingStatus.CONFIRMED) {
             notificationSchedulingService.scheduleBookingNotifications(booking);
@@ -373,7 +389,8 @@ public class PaymentService {
      * Retry flow: create a new order if previous one failed/expired.
      */
     @Transactional
-    public PaymentInitResponse retryRazorpayPayment(Long bookingId) {
+    public PaymentInitResponse retryRazorpayPayment(Long bookingId, String idempotencyKey) {
+        paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
@@ -384,7 +401,7 @@ public class PaymentService {
         // If there's a INIT/PENDING payment but very old, you can mark it as EXPIRED here if you want.
 
         // Just call the same init method; idempotency there will reuse or create fresh:
-        return initiateRazorpayPayment(bookingId);
+        return initiateRazorpayPayment(bookingId, idempotencyKey);
     }
 
     // ------------------ REFUND FLOW ------------------
@@ -440,7 +457,7 @@ public class PaymentService {
      * Alternative: create Razorpay Payment Link if you want to send payment URL via SMS/email.
      */
     @Transactional
-    public PaymentLinkInitResponse createPaymentLinkForBooking(Long bookingId) {
+    public PaymentLinkInitResponse createPaymentLinkForBooking(Long bookingId, String idempotencyKey) {
         ensureRazorpayEnabled();
 
         Booking booking = bookingRepository.findById(bookingId)
@@ -480,7 +497,7 @@ public class PaymentService {
                     .valueOf(amountSubunits)
                     .movePointLeft(2);
 
-            return PaymentLinkInitResponse.builder()
+            PaymentLinkInitResponse response = PaymentLinkInitResponse.builder()
                     .bookingId(booking.getId())
                     .bookingReference(booking.getBookingReference())
                     .razorpayPaymentLinkId(plink.get("id"))
@@ -492,13 +509,107 @@ public class PaymentService {
                             java.time.Instant.ofEpochSecond(expireByEpoch),
                             ZoneOffset.UTC))
                     .build();
+
+            paymentRepository.findByBookingIdAndGateway(bookingId, GATEWAY_RAZORPAY)
+                    .ifPresentOrElse(payment -> {
+                        payment.setIdempotencyKey(resolveIdempotencyKey(idempotencyKey));
+                        payment.setReceiptUrl(plink.get("short_url"));
+                        paymentRepository.save(payment);
+                    }, () -> log.debug("No primary payment record to attach link idempotency for booking {}", bookingId));
+
+            return response;
         } catch (RazorpayException e) {
             log.error("Error creating Razorpay payment link for booking {}", bookingId, e);
             throw new RuntimeException("Error creating payment link", e);
         }
     }
 
+    // ------------------ VISIBILITY ------------------
+
+    @Transactional(readOnly = true)
+    public PaymentTimelineResponse getPaymentTimelineForBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+        List<Payment> payments = paymentRepository.findByBookingId(bookingId);
+        if (payments.isEmpty()) {
+            throw new EntityNotFoundException("No payments recorded for booking " + bookingId);
+        }
+
+        List<PaymentTimelineEvent> events = new ArrayList<>();
+        payments.forEach(payment -> {
+            events.add(new PaymentTimelineEvent(
+                    "INIT",
+                    payment.getGateway() + " intent created",
+                    Optional.ofNullable(payment.getCreatedAt()).orElse(booking.getCreatedAt())));
+            if (payment.getPaymentStatus() == PaymentStatus.COMPLETED || payment.getPaymentStatus() == PaymentStatus.CAPTURED) {
+                events.add(new PaymentTimelineEvent(
+                        "CAPTURED",
+                        "Payment authorized/captured via " + payment.getGateway(),
+                        Optional.ofNullable(payment.getCapturedAt()).orElse(payment.getUpdatedAt())));
+            }
+            if (payment.getRefundedAt() != null) {
+                events.add(new PaymentTimelineEvent(
+                        "REFUNDED",
+                        "Refunded " + payment.getRefundedCents() + " cents",
+                        payment.getRefundedAt()));
+            }
+        });
+
+        var invoice = invoiceService.getInvoiceEntityByBookingId(bookingId);
+        if (invoice != null) {
+            events.add(new PaymentTimelineEvent(
+                    "INVOICE",
+                    "Invoice issued: " + invoice.getInvoiceNumber(),
+                    invoice.getIssuedAt()));
+        }
+
+        events.sort(Comparator.comparing(PaymentTimelineEvent::occurredAt));
+
+        Payment first = payments.get(0);
+        return new PaymentTimelineResponse(
+                bookingId,
+                booking.getBookingReference(),
+                first.getGateway(),
+                events
+        );
+    }
+
+    @Transactional
+    public String fetchReceiptUrl(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
+        Payment payment = paymentRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Payment not found for booking: " + bookingId));
+
+        if (payment.getReceiptUrl() != null) {
+            return payment.getReceiptUrl();
+        }
+
+        var invoice = invoiceService.generateInvoiceForBooking(bookingId);
+        payment.setReceiptUrl(invoice.pdfUrl());
+        paymentRepository.save(payment);
+        return invoice.pdfUrl();
+    }
+
     // ------------------ INTERNAL ------------------
+
+    private Optional<Payment> findExistingPayment(Long bookingId, String idempotencyKey, String gateway) {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<Payment> byKey = paymentRepository.findByIdempotencyKey(idempotencyKey);
+            if (byKey.isPresent()) {
+                return byKey;
+            }
+        }
+        return paymentRepository.findByBookingIdAndGateway(bookingId, gateway);
+    }
+
+    private String resolveIdempotencyKey(String incoming) {
+        if (incoming == null || incoming.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+        return incoming;
+    }
 
     private void ensureRazorpayEnabled() {
         if (razorpayClient == null || !razorpayProps.isEnabled()) {
