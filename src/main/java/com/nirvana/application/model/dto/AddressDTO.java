@@ -1,7 +1,6 @@
 package com.nirvana.application.model.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +22,7 @@ public class AddressDTO {
     private String locality;
     private String landmark;
     private String country;
+    @Size(max = 4, message = "countryCode must be an ISO alpha-2/alpha-3 code or a short dialing code (max 4 chars)")
     private String countryCode;
     private String googlePlaceId;
     private String formattedAddress;
