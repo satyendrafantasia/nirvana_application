@@ -2,6 +2,8 @@ package com.nirvana.application.controller;
 
 import com.nirvana.application.model.dto.AuthResponse;
 import com.nirvana.application.model.dto.LoginRequest;
+import com.nirvana.application.model.dto.LogoutRequest;
+import com.nirvana.application.model.dto.RefreshTokenRequest;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.AuthService;
@@ -48,6 +50,18 @@ public class AuthController {
     })
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Rotate access token", description = "Exchange a valid refresh token for a new access token.")
+    public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return authService.refresh(request);
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout", description = "Revoke refresh tokens for the current device or specific token.")
+    public void logout(@RequestBody LogoutRequest request) {
+        authService.logout(request);
     }
 
     @GetMapping("/me")
