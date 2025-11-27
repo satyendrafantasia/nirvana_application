@@ -36,6 +36,7 @@ public class SpaController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Spa created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SpaResponseDTO.class)))
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     public SpaResponseDTO createSpa(@Valid @RequestBody SpaRequestDTO request) {
         return spaService.createSpa(request);
     }

@@ -4,9 +4,11 @@ import com.nirvana.application.model.MediaAsset;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.dto.PagedResponse;
 import com.nirvana.application.model.dto.SpaSummaryResponse;
+import com.nirvana.application.model.enums.MediaType;
 import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.repository.projection.SpaDistanceProjection;
+import com.nirvana.application.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -16,6 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static com.nirvana.application.repository.spec.SpaAddressSpecifications.*;
 import static com.nirvana.application.repository.spec.SpaSpecifications.*;
@@ -45,6 +48,7 @@ public class SpaSearchService {
 
     private final SpaRepository spaRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final S3Service s3Service;
 
     /**
      * Main search method to be wired to /api/spas.
@@ -283,10 +287,13 @@ public class SpaSearchService {
     }
 
     private SpaSummaryResponse toSummary(Spa spa, Double distanceKm) {
-        String thumbnail = mediaAssetRepository
-                .findFirstByEntityTypeAndEntityIdOrderByPositionAsc("SPA", spa.getId())
-                .map(MediaAsset::getUrl)
-                .orElse(null);
+        var thumbnailAsset = mediaAssetRepository
+                .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE);
+
+        String thumbnail = null;
+        if (thumbnailAsset.isPresent()) {
+            thumbnail = s3Service.getFileUrl(thumbnailAsset.get().getObjectKey());
+        }
 
         Integer startingPriceCents = null; // TODO: compute/denormalize later
 

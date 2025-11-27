@@ -1,14 +1,14 @@
 package com.nirvana.application.model;
 
 import com.nirvana.application.model.enums.KycStatus;
+import com.nirvana.application.model.enums.spa.TherapistType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 @Entity
 @Table(name = "spa", indexes = {
         @Index(name = "idx_spa_city_state", columnList = "city,state"), // you'll update to address fields in queries
@@ -34,9 +34,12 @@ public class Spa extends BaseEntity {
 
     // Address embedded, no OneToOne
     @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "timezone", column = @Column(name = "timezone", insertable = false, updatable = false))
+    })
     private Address address;
 
-    @Column(nullable = false ,  insertable=false, updatable=false)
+    @Column(nullable = false)
     private String timezone; // e.g., Asia/Kolkata
 
     private String phone;
@@ -77,13 +80,17 @@ public class Spa extends BaseEntity {
     @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY)
     private List<Payout> payouts;
 
-    @OneToMany(fetch = FetchType.LAZY)
-    @JoinColumn(name = "entity_id") // with entity_type='SPA'
-    private List<MediaAsset> mediaAssets;
+    @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<MediaAsset> mediaAssets = new ArrayList<>();
 
     @ManyToMany(mappedBy = "eligibleSpas", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<ServicePackage> supportedPackages = new HashSet<>();
+
+    @OneToMany(mappedBy = "spa", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<Service> services = new ArrayList<>();
 
 
     // KYC
@@ -147,6 +154,26 @@ public class Spa extends BaseEntity {
 
     @Column(name = "commission_pct", nullable = false)
     private Integer commissionPct = 10;
+
+    @Column(name = "open_time_local")
+    private LocalTime openTimeLocal;
+
+    @Column(name = "close_time_local")
+    private LocalTime closeTimeLocal;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "spa_working_day", joinColumns = @JoinColumn(name = "spa_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_of_week")
+    @Builder.Default
+    private Set<DayOfWeek> workingDays = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "spa_therapist_type", joinColumns = @JoinColumn(name = "spa_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "therapist_type")
+    @Builder.Default
+    private Set<TherapistType> therapistTypesAvailable = new HashSet<>();
 
     // booking config
     @Column(name = "max_advance_booking_days")
