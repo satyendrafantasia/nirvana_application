@@ -204,6 +204,7 @@ CREATE TABLE `booking_hold` (
   `updated_at` datetime(6) NOT NULL,
   `converted_to_booking` bit(1) NOT NULL,
   `expires_at` datetime(6) NOT NULL,
+  `hold_units` int NOT NULL DEFAULT 1,
   `hold_token` varchar(128) NOT NULL,
   `meta` json DEFAULT NULL,
   `services_json` json DEFAULT NULL,

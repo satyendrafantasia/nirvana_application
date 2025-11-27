@@ -77,6 +77,17 @@
       api-key: ${GOOGLE_PLACES_API_KEY:}
       base-url: https://maps.googleapis.com/maps/api/place
 
+  maps:
+    provider: ${MAP_PROVIDER:google}
+    google:
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+      base-url: https://maps.googleapis.com
+      static-style: roadmap
+    mapbox:
+      api-key: ${MAPBOX_ACCESS_TOKEN:}
+      base-url: https://api.mapbox.com
+      static-style: streets-v11
+
 
   aws:
     s3:
@@ -101,6 +112,9 @@
       auto-capture: true             # payment_capture = 1
       description-prefix: "Nirvana Spa Booking"
 
+  invoice:
+    pdf-base-url: https://cdn.nirvana.invalid/invoices
+
   notifications:
     sendgrid:
       enabled: false
@@ -110,6 +124,29 @@
       owner-fallback-email: ${SPA_OWNER_EMAIL:}
       owner-subject: "New booking confirmed"
       customer-subject: "Your booking is confirmed"
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-to-a-strong-secret}
+      expiration-minutes: 1440
+
+  reliability:
+    rate-limiting:
+      enabled: true
+      requests: 120
+      window-seconds: 60
+      block-seconds: 120
+      captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:demo-captcha}
+      whitelist-paths:
+        - /management/health
+        - /management/info
+
+  currency:
+    base: INR
+    rates:
+      INR: 1.0
+      USD: 0.012
+      EUR: 0.011
 
 
 
