@@ -3,11 +3,14 @@ package com.nirvana.application.service.impl;
 // src/main/java/com/nirvana/application/service/SpaReadService.java
 
 import com.nirvana.application.model.Address;
+import com.nirvana.application.model.MediaAsset;
 import com.nirvana.application.model.Service;
 import com.nirvana.application.model.Spa;
+import com.nirvana.application.model.Therapist;
 import com.nirvana.application.model.dto.ServiceSummaryResponse;
 import com.nirvana.application.model.dto.SpaDetailResponse;
 import com.nirvana.application.model.enums.MediaType;
+import com.nirvana.application.model.enums.spa.TherapistType;
 import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.SpaRepository;
@@ -19,8 +22,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @org.springframework.stereotype.Service
 @Slf4j
@@ -39,14 +46,42 @@ public class SpaReadService {
 
         Address a = spa.getAddress();
 
-        String heroImageUrl = mediaAssetRepository
-                .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE)
-                .map(media -> s3Service.getFileUrl(media.getObjectKey()))
-                .orElse(null);
+        List<MediaAsset> mediaAssets = spa.getMediaAssets() != null
+                ? spa.getMediaAssets().stream()
+                .sorted(this::compareMediaAssets)
+                .toList()
+                : Collections.emptyList();
+
+        List<String> imageUrls = mediaAssets.stream()
+                .filter(asset -> asset.getMediaType() == MediaType.IMAGE)
+                .map(this::toS3Url)
+                .toList();
+
+        List<String> videoUrls = mediaAssets.stream()
+                .filter(asset -> asset.getMediaType() == MediaType.VIDEO)
+                .map(this::toS3Url)
+                .toList();
+
+        String heroImageUrl = !imageUrls.isEmpty()
+                ? imageUrls.get(0)
+                : mediaAssetRepository
+                        .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE)
+                        .map(media -> s3Service.getFileUrl(media.getObjectKey()))
+                        .orElse(null);
 
         List<String> images = JsonUtils.toStringList(spa.getImagesJson());
         List<String> amenities = arrayToList(spa.getAmenities());
         List<String> tags = arrayToList(spa.getTags());
+
+        List<Long> therapistIds = spa.getTherapists() != null
+                ? spa.getTherapists().stream().map(Therapist::getId).toList()
+                : List.of();
+
+        List<Long> serviceIds = spa.getServices() != null
+                ? spa.getServices().stream().map(Service::getId).toList()
+                : List.of();
+
+        List<String> finalImages = !imageUrls.isEmpty() ? imageUrls : images;
 
         return new SpaDetailResponse(
                 spa.getId(),
@@ -97,7 +132,19 @@ public class SpaReadService {
                 spa.getMaxAdvanceBookingDays(),
                 spa.getMinNoticeMinutes(),
 
-                images,
+                formatTime(spa.getOpenTimeLocal()),
+                formatTime(spa.getCloseTimeLocal()),
+                spa.getWorkingDays() != null ? spa.getWorkingDays().stream().sorted().toList() : List.of(),
+
+                spa.getAllowTherapistSelection(),
+                spa.getAllowTherapistTypeSelection(),
+                safeSet(spa.getTherapistTypesAvailable()),
+                therapistIds,
+
+                serviceIds,
+
+                finalImages,
+                videoUrls,
                 amenities,
                 tags,
 
@@ -148,5 +195,33 @@ public class SpaReadService {
 
     private static List<String> arrayToList(String[] arr) {
         return (arr == null || arr.length == 0) ? List.of() : Arrays.asList(arr);
+    }
+
+    private int compareMediaAssets(MediaAsset a, MediaAsset b) {
+        Integer posA = a.getPosition();
+        Integer posB = b.getPosition();
+        if (Objects.equals(posA, posB)) {
+            Long idA = a.getId();
+            Long idB = b.getId();
+            if (idA == null || idB == null) {
+                return 0;
+            }
+            return idA.compareTo(idB);
+        }
+        if (posA == null) return 1;
+        if (posB == null) return -1;
+        return posA.compareTo(posB);
+    }
+
+    private String toS3Url(MediaAsset asset) {
+        return s3Service.getFileUrl(asset.getObjectKey());
+    }
+
+    private String formatTime(LocalTime time) {
+        return time != null ? time.toString() : null;
+    }
+
+    private Set<TherapistType> safeSet(Set<TherapistType> source) {
+        return source != null ? source : Set.of();
     }
 }
