@@ -2,6 +2,7 @@ package com.nirvana.application.config;
 
 import com.nirvana.application.security.JwtAuthenticationFilter;
 import com.nirvana.application.security.JwtProperties;
+import com.nirvana.application.security.PaymentMfaVerifier;
 import com.nirvana.application.security.RateLimitingFilter;
 import com.nirvana.application.security.UserDetailsServiceImpl;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,7 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, PaymentMfaVerifier.MfaProperties.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
