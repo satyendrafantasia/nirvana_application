@@ -17,4 +17,14 @@ public class JwtProperties {
      * Expiration in minutes.
      */
     private long expirationMinutes = 60 * 24; // 24 hours by default
+
+    /**
+     * Refresh token validity in days.
+     */
+    private long refreshExpirationDays = 30;
+
+    /**
+     * Header used to convey device fingerprint for binding tokens.
+     */
+    private String deviceFingerprintHeader = "X-Device-Fingerprint";
 }
