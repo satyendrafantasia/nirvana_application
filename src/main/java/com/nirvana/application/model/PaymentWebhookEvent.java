@@ -29,8 +29,7 @@ public class PaymentWebhookEvent {
     @Column(name = "payment_id", length = 255)
     private String paymentId;
 
-    @Lob
-    @Column(name = "payload")
+    @Column(name = "payload", columnDefinition = "TEXT")
     private String payload;
 
     @Column(name = "created_at", nullable = false)
