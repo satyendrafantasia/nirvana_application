@@ -11,14 +11,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.nirvana.application.security.UserPrincipal;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @RequiredArgsConstructor
@@ -28,8 +26,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final String CAPTCHA_HEADER = "X-Captcha-Token";
 
     private final RateLimitingProperties properties;
+    private final RateLimitService rateLimitService;
     private final Clock clock = Clock.systemUTC();
-    private final Map<String, RequestWindow> windows = new ConcurrentHashMap<>();
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -45,26 +43,22 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String key = resolveKey(request);
         Instant now = clock.instant();
+        String userKey = resolveUserKey(request);
+        boolean allowed = rateLimitService.isAllowed(key);
+        boolean userAllowed = true;
+        if (userKey != null && properties.getPerUserRequests() != null) {
+            userAllowed = rateLimitService.isAllowed(userKey, properties.getPerUserRequests());
+        }
 
-        RequestWindow window = windows.computeIfAbsent(key, k -> new RequestWindow());
-        synchronized (window) {
-            if (window.blockedUntil != null && now.isBefore(window.blockedUntil)) {
-                reject(response, "Rate limit exceeded. Retry after cool-off.", window.blockedUntil);
-                return;
-            }
-
+        if (!allowed || !userAllowed) {
             String captchaToken = request.getHeader(CAPTCHA_HEADER);
             boolean captchaProvided = captchaToken != null && captchaToken.equals(properties.getCaptchaBypassToken());
-
-            window.evictOld(now, properties.getWindowSeconds());
-            if (window.requests.size() >= properties.getRequests() && !captchaProvided) {
-                window.blockedUntil = now.plusSeconds(properties.getBlockSeconds());
-                log.warn("Rate limit triggered for key {} on path {}", key, request.getRequestURI());
-                reject(response, "Too many requests. Provide CAPTCHA token or wait.", window.blockedUntil);
+            if (!captchaProvided) {
+                Instant blockedUntil = now.plusSeconds(properties.getBlockSeconds());
+                log.warn("Rate limit triggered for key {} on path {}", userKey != null ? userKey : key, request.getRequestURI());
+                reject(response, "Too many requests. Provide CAPTCHA token or wait.", blockedUntil);
                 return;
             }
-
-            window.requests.addLast(now);
         }
 
         filterChain.doFilter(request, response);
@@ -76,6 +70,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         return ip + "|" + request.getRequestURI();
     }
 
+    private String resolveUserKey(HttpServletRequest request) {
+        if (properties.getPerUserRequests() == null) {
+            return null;
+        }
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+            return "user:" + principal.getId() + "|" + request.getRequestURI();
+        }
+        return null;
+    }
+
     private void reject(HttpServletResponse response, String message, Instant blockedUntil) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -84,15 +89,4 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         response.getWriter().write("{\"error\":\"" + message + "\",\"blockedUntil\":\"" + blockedUntil + "\"}");
     }
 
-    private static class RequestWindow {
-        private final Deque<Instant> requests = new ArrayDeque<>();
-        private Instant blockedUntil;
-
-        void evictOld(Instant now, int windowSeconds) {
-            Instant threshold = now.minusSeconds(windowSeconds);
-            while (!requests.isEmpty() && requests.peekFirst().isBefore(threshold)) {
-                requests.removeFirst();
-            }
-        }
-    }
 }

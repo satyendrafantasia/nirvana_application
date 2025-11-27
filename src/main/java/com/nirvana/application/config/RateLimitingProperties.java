@@ -14,6 +14,8 @@ public class RateLimitingProperties {
     private boolean enabled = true;
     /** Number of requests permitted per window */
     private int requests = 100;
+    /** Number of requests permitted per authenticated user per window */
+    private Integer perUserRequests = 60;
     /** Window size in seconds */
     private int windowSeconds = 60;
     /** Cool-off period after hitting the limit */
@@ -37,6 +39,14 @@ public class RateLimitingProperties {
 
     public void setRequests(int requests) {
         this.requests = requests;
+    }
+
+    public Integer getPerUserRequests() {
+        return perUserRequests;
+    }
+
+    public void setPerUserRequests(Integer perUserRequests) {
+        this.perUserRequests = perUserRequests;
     }
 
     public int getWindowSeconds() {

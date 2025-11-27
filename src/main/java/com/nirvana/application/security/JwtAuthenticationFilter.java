@@ -21,10 +21,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenService jwtTokenService;
     private final UserDetailsServiceImpl userDetailsService;
+    private final JwtProperties jwtProperties;
 
-    public JwtAuthenticationFilter(JwtTokenService jwtTokenService, UserDetailsServiceImpl userDetailsService) {
+    public JwtAuthenticationFilter(JwtTokenService jwtTokenService, UserDetailsServiceImpl userDetailsService,
+                                   JwtProperties jwtProperties) {
         this.jwtTokenService = jwtTokenService;
         this.userDetailsService = userDetailsService;
+        this.jwtProperties = jwtProperties;
     }
 
     @Override
@@ -37,6 +40,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtTokenService.parseClaims(token);
                 Long userId = Long.valueOf(claims.getSubject());
                 Set<String> roles = jwtTokenService.extractRoles(claims);
+                String fingerprintClaim = claims.get("dfp", String.class);
+                String fingerprintHeader = request.getHeader(jwtProperties.getDeviceFingerprintHeader());
+
+                if (fingerprintClaim != null && fingerprintHeader != null
+                        && !fingerprintClaim.equals(fingerprintHeader)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserById(userId, roles);
