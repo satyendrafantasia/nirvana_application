@@ -256,9 +256,9 @@ public class BookingServiceImpl implements BookingService {
         com.nirvana.application.model.dto.UpiPaymentInitResponse upiInit = null;
         if (paymentMode == PaymentMode.ONLINE) {
             if ("UPI".equals(paymentMethod)) {
-                upiInit = paymentService.initiateUpiPayment(saved.getId());
+                upiInit = paymentService.initiateUpiPayment(saved.getId(), "booking-" + saved.getId() + "-upi-init");
             } else {
-                razorpayInit = paymentService.initiateRazorpayPayment(saved.getId());
+                razorpayInit = paymentService.initiateRazorpayPayment(saved.getId(), "booking-" + saved.getId() + "-razorpay-init");
             }
         }
 
