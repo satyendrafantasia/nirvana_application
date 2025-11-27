@@ -13,6 +13,7 @@ import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.service.MediaService;
 import com.nirvana.application.service.S3Service;
+import com.nirvana.application.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class MediaServiceImpl implements MediaService {
         Spa spa = spaRepository.findById(request.getSpaId())
                 .orElseThrow(() -> new NotFoundException("Spa not found with id: " + request.getSpaId()));
 
-        // TODO: add permission checks when authentication context is available
+        validateOwnership(spa);
         return s3Service.generatePreSignedUploadUrl(request);
     }
 
@@ -40,6 +41,7 @@ public class MediaServiceImpl implements MediaService {
         Spa spa = spaRepository.findById(spaId)
                 .orElseThrow(() -> new NotFoundException("Spa not found with id: " + spaId));
 
+        validateOwnership(spa);
         validateObjectKey(spa.getId(), request.getObjectKey(), request.getMediaType());
         if (!s3Service.objectExists(request.getObjectKey())) {
             throw new BusinessException("Uploaded object not found in S3 for key: " + request.getObjectKey());
@@ -61,6 +63,16 @@ public class MediaServiceImpl implements MediaService {
                 .title(saved.getTitle())
                 .position(saved.getPosition())
                 .build();
+    }
+
+    private void validateOwnership(Spa spa) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (spa.getSpaManager() == null || spa.getSpaManager().getUser() == null) {
+            throw new IllegalStateException("Spa manager not configured for spa: " + spa.getId());
+        }
+        if (!spa.getSpaManager().getUser().getId().equals(currentUserId)) {
+            throw new IllegalStateException("User not authorized to manage media for this spa");
+        }
     }
 
     private void validateObjectKey(Long spaId, String objectKey, MediaType mediaType) {
