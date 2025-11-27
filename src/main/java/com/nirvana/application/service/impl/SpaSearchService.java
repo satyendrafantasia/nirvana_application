@@ -7,7 +7,9 @@ import com.nirvana.application.model.dto.SpaSummaryResponse;
 import com.nirvana.application.model.enums.MediaType;
 import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.SpaRepository;
+import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.projection.SpaDistanceProjection;
+import com.nirvana.application.repository.projection.SpaStartingPriceProjection;
 import com.nirvana.application.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 import static com.nirvana.application.repository.spec.SpaAddressSpecifications.*;
 import static com.nirvana.application.repository.spec.SpaSpecifications.*;
@@ -48,6 +50,7 @@ public class SpaSearchService {
 
     private final SpaRepository spaRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final ServiceRepository serviceRepository;
     private final S3Service s3Service;
 
     /**
@@ -148,9 +151,13 @@ public class SpaSearchService {
 
             Page<Spa> pageResult = spaRepository.findAll(spec, pageable);
 
+            Map<Long, Integer> startingPrices = fetchStartingPrices(
+                    pageResult.getContent().stream().map(Spa::getId).toList()
+            );
+
             List<SpaSummaryResponse> content = pageResult.getContent()
                     .stream()
-                    .map(spa -> toSummary(spa, null))
+                    .map(spa -> toSummary(spa, null, startingPrices.get(spa.getId())))
                     .toList();
 
             return new PagedResponse<>(
@@ -224,6 +231,8 @@ public class SpaSearchService {
 
         List<Spa> spas = spaRepository.findAll(specWithIds);
 
+        Map<Long, Integer> startingPrices = fetchStartingPrices(spaIdsInOrder);
+
         // index by id, then re-map in projection order
         var spaById = spas.stream()
                 .collect(java.util.stream.Collectors.toMap(Spa::getId, s -> s));
@@ -236,7 +245,7 @@ public class SpaSearchService {
                 // filtered out by spec (e.g., inactive/KYC/rating).
                 continue;
             }
-            result.add(toSummary(spa, proj.getDistanceKm()));
+            result.add(toSummary(spa, proj.getDistanceKm(), startingPrices.get(spa.getId())));
         }
 
         // NOTE:
@@ -286,16 +295,26 @@ public class SpaSearchService {
         };
     }
 
-    private SpaSummaryResponse toSummary(Spa spa, Double distanceKm) {
-        Optional<MediaAsset> thumbnailAsset = mediaAssetRepository
+    private Map<Long, Integer> fetchStartingPrices(List<Long> spaIds) {
+        if (spaIds == null || spaIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return serviceRepository.findStartingPricesBySpaIds(spaIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        SpaStartingPriceProjection::getSpaId,
+                        SpaStartingPriceProjection::getStartingPriceCents
+                ));
+    }
+
+    private SpaSummaryResponse toSummary(Spa spa, Double distanceKm, Integer startingPriceCents) {
+        var thumbnailAsset = mediaAssetRepository
                 .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE);
 
         String thumbnail = null;
         if (thumbnailAsset.isPresent()) {
             thumbnail = s3Service.getFileUrl(thumbnailAsset.get().getObjectKey());
         }
-
-        Integer startingPriceCents = null; // TODO: compute/denormalize later
 
         // Assuming Spa has embedded Address: spa.getAddress().getCity(), etc.
         String city = spa.getAddress() != null ? spa.getAddress().getCity() : null;
