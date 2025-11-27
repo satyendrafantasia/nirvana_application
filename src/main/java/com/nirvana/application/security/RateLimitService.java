@@ -3,10 +3,10 @@ package com.nirvana.application.security;
 import com.nirvana.application.config.RateLimitingProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class RateLimitService {
 
@@ -27,6 +26,7 @@ public class RateLimitService {
     private final Counter hitCounter;
     private final Counter blockCounter;
 
+    @Autowired
     public RateLimitService(RateLimitingProperties properties, StringRedisTemplate redisTemplate,
                             MeterRegistry meterRegistry) {
         this.properties = properties;
