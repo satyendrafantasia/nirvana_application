@@ -24,7 +24,7 @@ public class JwtTokenService {
         this.properties = properties;
     }
 
-    public String generateToken(User user) {
+    public String generateToken(User user, String deviceFingerprint) {
         Instant now = Instant.now();
         Instant expiry = now.plus(properties.getExpirationMinutes(), ChronoUnit.MINUTES);
 
@@ -32,6 +32,7 @@ public class JwtTokenService {
                 .setSubject(String.valueOf(user.getId()))
                 .claim("email", user.getEmail())
                 .claim("roles", user.getRoles())
+                .claim("dfp", deviceFingerprint)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(expiry))
                 .signWith(signingKey())

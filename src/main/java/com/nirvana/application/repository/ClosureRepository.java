@@ -20,4 +20,6 @@ public interface ClosureRepository extends JpaRepository<Closure, Long> {
     List<Closure> findClosuresOverlapping(@Param("spaId") Long spaId,
                                           @Param("startTs") OffsetDateTime startTs,
                                           @Param("endTs") OffsetDateTime endTs);
+
+    List<Closure> findByEndTsAfter(OffsetDateTime cutoff);
 }

@@ -54,6 +54,12 @@
     endpoint:
       health:
         show-details: when-authorized
+    tracing:
+      sampling:
+        probability: 1.0
+    otlp:
+      tracing:
+        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
 
   springdoc:
     api-docs:
@@ -127,11 +133,21 @@
     jwt:
       secret: ${JWT_SECRET:change-me-to-a-strong-secret}
       expiration-minutes: 1440
+      refresh-expiration-days: 30
+      device-fingerprint-header: X-Device-Fingerprint
+    mfa:
+      enabled: false
+      header: X-MFA-Token
+      bypass-token: ${MFA_BYPASS_TOKEN:demo-mfa}
 
   reliability:
     rate-limiting:
       enabled: true
       requests: 120
+    payments:
+      reconcile-threshold-minutes: 15
+      reconcile-interval-ms: 300000
+      per-user-requests: 90
       window-seconds: 60
       block-seconds: 120
       captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:demo-captcha}
@@ -144,12 +160,24 @@
         - /swagger-ui/index.html
         - /swagger-ui/
 
+  operations:
+    sla:
+      availability-target: 0.995
+      availability-window-days: 30
+      notification-target: 0.98
+      notification-window-days: 7
+
   currency:
     base: INR
-    rates:
+  rates:
       INR: 1.0
       USD: 0.012
       EUR: 0.011
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 
 

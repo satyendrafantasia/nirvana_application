@@ -6,6 +6,7 @@ import com.nirvana.application.model.enums.BookingChannel;
 import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentSourceType;
 import com.nirvana.application.model.enums.RefundStatus;
+import com.nirvana.application.model.enums.RefundRoute;
 import com.nirvana.application.model.enums.CancellationActor;
 import jakarta.persistence.*;
 import lombok.*;
@@ -199,6 +200,10 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "refund_status", length = 32, nullable = false)
     private RefundStatus refundStatus = RefundStatus.NONE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "refund_route", length = 32)
+    private RefundRoute refundRoute = RefundRoute.ORIGINAL_METHOD;
 
     @Column(name = "invoice_url", length = 1000)
     private String invoiceUrl;

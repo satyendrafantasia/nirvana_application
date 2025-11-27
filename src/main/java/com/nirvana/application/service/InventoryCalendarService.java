@@ -5,6 +5,7 @@ import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.dto.InventoryCalendarResponse;
 import com.nirvana.application.model.dto.InventoryDayRequest;
 import com.nirvana.application.model.dto.InventoryDayResponse;
+import com.nirvana.application.model.enums.AdminActionType;
 import com.nirvana.application.repository.InventoryCalendarRepository;
 import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.SpaRepository;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +27,7 @@ public class InventoryCalendarService {
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
     private final ProviderAuditService providerAuditService;
+    private final AuditTrailService auditTrailService;
 
     @Transactional(readOnly = true)
     public InventoryCalendarResponse getCalendar(Long spaId, Long serviceId, LocalDate startDate, LocalDate endDate) {
@@ -54,6 +57,13 @@ public class InventoryCalendarService {
                 : inventoryCalendarRepository.findBySpa_IdAndService_IdAndServiceDate(request.getSpaId(), service.getId(), request.getServiceDate());
 
         InventoryCalendarEntry entry = existing.orElseGet(InventoryCalendarEntry::new);
+        var beforeState = existing
+                .map(e -> Map.of(
+                        "availableUnits", e.getAvailableUnits(),
+                        "basePriceCents", e.getBasePriceCents(),
+                        "overridePriceCents", e.getOverridePriceCents(),
+                        "locked", e.getLocked()))
+                .orElse(Map.of());
         entry.setSpa(spa);
         entry.setService(service);
         entry.setServiceDate(request.getServiceDate());
@@ -67,6 +77,18 @@ public class InventoryCalendarService {
         InventoryCalendarEntry saved = inventoryCalendarRepository.save(entry);
         providerAuditService.log(spa.getId(), "SYSTEM", null, "INVENTORY_CALENDAR_UPSERT",
                 "Updated inventory for " + request.getServiceDate());
+        auditTrailService.record(
+                AdminActionType.UPDATE,
+                "INVENTORY",
+                saved.getId(),
+                null,
+                beforeState,
+                Map.of(
+                        "availableUnits", saved.getAvailableUnits(),
+                        "basePriceCents", saved.getBasePriceCents(),
+                        "overridePriceCents", saved.getOverridePriceCents(),
+                        "locked", saved.getLocked()),
+                "Inventory update for spa " + spa.getId());
         return toResponse(saved);
     }
 

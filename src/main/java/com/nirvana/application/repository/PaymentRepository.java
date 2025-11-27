@@ -26,11 +26,27 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByIntentId(String intentId);
 
+    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
+
     boolean existsByTransactionId(String transactionId);
 
     boolean existsByIntentId(String intentId);
 
     List<Payment> findByPaymentStatus(PaymentStatus status);
 
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT count(p) FROM Payment p
+            WHERE p.payoutStatus IS NULL OR LOWER(p.payoutStatus) <> LOWER(:settledStatus)
+            """)
+    long countPendingPayouts(@org.springframework.data.repository.query.Param("settledStatus") String settledStatus);
 
+    default long countPendingPayouts() {
+        return countPendingPayouts("settled");
+    }
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT count(p) FROM Payment p
+            WHERE p.payoutStatus IS NOT NULL AND LOWER(p.payoutStatus) = LOWER(:status)
+            """)
+    long countByPayoutStatusEqualsIgnoreCase(@org.springframework.data.repository.query.Param("status") String status);
 }
