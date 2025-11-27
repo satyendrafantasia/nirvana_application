@@ -3,14 +3,15 @@ package com.nirvana.application.service.impl;
 // src/main/java/com/nirvana/application/service/SpaReadService.java
 
 import com.nirvana.application.model.Address;
-import com.nirvana.application.model.MediaAsset;
 import com.nirvana.application.model.Service;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.dto.ServiceSummaryResponse;
 import com.nirvana.application.model.dto.SpaDetailResponse;
+import com.nirvana.application.model.enums.MediaType;
 import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.ServiceRepository;
 import com.nirvana.application.repository.SpaRepository;
+import com.nirvana.application.service.S3Service;
 import com.nirvana.application.utils.JsonUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class SpaReadService {
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final S3Service s3Service;
 
     @Transactional(readOnly = true)
     public SpaDetailResponse getSpaDetails(Long spaId) {
@@ -38,8 +40,8 @@ public class SpaReadService {
         Address a = spa.getAddress();
 
         String heroImageUrl = mediaAssetRepository
-                .findFirstByEntityTypeAndEntityIdOrderByPositionAsc("SPA", spa.getId())
-                .map(MediaAsset::getUrl)
+                .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE)
+                .map(media -> s3Service.getFileUrl(media.getObjectKey()))
                 .orElse(null);
 
         List<String> images = JsonUtils.toStringList(spa.getImagesJson());
