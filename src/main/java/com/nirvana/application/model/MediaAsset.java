@@ -23,6 +23,13 @@ public class MediaAsset extends BaseEntity {
     @JoinColumn(name = "spa_id", nullable = false)
     private Spa spa;
 
+    /**
+     * Backward-compatible column retained for older datasets and schema validation paths.
+     * Mapped as read-only to mirror {@code spa_id} without driving writes.
+     */
+    @Column(name = "entity_id", insertable = false, updatable = false)
+    private Long legacyEntityId;
+
     @Column(name = "object_key", nullable = false, length = 1000)
     private String objectKey;
 
