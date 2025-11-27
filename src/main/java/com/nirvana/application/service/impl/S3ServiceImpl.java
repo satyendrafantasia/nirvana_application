@@ -1,9 +1,14 @@
 package com.nirvana.application.service.impl;
-import com.nirvana.application.model.dto.UploadResponse;
-import com.nirvana.application.exception.StorageException;
-import com.nirvana.application.service.S3Service;
+
+import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
+import com.nirvana.application.exception.StorageException;
+import com.nirvana.application.model.dto.MediaPresignRequest;
+import com.nirvana.application.model.dto.MediaPresignResponse;
+import com.nirvana.application.model.dto.UploadResponse;
+import com.nirvana.application.model.enums.MediaType;
+import com.nirvana.application.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +18,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.UUID;
 
 @Service
@@ -78,6 +87,38 @@ public class S3ServiceImpl implements S3Service {
     @Override
     public String getFileUrl(String key) {
         return amazonS3.getUrl(bucketName, key).toString();
+    }
+
+    @Override
+    public MediaPresignResponse generatePreSignedUploadUrl(MediaPresignRequest request) {
+        try {
+            String extension = StringUtils.getFilenameExtension(request.getFileName());
+            String sanitizedExtension = extension != null ? "." + extension : "";
+            String keyPrefix = request.getMediaType() == MediaType.VIDEO
+                    ? "spa/" + request.getSpaId() + "/videos/"
+                    : "spa/" + request.getSpaId() + "/images/";
+            String key = keyPrefix + UUID.randomUUID() + sanitizedExtension;
+
+            Date expiration = Date.from(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(10).toInstant());
+            GeneratePresignedUrlRequest presignedUrlRequest = new GeneratePresignedUrlRequest(bucketName, key)
+                    .withMethod(HttpMethod.PUT)
+                    .withContentType(request.getContentType())
+                    .withExpiration(expiration);
+
+            URL url = amazonS3.generatePresignedUrl(presignedUrlRequest);
+            return MediaPresignResponse.builder()
+                    .uploadUrl(url.toString())
+                    .objectKey(key)
+                    .expiresAt(OffsetDateTime.ofInstant(expiration.toInstant(), ZoneOffset.UTC))
+                    .build();
+        } catch (Exception ex) {
+            throw new StorageException("Failed to generate pre-signed URL", ex);
+        }
+    }
+
+    @Override
+    public boolean objectExists(String objectKey) {
+        return amazonS3.doesObjectExist(bucketName, objectKey);
     }
 }
 
