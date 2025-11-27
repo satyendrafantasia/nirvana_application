@@ -34,7 +34,6 @@ public class PaymentMfaVerifier {
         return attributes != null ? attributes.getRequest() : null;
     }
 
-    @Component
     @ConfigurationProperties(prefix = "security.mfa")
     public static class MfaProperties {
         private boolean enabled = false;
