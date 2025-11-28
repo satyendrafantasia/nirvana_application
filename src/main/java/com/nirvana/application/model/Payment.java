@@ -99,6 +99,9 @@ public class Payment extends BaseEntity {
     @Column(name = "payout_status")
     private String payoutStatus;
 
+    @Column(name = "last_refund_id")
+    private String lastRefundId;
+
     @Version
     private Long version;
 }
