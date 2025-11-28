@@ -20,7 +20,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
     private final AuthService authService;
     private final ObjectMapper objectMapper;
 
-    public OAuth2AuthenticationSuccessHandler(AuthService authService, ObjectMapper objectMapper) {
+    public OAuth2AuthenticationSuccessHandler(@org.springframework.context.annotation.Lazy AuthService authService, ObjectMapper objectMapper) {
         this.authService = authService;
         this.objectMapper = objectMapper;
     }
