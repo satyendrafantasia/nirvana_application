@@ -7,6 +7,8 @@ import com.nirvana.application.security.RateLimitingFilter;
 import com.nirvana.application.security.OAuth2AuthenticationFailureHandler;
 import com.nirvana.application.security.OAuth2AuthenticationSuccessHandler;
 import com.nirvana.application.security.UserDetailsServiceImpl;
+import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientProperties;
+import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientPropertiesRegistrationAdapter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
