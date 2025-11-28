@@ -13,7 +13,7 @@ import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.repository.VoucherRepository;
 import com.nirvana.application.service.AuditTrailService;
-import com.nirvana.application.service.PaymentService;
+import com.nirvana.application.service.impl.PaymentService;
 import com.nirvana.application.service.RefundManagementService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
