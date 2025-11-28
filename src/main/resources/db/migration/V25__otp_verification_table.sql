@@ -1,0 +1,21 @@
+CREATE TABLE `otp_verification` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `verification_id` VARCHAR(64) NOT NULL,
+    `phone_number` VARCHAR(32) DEFAULT NULL,
+    `email` VARCHAR(320) DEFAULT NULL,
+    `otp_code` VARCHAR(6) NOT NULL,
+    `expires_at` DATETIME(6) NOT NULL,
+    `attempts` INT NOT NULL,
+    `max_attempts` INT NOT NULL,
+    `verified` BIT NOT NULL,
+    `registration_token` VARCHAR(64) DEFAULT NULL,
+    `registration_token_expires_at` DATETIME(6) DEFAULT NULL,
+    `registration_consumed` BIT NOT NULL,
+    `created_at` DATETIME(6) NOT NULL,
+    `updated_at` DATETIME(6) NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `idx_otp_verification_id` (`verification_id`),
+    KEY `idx_otp_verification_token` (`registration_token`),
+    KEY `idx_otp_verification_phone_created` (`phone_number`, `created_at`),
+    KEY `idx_otp_verification_email_created` (`email`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
