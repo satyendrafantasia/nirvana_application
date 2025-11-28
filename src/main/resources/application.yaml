@@ -139,6 +139,35 @@
       enabled: false
       header: X-MFA-Token
       bypass-token: ${MFA_BYPASS_TOKEN:demo-mfa}
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+            client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+            redirect-uri: "{baseUrl}/oauth2/callback/google"
+            scope: email,profile
+          apple:
+            client-id: ${APPLE_OAUTH_CLIENT_ID:}
+            client-secret: ${APPLE_OAUTH_CLIENT_SECRET:}
+            redirect-uri: "{baseUrl}/oauth2/callback/apple"
+            scope: name,email
+          facebook:
+            client-id: ${FACEBOOK_OAUTH_CLIENT_ID:}
+            client-secret: ${FACEBOOK_OAUTH_CLIENT_SECRET:}
+            redirect-uri: "{baseUrl}/oauth2/callback/facebook"
+            scope: public_profile,email
+        provider:
+          apple:
+            authorization-uri: https://appleid.apple.com/auth/authorize
+            token-uri: https://appleid.apple.com/auth/token
+            user-info-uri: https://appleid.apple.com/auth/userinfo
+            user-name-attribute: email
+          facebook:
+            authorization-uri: https://www.facebook.com/v18.0/dialog/oauth
+            token-uri: https://graph.facebook.com/v18.0/oauth/access_token
+            user-info-uri: https://graph.facebook.com/me?fields=id,name,email,first_name,last_name
+            user-name-attribute: id
 
   reliability:
     rate-limiting:
