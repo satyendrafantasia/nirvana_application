@@ -19,9 +19,11 @@ import com.nirvana.application.service.AuthService;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.nirvana.application.security.Roles.PLATFORM_ADMIN;
 import static com.nirvana.application.security.Roles.SPA_OWNER;
@@ -41,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
+    private final @Lazy AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final DeviceFingerprintResolver deviceFingerprintResolver;
@@ -127,10 +130,88 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    @Override
+    @Transactional
+    public AuthResponse socialLogin(String provider, OAuth2User user) {
+        String email = resolveEmail(user);
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required from OAuth2 provider response");
+        }
+
+        email = email.trim().toLowerCase();
+
+        User existing = userRepository.findByEmail(email).orElse(null);
+        if (existing == null) {
+            existing = createSocialUser(provider, user, email);
+        }
+
+        existing.setLastLoginAt(OffsetDateTime.now());
+        userRepository.save(existing);
+
+        return buildAuthResponse(existing);
+    }
+
     private AuthResponse buildAuthResponse(User user) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
         var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());
         return buildAuthResponse(user, refreshToken.getToken(), fingerprint);
+    }
+
+    private User createSocialUser(String provider, OAuth2User oauth2User, String email) {
+        RoleType roleType = RoleType.CUSTOMER;
+        Role role = Optional.ofNullable(roleRepository.findByRoleType(roleType))
+                .orElseThrow(() -> new EntityNotFoundException("Role not configured: " + roleType));
+
+        String givenName = stringAttribute(oauth2User, "given_name");
+        String familyName = stringAttribute(oauth2User, "family_name");
+        String firstName = givenName != null ? givenName : stringAttribute(oauth2User, "first_name");
+        String lastName = familyName != null ? familyName : stringAttribute(oauth2User, "last_name");
+        String displayName = stringAttribute(oauth2User, "name");
+
+        if (displayName == null) {
+            displayName = String.format("%s %s",
+                    Optional.ofNullable(firstName).orElse(""),
+                    Optional.ofNullable(lastName).orElse("")
+            ).trim();
+        }
+
+        User user = User.builder()
+                .username(email)
+                .email(email)
+                .name(firstName)
+                .lastName(lastName)
+                .displayName(displayName)
+                .role(role)
+                .roles(resolveRoleNames(roleType))
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .active(true)
+                .isActive(true)
+                .emailVerified(true)
+                .timezone(Optional.ofNullable(stringAttribute(oauth2User, "zoneinfo")).orElse("UTC"))
+                .locale(stringAttribute(oauth2User, "locale"))
+                .marketingOptIn(true)
+                .privacyConsentVersion("v1")
+                .privacyConsentedAt(OffsetDateTime.now())
+                .consentSource(provider + "_oauth2")
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    private String resolveEmail(OAuth2User user) {
+        String email = stringAttribute(user, "email");
+        if (email == null) {
+            email = stringAttribute(user, "emailAddress");
+        }
+        if (email == null) {
+            email = user.getAttribute("preferred_username");
+        }
+        return email;
+    }
+
+    private String stringAttribute(OAuth2User user, String name) {
+        Object value = user.getAttributes().get(name);
+        return value != null ? value.toString() : null;
     }
 
     private AuthResponse buildAuthResponse(User user, String refreshToken, String fingerprint) {
