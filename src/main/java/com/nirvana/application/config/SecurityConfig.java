@@ -64,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/api/auth/**",
+                                "/api/payments/razorpay/webhook",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
