@@ -10,6 +10,7 @@ import com.nirvana.application.auth.service.OtpService;
 import com.nirvana.application.auth.service.RegistrationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class OtpRegistrationController {
 
+    @Qualifier("registrationOtpService")
     private final OtpService otpService;
     private final RegistrationService registrationService;
 

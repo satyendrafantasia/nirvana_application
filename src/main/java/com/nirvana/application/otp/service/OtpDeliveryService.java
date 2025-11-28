@@ -25,7 +25,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Slf4j
-@Service
+@Service("otpDeliveryService")
 @RequiredArgsConstructor
 public class OtpDeliveryService {
 
