@@ -4,6 +4,7 @@ import com.nirvana.application.model.dto.AuthResponse;
 import com.nirvana.application.model.dto.LoginRequest;
 import com.nirvana.application.model.dto.LogoutRequest;
 import com.nirvana.application.model.dto.RefreshTokenRequest;
+import com.nirvana.application.model.dto.SocialLoginRequest;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.AuthService;
@@ -16,13 +17,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.stream.Collectors;
 
 @RestController
@@ -81,5 +88,41 @@ public class AuthController {
                 .roles(principal.getAuthorities().stream().map(Object::toString).collect(Collectors.toSet()))
                 .tokenType("Bearer")
                 .build();
+    }
+
+    @GetMapping("/oauth2/authorize/{provider}")
+    @Operation(summary = "Initiate social login", description = "Redirect to configured OAuth2 provider for authentication")
+    public void authorizeWithProvider(@PathVariable("provider") String provider,
+                                      @RequestParam(value = "redirectUri", required = false) String redirectUri,
+                                      HttpServletResponse response) {
+        String target = String.format("/oauth2/authorization/%s", provider);
+        if (redirectUri != null && !redirectUri.isBlank()) {
+            target = target + "?redirect_uri=" + redirectUri;
+        }
+        response.setHeader("Location", target);
+        response.setStatus(HttpServletResponse.SC_FOUND);
+    }
+
+    @PostMapping("/oauth2/authorize")
+    @Operation(summary = "Initiate social login (POST)", description = "Redirect to configured OAuth2 provider using request body for provider selection")
+    public void authorizeWithProvider(@Valid @RequestBody SocialLoginRequest request,
+                                      HttpServletResponse response) {
+        authorizeWithProvider(request.getProvider(), request.getRedirectUri(), response);
+    }
+
+    @GetMapping("/oauth2/callback")
+    @Operation(summary = "OAuth2 callback", description = "Exchange OAuth2 user profile for JWT and refresh tokens")
+    public AuthResponse oauth2Callback(@RequestParam(value = "provider", required = false) String provider,
+                                       @AuthenticationPrincipal OAuth2User principal) {
+        if (provider == null || provider.isBlank()) {
+            var authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication instanceof OAuth2AuthenticationToken token) {
+                provider = token.getAuthorizedClientRegistrationId();
+            }
+        }
+        if (provider == null) {
+            throw new IllegalArgumentException("Unable to resolve OAuth2 provider from callback context");
+        }
+        return authService.socialLogin(provider, principal);
     }
 }
