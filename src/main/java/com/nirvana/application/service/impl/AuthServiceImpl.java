@@ -19,6 +19,7 @@ import com.nirvana.application.service.AuthService;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -43,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
+    private final @Lazy AuthenticationManager authenticationManager;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final DeviceFingerprintResolver deviceFingerprintResolver;
