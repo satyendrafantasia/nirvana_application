@@ -15,7 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 @RestController
@@ -138,6 +140,10 @@ public class RazorpayWebhookController {
         String refundId = refundNode.path("id").asText();
         String paymentId = refundNode.path("payment_id").asText();
         int refundAmount = refundNode.path("amount").asInt();
+        long createdAt = refundNode.path("created_at").asLong(0L);
+        OffsetDateTime refundTimestamp = createdAt > 0
+                ? OffsetDateTime.ofInstant(Instant.ofEpochSecond(createdAt), ZoneOffset.UTC)
+                : OffsetDateTime.now(ZoneOffset.UTC);
 
         Optional<Payment> opt = paymentRepository.findByTransactionId(paymentId);
         if (opt.isEmpty()) {
@@ -146,7 +152,20 @@ public class RazorpayWebhookController {
         }
 
         Payment p = opt.get();
-        // You can mark payment as REFUNDED/PARTIALLY_REFUNDED here and store refund info
-        log.info("Webhook: refund {} processed for payment {}, amount {}", refundId, paymentId, refundAmount);
+        int updatedRefunded = Optional.ofNullable(p.getRefundedCents()).orElse(0) + refundAmount;
+        p.setRefundedCents(updatedRefunded);
+        p.setLastRefundId(refundId);
+        p.setRefundedAt(refundTimestamp);
+
+        if (updatedRefunded >= p.getAmountCents()) {
+            p.setPaymentStatus(PaymentStatus.REFUNDED);
+        } else {
+            p.setPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED);
+        }
+
+        paymentRepository.save(p);
+
+        log.info("Webhook: refund {} processed for payment {}, amount {}, total refunded {} (status {})",
+                refundId, paymentId, refundAmount, updatedRefunded, p.getPaymentStatus());
     }
 }
