@@ -1,2 +1,2 @@
 ALTER TABLE payment
-    ADD COLUMN IF NOT EXISTS last_refund_id VARCHAR(255);
+    ADD COLUMN last_refund_id VARCHAR(255);
