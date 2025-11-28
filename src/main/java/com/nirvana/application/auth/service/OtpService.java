@@ -5,8 +5,12 @@ import com.nirvana.application.auth.dto.RegistrationTokenResponse;
 import com.nirvana.application.auth.dto.VerificationResponse;
 import com.nirvana.application.auth.dto.VerifyOtpRequest;
 import com.nirvana.application.auth.exception.RegistrationException;
+import com.nirvana.application.config.EmailProperties;
+import com.nirvana.application.config.SmsProperties;
 import com.nirvana.application.otp.OtpVerification;
 import com.nirvana.application.otp.OtpVerificationRepository;
+import com.nirvana.application.otp.sender.EmailSender;
+import com.nirvana.application.otp.sender.SmsSender;
 import com.nirvana.application.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +37,10 @@ public class OtpService {
 
     private final OtpVerificationRepository otpVerificationRepository;
     private final UserRepository userRepository;
+    private final SmsSender smsSender;
+    private final EmailSender emailSender;
+    private final SmsProperties smsProperties;
+    private final EmailProperties emailProperties;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
@@ -62,7 +70,26 @@ public class OtpService {
         otpVerificationRepository.save(verification);
 
         log.info("OTP {} generated for verification {}", otp, verification.getVerificationId());
-        // TODO: Integrate with SMS/email provider
+
+        boolean smsEnabled = phone != null && smsProperties.isEnabled();
+        boolean emailEnabled = email != null && emailProperties.isEnabled();
+
+        if (!smsEnabled && !emailEnabled) {
+            throw new RegistrationException("OTP_DELIVERY_DISABLED", "OTP delivery is disabled", HttpStatus.SERVICE_UNAVAILABLE);
+        }
+
+        String message = String.format("Your OTP is %s. It is valid for %d minutes.", otp, OTP_TTL.toMinutes());
+        try {
+            if (smsEnabled) {
+                smsSender.sendOtpSms(phone, message);
+            }
+            if (emailEnabled) {
+                emailSender.sendOtpEmail(email, "Your OTP Code", message);
+            }
+        } catch (RuntimeException ex) {
+            log.error("Failed to deliver OTP for verification {}", verification.getVerificationId(), ex);
+            throw new RegistrationException("OTP_DELIVERY_FAILED", "Failed to deliver OTP", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
 
         return VerificationResponse.builder()
                 .verificationId(verification.getVerificationId())
