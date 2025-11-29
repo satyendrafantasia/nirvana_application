@@ -32,4 +32,7 @@ public class AuthResponse {
 
     @Schema(description = "True when an additional MFA challenge is required for sensitive actions")
     private boolean mfaRequired;
+
+    @Schema(description = "Verification id used to complete an MFA or OTP login challenge")
+    private String mfaVerificationId;
 }

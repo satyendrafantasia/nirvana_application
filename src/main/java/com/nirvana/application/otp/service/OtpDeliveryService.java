@@ -4,6 +4,7 @@ import com.nirvana.application.config.EmailProperties;
 import com.nirvana.application.config.OtpProperties;
 import com.nirvana.application.config.SmsProperties;
 import com.nirvana.application.otp.OtpGenerator;
+import com.nirvana.application.otp.OtpPurpose;
 import com.nirvana.application.otp.OtpVerification;
 import com.nirvana.application.otp.OtpVerificationRepository;
 import com.nirvana.application.otp.dto.OtpSendResponse;
@@ -62,7 +63,10 @@ public class OtpDeliveryService {
                 .attempts(0)
                 .maxAttempts(otpProperties.getMaxAttempts())
                 .verified(false)
+                .purpose(OtpPurpose.GENERIC)
                 .registrationConsumed(false)
+                .loginConsumed(false)
+                .passwordResetConsumed(false)
                 .build();
 
         otpVerificationRepository.save(verification);

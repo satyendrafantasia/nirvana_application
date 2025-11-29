@@ -16,6 +16,7 @@ import com.nirvana.application.security.RefreshTokenService;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.security.SecurityUtils;
 import com.nirvana.application.service.AuthService;
+import com.nirvana.application.auth.service.OtpAuthService;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final DeviceFingerprintResolver deviceFingerprintResolver;
+    private final OtpAuthService otpAuthService;
 
     @Override
     @Transactional
@@ -95,6 +97,18 @@ public class AuthServiceImpl implements AuthService {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + principal.getId()));
+
+        if (Boolean.TRUE.equals(user.getMfaEnabled())) {
+            var challenge = otpAuthService.startMfaChallenge(user);
+            return AuthResponse.builder()
+                    .userId(user.getId())
+                    .username(user.getUsername())
+                    .roles(user.getRoles())
+                    .tokenType("Bearer")
+                    .mfaRequired(true)
+                    .mfaVerificationId(challenge.getVerificationId())
+                    .build();
+        }
 
         user.setLastLoginAt(OffsetDateTime.now());
         userRepository.save(user);

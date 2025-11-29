@@ -8,6 +8,8 @@ import com.nirvana.application.model.dto.SocialLoginRequest;
 import com.nirvana.application.model.dto.UserRegistrationDTO;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.AuthService;
+import com.nirvana.application.auth.dto.VerifyOtpRequest;
+import com.nirvana.application.auth.service.OtpAuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +41,7 @@ import java.util.stream.Collectors;
 public class AuthController {
 
     private final AuthService authService;
+    private final OtpAuthService otpAuthService;
 
     @PostMapping("/register")
     @Operation(summary = "Register user", description = "Register a new user and return an authenticated session token.")
@@ -57,6 +60,12 @@ public class AuthController {
     })
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/login/mfa/verify")
+    @Operation(summary = "Verify MFA OTP", description = "Complete OTP-based MFA to finish login")
+    public AuthResponse verifyMfa(@Valid @RequestBody VerifyOtpRequest request) {
+        return otpAuthService.completeMfa(request);
     }
 
     @PostMapping("/refresh")

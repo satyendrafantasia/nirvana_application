@@ -7,6 +7,7 @@ import com.nirvana.application.auth.dto.VerifyOtpRequest;
 import com.nirvana.application.auth.exception.RegistrationException;
 import com.nirvana.application.config.EmailProperties;
 import com.nirvana.application.config.SmsProperties;
+import com.nirvana.application.otp.OtpPurpose;
 import com.nirvana.application.otp.OtpVerification;
 import com.nirvana.application.otp.OtpVerificationRepository;
 import com.nirvana.application.otp.sender.EmailSender;
@@ -64,7 +65,11 @@ public class OtpService {
                 .attempts(0)
                 .maxAttempts(MAX_ATTEMPTS)
                 .verified(false)
+                .purpose(OtpPurpose.REGISTRATION)
+                .userId(null)
                 .registrationConsumed(false)
+                .loginConsumed(false)
+                .passwordResetConsumed(false)
                 .build();
 
         otpVerificationRepository.save(verification);
@@ -100,6 +105,10 @@ public class OtpService {
     public RegistrationTokenResponse verifyOtp(VerifyOtpRequest request) {
         OtpVerification verification = otpVerificationRepository.findByVerificationId(request.getVerificationId())
                 .orElseThrow(() -> new RegistrationException("INVALID_VERIFICATION_ID", "Verification session not found", HttpStatus.BAD_REQUEST));
+
+        if (!OtpPurpose.REGISTRATION.equals(verification.getPurpose())) {
+            throw new RegistrationException("INVALID_VERIFICATION_PURPOSE", "Verification is not for registration", HttpStatus.BAD_REQUEST);
+        }
 
         if (Boolean.TRUE.equals(verification.getRegistrationConsumed())) {
             throw new RegistrationException("REGISTRATION_TOKEN_CONSUMED", "Registration already completed", HttpStatus.BAD_REQUEST);
