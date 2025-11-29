@@ -13,6 +13,10 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
 
     Optional<OtpVerification> findByRegistrationToken(String registrationToken);
 
+    Optional<OtpVerification> findByLoginToken(String loginToken);
+
+    Optional<OtpVerification> findByPasswordResetToken(String passwordResetToken);
+
     long countByPhoneNumberAndCreatedAtAfter(String phoneNumber, OffsetDateTime after);
 
     long countByEmailAndCreatedAtAfter(String email, OffsetDateTime after);

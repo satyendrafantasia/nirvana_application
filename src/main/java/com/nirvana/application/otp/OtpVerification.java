@@ -3,6 +3,8 @@ package com.nirvana.application.otp;
 import com.nirvana.application.model.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -56,6 +58,12 @@ public class OtpVerification extends BaseEntity {
     @Column(nullable = false)
     private Boolean verified;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private OtpPurpose purpose;
+
+    private Long userId;
+
     @Column(length = 64)
     private String registrationToken;
 
@@ -63,4 +71,20 @@ public class OtpVerification extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean registrationConsumed;
+
+    @Column(length = 64)
+    private String loginToken;
+
+    private OffsetDateTime loginTokenExpiresAt;
+
+    @Column(nullable = false)
+    private Boolean loginConsumed;
+
+    @Column(length = 64)
+    private String passwordResetToken;
+
+    private OffsetDateTime passwordResetTokenExpiresAt;
+
+    @Column(nullable = false)
+    private Boolean passwordResetConsumed;
 }
