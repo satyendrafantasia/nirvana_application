@@ -3,6 +3,7 @@ import com.nirvana.application.model.corporate.CorporateEmployeeCoupon;
 import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.enums.BookingChannel;
+import com.nirvana.application.model.enums.BookingSource;
 import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentSourceType;
 import com.nirvana.application.model.enums.RefundStatus;
@@ -134,6 +135,11 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private BookingStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_source", length = 32, nullable = false)
+    @Builder.Default
+    private BookingSource bookingSource = BookingSource.WEB;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_mode", length = 16)

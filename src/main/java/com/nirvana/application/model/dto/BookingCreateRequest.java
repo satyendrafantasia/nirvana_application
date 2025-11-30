@@ -56,6 +56,9 @@ public class BookingCreateRequest {
     @Schema(description = "Whether to consume an available package instead of direct payment", example = "false")
     private Boolean payWithPackage;
 
+    @Schema(description = "Source of booking traffic for analytics", example = "GOOGLE_MAPS")
+    private String bookingSource;
+
     public Long getSpaId() {
         return spaId;
     }
@@ -158,5 +161,13 @@ public class BookingCreateRequest {
 
     public void setPayWithPackage(Boolean payWithPackage) {
         this.payWithPackage = payWithPackage;
+    }
+
+    public String getBookingSource() {
+        return bookingSource;
+    }
+
+    public void setBookingSource(String bookingSource) {
+        this.bookingSource = bookingSource;
     }
 }

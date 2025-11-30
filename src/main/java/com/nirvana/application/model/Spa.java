@@ -13,7 +13,8 @@ import java.util.*;
 @Table(name = "spa", indexes = {
         @Index(name = "idx_spa_city_state", columnList = "city,state"), // you'll update to address fields in queries
         @Index(name = "idx_spa_active", columnList = "is_active"),
-        @Index(name = "idx_spa_name", columnList = "name")
+        @Index(name = "idx_spa_name", columnList = "name"),
+        @Index(name = "idx_spa_google_place_id", columnList = "google_place_id", unique = true)
 })
 @Getter
 @Setter
@@ -190,8 +191,11 @@ public class Spa extends BaseEntity {
     private String instagramUrl;
 
     // optional: google place id if not in Address
-    @Column(name = "google_place_id", insertable = false, updatable = false)
+    @Column(name = "google_place_id", length = 255, unique = true)
     private String googlePlaceId;
+
+    @Column(name = "google_maps_url", length = 500)
+    private String googleMapsUrl;
 
     @Column(name = "meta", columnDefinition = "json" , insertable=false, updatable=false)
     private String metaJson;

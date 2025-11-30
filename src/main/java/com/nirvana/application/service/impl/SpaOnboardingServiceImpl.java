@@ -57,6 +57,7 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
             spa.setAddress(normalizeAddress(request.getAddress()));
             if (spa.getAddress() != null) {
                 spa.setTimezone(spa.getAddress().getTimezone());
+                spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
             }
         }
 
@@ -119,6 +120,7 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         // keep timezone column in sync if you really need the separate field
         if (spa.getAddress() != null) {
             spa.setTimezone(spa.getAddress().getTimezone());
+            spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
         }
 
         Spa saved = spaRepository.save(spa);

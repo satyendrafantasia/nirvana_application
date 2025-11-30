@@ -131,6 +131,8 @@ public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificatio
 
     Optional<Spa> findByAddress_GooglePlaceId(String googlePlaceId);
 
+    Optional<Spa> findByGooglePlaceId(String googlePlaceId);
+
     long countByIsActiveTrueAndIsVerifiedFalse();
 
     long countByKycStatus(KycStatus status);
