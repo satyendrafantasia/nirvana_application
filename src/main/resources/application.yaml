@@ -117,9 +117,11 @@
 
   sms:
     enabled: true
+    provider: AWS_SNS
 
   email:
     enabled: true
+    provider: AWS_SES
     fromAddress: "no-reply@yourdomain.com"
     fromName: "YourAppName"
 

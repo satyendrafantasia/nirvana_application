@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class EmailProperties {
 
     private boolean enabled = true;
+    private String provider;
     private String fromAddress;
     private String fromName;
 }

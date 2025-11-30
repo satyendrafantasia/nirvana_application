@@ -10,4 +10,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SmsProperties {
 
     private boolean enabled = true;
+    private String provider;
 }
