@@ -1,229 +1,192 @@
+spring:
+  application:
+    name: application
+  profiles:
+    active: local
 
-  spring:
-    application:
-      name: application
-    profiles:
-      active: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/nirvana_v1?useSSL=false&serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
 
-    datasource:
-      url: jdbc:mysql://localhost:3306/nirvana_v1?useSSL=false&serverTimezone=UTC
-      username: root
-      password: root
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      hikari:
-        minimum-idle: 2
-        maximum-pool-size: 10
-
-    jpa:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
       hibernate:
-        ddl-auto: validate
-      show-sql: true
-      properties:
-        hibernate:
-          format_sql: true
+        format_sql: true
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+    min-response-size: 1024
 
-    servlet:
-      multipart:
-        max-file-size: 50MB
-        max-request-size: 50MB
+logging:
+  level:
+    root: INFO
+    com.yourcompany: DEBUG
 
-  server:
-    port: 8080
-    compression:
-      enabled: true
-      mime-types: application/json,application/xml,text/html,text/xml,text/plain
-      min-response-size: 1024
-
-  logging:
-    level:
-      root: INFO
-      com.yourcompany: DEBUG
-
-  management:
-    endpoints:
-      web:
-        exposure:
-          include:
-            - health
-            - info
-            - metrics
-            - prometheus
-        base-path: /management
-    endpoint:
-      health:
-        show-details: when-authorized
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics
+          - prometheus
+      base-path: /management
+  endpoint:
+    health:
+      show-details: when-authorized
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
     tracing:
-      sampling:
-        probability: 1.0
-    otlp:
-      tracing:
-        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
 
-  springdoc:
-    api-docs:
-      path: /v3/api-docs
-    swagger-ui:
-      path: /swagger-ui/index.html
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui/index.html
 
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
+multipart:
+  max-file-size: 10MB
+  max-request-size: 20MB
 
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    base-url: https://maps.googleapis.com/maps/api/place
 
-  multipart:
-    max-file-size: 10MB
-    max-request-size: 20MB
-
+maps:
+  provider: ${MAP_PROVIDER:google}
   google:
-    places:
-      api-key: ${GOOGLE_PLACES_API_KEY:}
-      base-url: https://maps.googleapis.com/maps/api/place
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+    base-url: https://maps.googleapis.com
+    static-style: roadmap
+  mapbox:
+    api-key: ${MAPBOX_ACCESS_TOKEN:}
+    base-url: https://api.mapbox.com
+    static-style: streets-v11
 
-  maps:
-    provider: ${MAP_PROVIDER:google}
-    google:
-      api-key: ${GOOGLE_MAPS_API_KEY:}
-      base-url: https://maps.googleapis.com
-      static-style: roadmap
-    mapbox:
-      api-key: ${MAPBOX_ACCESS_TOKEN:}
-      base-url: https://api.mapbox.com
-      static-style: streets-v11
+aws:
+  # Prefer using IAM roles or environment-based credentials in production instead of static keys.
+  region: ap-south-1
+  credentials:
+    accessKeyId: YOUR_AWS_ACCESS_KEY_ID
+    secretAccessKey: YOUR_AWS_SECRET_ACCESS_KEY
+  s3:
+    bucket-name: your-bucket-name
+  access-key-id: YOUR_ACCESS_KEY_ID
+  secret-key: YOUR_SECRET_KEY
 
+flyway:
+  enabled: true
+  locations: "classpath:db/migration"
 
-  aws:
-    # Prefer using IAM roles or environment-based credentials in production instead of static keys.
-    region: ap-south-1
-    credentials:
-      accessKeyId: YOUR_AWS_ACCESS_KEY_ID
-      secretAccessKey: YOUR_AWS_SECRET_ACCESS_KEY
-    s3:
-      bucket-name: your-bucket-name
-    access-key-id: YOUR_ACCESS_KEY_ID
-    secret-key: YOUR_SECRET_KEY
+otp:
+  length: 6
+  expiryMinutes: 10
+  maxAttempts: 5
 
+sms:
+  enabled: true
+  provider: AWS_SNS
 
+email:
+  enabled: true
+  provider: AWS_SES
+  fromAddress: "no-reply@yourdomain.com"
+  fromName: "YourAppName"
 
-  flyway:
+payments:
+  razorpay:
     enabled: true
-    locations: "classpath:db/migration"
+    key-id: rzp_test_xxxxxxxx      # <-- PUBLIC key (goes to FE)
+    key-secret: your_secret_key    # <-- aka SALT, NEVER send to FE
+    webhook-secret: your_webhook_secret # for webhooks
+    currency: INR
+    auto-capture: true             # payment_capture = 1
+    description-prefix: "Nirvana Spa Booking"
 
-  otp:
-    length: 6
-    expiryMinutes: 10
-    maxAttempts: 5
+invoice:
+  pdf-base-url: https://cdn.nirvana.invalid/invoices
 
-  sms:
+notifications:
+  sendgrid:
+    enabled: false
+    api-key: ${SENDGRID_API_KEY:}
+    from-email: ${SENDGRID_FROM_EMAIL:no-reply@nirvana.local}
+    from-name: ${SENDGRID_FROM_NAME:Nirvana}
+    owner-fallback-email: ${SPA_OWNER_EMAIL:}
+    owner-subject: "New booking confirmed"
+    customer-subject: "Your booking is confirmed"
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:change-me-to-a-strong-secret}
+    expiration-minutes: 1440
+    refresh-expiration-days: 30
+    device-fingerprint-header: X-Device-Fingerprint
+  mfa:
+    enabled: false
+    header: X-MFA-Token
+    bypass-token: ${MFA_BYPASS_TOKEN:demo-mfa}
+  oauth2:
+    client:
+      registration:
+        google:
+          client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+          client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+          redirect-uri: "{baseUrl}/oauth2/callback/google"
+          scope: email,profile
+        apple:
+          client-id: ${APPLE_OAUTH_CLIENT_ID:}
+          client-secret: ${APPLE_OAUTH_CLIENT_SECRET:}
+          redirect-uri: "{baseUrl}/oauth2/callback/apple"
+          scope: name,email
+        facebook:
+          client-id: ${FACEBOOK_OAUTH_CLIENT_ID:}
+          client-secret: ${FACEBOOK_OAUTH_CLIENT_SECRET:}
+          redirect-uri: "{baseUrl}/oauth2/callback/facebook"
+          scope: public_profile,email
+      provider:
+        apple:
+          authorization-uri: https://appleid.apple.com/auth/authorize
+          token-uri: https://appleid.apple.com/auth/token
+          user-info-uri: https://appleid.apple.com/auth/userinfo
+          user-name-attribute: email
+        facebook:
+          authorization-uri: https://www.facebook.com/v18.0/dialog/oauth
+          token-uri: https://graph.facebook.com/v18.0/oauth/access_token
+          user-info-uri: https://graph.facebook.com/me?fields=id,name,email,first_name,last_name
+          user-name-attribute: id
+
+reliability:
+  rate-limiting:
     enabled: true
-
-  email:
-    enabled: true
-    fromAddress: "no-reply@yourdomain.com"
-    fromName: "YourAppName"
-
+    requests: 120
   payments:
-    razorpay:
-      enabled: true
-      key-id: rzp_test_xxxxxxxx      # <-- PUBLIC key (goes to FE)
-      key-secret: your_secret_key    # <-- aka SALT, NEVER send to FE
-      webhook-secret: your_webhook_secret # for webhooks
-      currency: INR
-      auto-capture: true             # payment_capture = 1
-      description-prefix: "Nirvana Spa Booking"
-
-  invoice:
-    pdf-base-url: https://cdn.nirvana.invalid/invoices
-
-  notifications:
-    sendgrid:
-      enabled: false
-      api-key: ${SENDGRID_API_KEY:}
-      from-email: ${SENDGRID_FROM_EMAIL:no-reply@nirvana.local}
-      from-name: ${SENDGRID_FROM_NAME:Nirvana}
-      owner-fallback-email: ${SPA_OWNER_EMAIL:}
-      owner-subject: "New booking confirmed"
-      customer-subject: "Your booking is confirmed"
-
-  security:
-    jwt:
-      secret: ${JWT_SECRET:change-me-to-a-strong-secret}
-      expiration-minutes: 1440
-      refresh-expiration-days: 30
-      device-fingerprint-header: X-Device-Fingerprint
-    mfa:
-      enabled: false
-      header: X-MFA-Token
-      bypass-token: ${MFA_BYPASS_TOKEN:demo-mfa}
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
-            client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
-            redirect-uri: "{baseUrl}/oauth2/callback/google"
-            scope: email,profile
-          apple:
-            client-id: ${APPLE_OAUTH_CLIENT_ID:}
-            client-secret: ${APPLE_OAUTH_CLIENT_SECRET:}
-            redirect-uri: "{baseUrl}/oauth2/callback/apple"
-            scope: name,email
-          facebook:
-            client-id: ${FACEBOOK_OAUTH_CLIENT_ID:}
-            client-secret: ${FACEBOOK_OAUTH_CLIENT_SECRET:}
-            redirect-uri: "{baseUrl}/oauth2/callback/facebook"
-            scope: public_profile,email
-        provider:
-          apple:
-            authorization-uri: https://appleid.apple.com/auth/authorize
-            token-uri: https://appleid.apple.com/auth/token
-            user-info-uri: https://appleid.apple.com/auth/userinfo
-            user-name-attribute: email
-          facebook:
-            authorization-uri: https://www.facebook.com/v18.0/dialog/oauth
-            token-uri: https://graph.facebook.com/v18.0/oauth/access_token
-            user-info-uri: https://graph.facebook.com/me?fields=id,name,email,first_name,last_name
-            user-name-attribute: id
-
-  reliability:
-    rate-limiting:
-      enabled: true
-      requests: 120
-    payments:
-      reconcile-threshold-minutes: 15
-      reconcile-interval-ms: 300000
-      per-user-requests: 90
-      window-seconds: 60
-      block-seconds: 120
-      captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:demo-captcha}
-      whitelist-paths:
-        - /management/health
-        - /management/info
-        - /v3/api-docs
-        - /v3/api-docs/
-        - /v3/api-docs/swagger-config
-        - /swagger-ui/index.html
-        - /swagger-ui/
-
-  operations:
-    sla:
-      availability-target: 0.995
-      availability-window-days: 30
-      notification-target: 0.98
-      notification-window-days: 7
-
-  currency:
-    base: INR
-  rates:
-      INR: 1.0
-      USD: 0.012
-      EUR: 0.011
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-
-
-
+    reconcile-threshold-minutes: 15
+    reconcile-interval-ms: 300000
+    per-user-requests: 90
+    window-seconds: 60
+    block-seconds: 120
