@@ -214,6 +214,9 @@ public class SpaServiceImpl implements SpaService {
                 .landmark(dto.getLandmark())
                 .country(dto.getCountry())
                 .countryCode(dto.getCountryCode())
+                .googlePlaceId(dto.getGooglePlaceId())
+                .formattedAddress(dto.getFormattedAddress())
+                .timezone(dto.getTimezone())
                 .latitude((dto.getLatitude()))
                 .longitude((dto.getLongitude()))
                 .build();

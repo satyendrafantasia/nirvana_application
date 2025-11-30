@@ -44,7 +44,7 @@ public class Address {
     private String countryCode; // ISO code
 
     // Google map integration
-    @Column(name = "google_place_id", length = 255)
+    @Column(name = "google_place_id", length = 255, insertable = false, updatable = false)
     private String googlePlaceId;
 
     @Column(name = "formatted_address", length = 500)

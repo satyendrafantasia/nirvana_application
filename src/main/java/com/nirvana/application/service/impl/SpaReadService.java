@@ -99,7 +99,7 @@ public class SpaReadService {
                 a != null ? a.getCountryCode() : null,
                 a != null ? a.getFormattedAddress() : null,
                 a != null ? a.getTimezone() : spa.getTimezone(),
-                a != null ? a.getGooglePlaceId() : null,
+                spa.getGooglePlaceId() != null ? spa.getGooglePlaceId() : (a != null ? a.getGooglePlaceId() : null),
                 toDouble(a != null ? a.getLatitude() : null),
                 toDouble(a != null ? a.getLongitude() : null),
 

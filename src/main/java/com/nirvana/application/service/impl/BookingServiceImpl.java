@@ -17,6 +17,7 @@ import com.nirvana.application.model.dto.PagedResponse;
 import com.nirvana.application.model.dto.PackageUsageConsumeRequest;
 import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
+import com.nirvana.application.model.enums.BookingSource;
 import com.nirvana.application.model.enums.CancellationActor;
 import com.nirvana.application.model.enums.PaymentMode;
 import com.nirvana.application.model.enums.PaymentStatus;
@@ -46,6 +47,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -199,6 +201,7 @@ public class BookingServiceImpl implements BookingService {
         int taxCents = calculateTax(spa, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
         int payableCents = payWithPackage ? 0 : totalCents;
+        BookingSource bookingSource = resolveBookingSource(request.getBookingSource());
 
         Booking booking = new Booking();
         booking.setSpa(spa);
@@ -224,6 +227,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setPaymentType(payWithPackage ? BookingPaymentType.PAID_BY_PACKAGE : BookingPaymentType.STANDARD);
         booking.setTherapist(therapist);
         booking.setTherapistType(requestedTherapistType);
+        booking.setBookingSource(bookingSource);
 
         if (paymentMode == PaymentMode.OFFLINE) {
             booking.setStatus(BookingStatus.CONFIRMED);
@@ -411,6 +415,17 @@ public class BookingServiceImpl implements BookingService {
                 .refundStatus(booking.getRefundStatus())
                 .refundRoute(booking.getRefundRoute())
                 .build();
+    }
+
+    private BookingSource resolveBookingSource(String source) {
+        if (!StringUtils.hasText(source)) {
+            return BookingSource.WEB;
+        }
+        try {
+            return BookingSource.valueOf(source.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid bookingSource: " + source);
+        }
     }
 
     private Integer processRefundIfNeeded(Booking booking, OffsetDateTime now, int feePercent, RefundRoute route) {

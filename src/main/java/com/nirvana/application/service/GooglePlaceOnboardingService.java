@@ -32,7 +32,8 @@ public class GooglePlaceOnboardingService {
             throw new IllegalArgumentException("placeId is required");
         }
 
-        Optional<Spa> existing = spaRepository.findByAddress_GooglePlaceId(placeId);
+        Optional<Spa> existing = spaRepository.findByGooglePlaceId(placeId)
+                .or(() -> spaRepository.findByAddress_GooglePlaceId(placeId));
         if (existing.isPresent()) {
             throw new IllegalArgumentException("Spa with this Google Place ID already exists");
         }
@@ -70,6 +71,7 @@ public class GooglePlaceOnboardingService {
         spa.setName(result.getName());
         spa.setPhone(result.getInternationalPhoneNumber());
         spa.setWebsiteUrl(result.getWebsite());
+        spa.setGooglePlaceId(result.getPlaceId());
 
         spa.setIsActive(false);
         spa.setIsVerified(false);
