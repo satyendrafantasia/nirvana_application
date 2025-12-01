@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Nirvana Mobile",
+    "slug": "nirvana-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "sdkVersion": "51.0.0",
+    "platforms": ["ios", "android"],
+    "extra": {
+      "API_BASE_URL": "http://10.0.2.2:8080"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.example.nirvanamobile"
+    }
+  }
+}
