@@ -4,13 +4,20 @@ import Button from '../../components/common/Button';
 import SpaCard from '../../components/spa/SpaCard';
 import { useQuery } from '@tanstack/react-query';
 import { searchSpas } from '../../api/spaApi';
+import { useAuth } from '../../hooks/useAuth';
 import { Spa } from '../../types/spa';
 
 const Home = () => {
   const navigate = useNavigate();
-  const { data: featuredSpas } = useQuery({
+  const { user } = useAuth();
+  const {
+    data: featuredSpas,
+    isError,
+    isLoading
+  } = useQuery({
     queryKey: ['featured-spas'],
-    queryFn: async () => searchSpas({ featured: true }),
+    enabled: !!user,
+    queryFn: async () => searchSpas({ sort: 'featured', size: 6 }),
     staleTime: 1000 * 60 * 5
   });
 
@@ -19,7 +26,7 @@ const Home = () => {
     const formData = new FormData(event.currentTarget);
     const q = formData.get('q');
     const city = formData.get('city');
-    navigate(`/spas?q=${q || ''}&city=${city || ''}`);
+    navigate(`/spas?${new URLSearchParams({ q: String(q || ''), city: String(city || '') })}`);
   };
 
   return (
@@ -30,14 +37,18 @@ const Home = () => {
             Spa & Wellness bookings
           </p>
           <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">
-            Discover serene spa experiences with a Fresha-inspired interface.
+            A little time for yourself.
           </h1>
           <p className="text-lg text-slate-600">
             Search, book, and manage appointments across premium spas with realtime availability.
           </p>
           <form className="grid gap-3 md:grid-cols-3" onSubmit={handleSearch}>
-            <Input name="q" label="What are you looking for?" placeholder="Massage, facial, sauna" />
-            <Input name="city" label="City" placeholder="San Francisco" />
+            <Input
+              name="q"
+              label="What are you looking for?"
+              placeholder="Massage, facial, sauna"
+            />
+            <Input name="city" label="City" placeholder="Bengaluru" />
             <div className="flex items-end">
               <Button type="submit" className="w-full">
                 Search spas
@@ -45,15 +56,19 @@ const Home = () => {
             </div>
           </form>
           <div className="flex items-center gap-4 text-sm text-slate-600">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-card">⭐</span>
-            <p>Trusted by thousands of users booking wellness journeys every day.</p>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-card">
+              ⭐
+            </span>
+            <p>Choose your treatment, find a time, and make room for wellbeing.</p>
           </div>
         </div>
         <div className="flex flex-col gap-4">
           <div className="card p-5">
-            <p className="text-sm font-semibold text-primary-700">Upcoming visit</p>
-            <h3 className="text-xl font-semibold text-slate-900">Relax & Renew Spa</h3>
-            <p className="text-sm text-slate-600">Friday, 6:00 PM · Aromatherapy Massage</p>
+            <p className="text-sm font-semibold text-primary-700">Your next moment of calm</p>
+            <h3 className="text-xl font-semibold text-slate-900">Wellness, on your schedule</h3>
+            <p className="text-sm text-slate-600">
+              Explore services and available appointment times.
+            </p>
             <Button as={Link} to="/me/bookings" className="mt-4 w-full" variant="secondary">
               Manage bookings
             </Button>
@@ -80,7 +95,19 @@ const Home = () => {
           {featuredSpas?.length ? (
             featuredSpas.map((spa: Spa) => <SpaCard spa={spa} key={spa.id} />)
           ) : (
-            <p className="text-sm text-slate-500">Discover curated spas near you.</p>
+            <p className="text-sm text-slate-500">
+              {!user ? (
+                <Link to="/auth/login?redirect=/spas">
+                  Sign in to explore spas and live availability.
+                </Link>
+              ) : isError ? (
+                'Spa listings are unavailable. Please retry once the service is connected.'
+              ) : isLoading ? (
+                'Loading spas…'
+              ) : (
+                'No spas are listed yet.'
+              )}
+            </p>
           )}
         </div>
       </section>

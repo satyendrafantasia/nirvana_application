@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class OtpRequestDto {
 
-    @Pattern(regexp = "^\+[1-9]\d{1,14}$", message = "Phone number must be in E.164 format")
+    @Pattern(regexp = "^\\+[1-9]\\d{1,14}$", message = "Phone number must be in E.164 format")
     private String phoneNumber;
 
     @Email(message = "Email should be valid")

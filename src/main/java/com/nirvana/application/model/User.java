@@ -40,6 +40,7 @@ public class User extends BaseEntity {
     private String password; // encoded
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean active = true;
 
 
@@ -75,25 +76,30 @@ public class User extends BaseEntity {
     @Column(name = "password_salt")
     private String passwordSalt;
     @Column(name = "mfa_enabled", nullable = false)
+    @Builder.Default
     private Boolean mfaEnabled = false;
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
     // verification & identity
     @Column(name = "phone_verified", nullable = false)
+    @Builder.Default
     private Boolean phoneVerified = false;
     @Column(name = "email_verified", nullable = false)
+    @Builder.Default
     private Boolean emailVerified = false;
     @Column(name = "profile_image_url", length = 1000)
     private String profileImageUrl;
 
     // locale & preferences
     @Column(name = "timezone", nullable = false)
+    @Builder.Default
     private String timezone = "UTC";
     private String locale; // en_IN, en_US
     @Column(name = "preferred_contact_method")
     private String preferredContactMethod; // "phone","email","whatsapp"
     @Column(name = "marketing_opt_in", nullable = false)
+    @Builder.Default
     private Boolean marketingOptIn = true;
     @Column(name = "privacy_consent_version", length = 64)
     private String privacyConsentVersion;
@@ -111,6 +117,7 @@ public class User extends BaseEntity {
 
     // business / loyalty
     @Column(name = "loyalty_points", nullable = false)
+    @Builder.Default
     private Integer loyaltyPoints = 0;
     @Column(name = "referral_code", unique = true)
     private String referralCode;
@@ -119,6 +126,7 @@ public class User extends BaseEntity {
 
     // soft delete / status
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;

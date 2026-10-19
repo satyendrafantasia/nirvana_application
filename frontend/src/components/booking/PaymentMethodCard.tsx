@@ -8,7 +8,13 @@ interface PaymentMethodCardProps {
   onSelect: (method: string) => void;
 }
 
-const PaymentMethodCard = ({ label, description, method, selected, onSelect }: PaymentMethodCardProps) => {
+const PaymentMethodCard = ({
+  label,
+  description,
+  method,
+  selected,
+  onSelect
+}: PaymentMethodCardProps) => {
   return (
     <button
       onClick={() => onSelect(method)}

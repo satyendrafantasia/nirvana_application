@@ -17,6 +17,7 @@ import java.util.Objects;
 @Setter
 @ToString
 @AllArgsConstructor
+@NoArgsConstructor
 public class Coupon extends BaseEntity {
 
     @Id

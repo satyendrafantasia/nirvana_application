@@ -11,6 +11,12 @@ import java.util.Optional;
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
+    @org.springframework.data.jpa.repository.Query("select p.booking.id from Payment p where p.intentId = :intentId")
+    Optional<Long> findBookingIdByIntentId(@org.springframework.data.repository.query.Param("intentId") String intentId);
+
+    @org.springframework.data.jpa.repository.Query("select p.booking.id from Payment p where p.transactionId = :transactionId")
+    Optional<Long> findBookingIdByTransactionId(@org.springframework.data.repository.query.Param("transactionId") String transactionId);
+
     List<Payment> findByBookingId(Long bookingId);
 
     Optional<Payment> findTopByBookingIdOrderByCreatedAtDesc(Long bookingId);
@@ -19,6 +25,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             Long bookingId,
             List<PaymentStatus> statuses
     );
+
+    Optional<Payment> findTopByBookingIdAndGatewayOrderByCreatedAtDesc(Long bookingId, String gateway);
 
     Optional<Payment> findByBookingIdAndGateway(Long bookingId, String gateway);
 

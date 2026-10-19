@@ -141,9 +141,11 @@ public class Spa extends BaseEntity {
     private String imagesJson;
 
     @Column(name = "amenities", columnDefinition = "json")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String[] amenities;
 
     @Column(name = "tags", columnDefinition = "json")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String[] tags;
 
     // policies & financials

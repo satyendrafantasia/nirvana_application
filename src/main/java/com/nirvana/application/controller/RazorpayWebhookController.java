@@ -27,6 +27,7 @@ import java.util.Optional;
 public class RazorpayWebhookController {
 
     private final RazorpayProperties props;
+    private final com.nirvana.application.service.impl.PaymentService paymentService;
     private final PaymentRepository paymentRepository;
     private final PaymentWebhookEventRepository webhookEventRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -36,10 +37,10 @@ public class RazorpayWebhookController {
                                               @RequestBody String payload) {
         String signature = request.getHeader("X-Razorpay-Signature");
         try {
-            Utils.verifyWebhookSignature(
-                    payload,
-                    signature,
-                    props.getWebhookSecret());
+            if (signature == null || props.getWebhookSecret() == null || props.getWebhookSecret().isBlank()
+                    || !Utils.verifyWebhookSignature(payload, signature, props.getWebhookSecret())) {
+                return ResponseEntity.badRequest().build();
+            }
         } catch (Exception e) {
             log.warn("Invalid Razorpay webhook signature", e);
             return ResponseEntity.badRequest().build();
@@ -47,7 +48,10 @@ public class RazorpayWebhookController {
 
         try {
             JsonNode root = objectMapper.readTree(payload);
-            String eventId = root.path("id").asText();
+            String eventId = request.getHeader("X-Razorpay-Event-Id");
+            if (eventId == null || eventId.isBlank()) {
+                eventId = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            }
             if (eventId != null && !eventId.isBlank()
                     && webhookEventRepository.findByEventId(eventId).isPresent()) {
                 log.info("Skipping duplicate webhook event {}", eventId);
@@ -88,84 +92,15 @@ public class RazorpayWebhookController {
             return;
         }
 
-        Optional<Payment> opt = paymentRepository.findByIntentId(orderId);
-        if (opt.isEmpty()) {
-            log.warn("No Payment found for order_id {} (payment {})", orderId, paymentId);
-            return;
-        }
-
-        Payment p = opt.get();
-        if (p.getPaymentStatus() == PaymentStatus.CAPTURED
-                || p.getPaymentStatus() == PaymentStatus.COMPLETED) {
-            return;
-        }
-
-        p.setTransactionId(paymentId);
-        p.setPaymentStatus(PaymentStatus.CAPTURED);
-        paymentRepository.save(p);
-
-        log.info("Webhook: marked payment {} as CAPTURED for order {}", paymentId, orderId);
+        paymentService.reconcileCapturedPayment(orderId, paymentId);
     }
 
     private void handlePaymentFailed(JsonNode root) {
-        JsonNode paymentNode = root.path("payload").path("payment").path("entity");
-        String paymentId = paymentNode.path("id").asText();
-        String orderId = paymentNode.path("order_id").asText();
-
-        if (orderId == null || orderId.isBlank()) {
-            log.warn("payment.failed without order_id: {}", paymentId);
-            return;
-        }
-
-        Optional<Payment> opt = paymentRepository.findByIntentId(orderId);
-        if (opt.isEmpty()) {
-            log.warn("No Payment found for order_id {} (payment {})", orderId, paymentId);
-            return;
-        }
-
-        Payment p = opt.get();
-        if (p.getPaymentStatus() == PaymentStatus.FAILED) {
-            return;
-        }
-
-        p.setTransactionId(paymentId);
-        p.setPaymentStatus(PaymentStatus.FAILED);
-        paymentRepository.save(p);
-
-        log.info("Webhook: marked payment {} as FAILED for order {}", paymentId, orderId);
+        JsonNode payment = root.path("payload").path("payment").path("entity");
+        paymentService.reconcileFailedPayment(payment.path("order_id").asText(), payment.path("id").asText());
     }
 
     private void handleRefundProcessed(JsonNode root) {
-        JsonNode refundNode = root.path("payload").path("refund").path("entity");
-        String refundId = refundNode.path("id").asText();
-        String paymentId = refundNode.path("payment_id").asText();
-        int refundAmount = refundNode.path("amount").asInt();
-        long createdAt = refundNode.path("created_at").asLong(0L);
-        OffsetDateTime refundTimestamp = createdAt > 0
-                ? OffsetDateTime.ofInstant(Instant.ofEpochSecond(createdAt), ZoneOffset.UTC)
-                : OffsetDateTime.now(ZoneOffset.UTC);
-
-        Optional<Payment> opt = paymentRepository.findByTransactionId(paymentId);
-        if (opt.isEmpty()) {
-            log.warn("Refund {} for unknown payment {}", refundId, paymentId);
-            return;
-        }
-
-        Payment p = opt.get();
-        int updatedRefunded = Optional.ofNullable(p.getRefundedCents()).orElse(0) + refundAmount;
-        p.setRefundedCents(updatedRefunded);
-        p.setLastRefundId(refundId);
-        p.setRefundedAt(refundTimestamp);
-
-        if (updatedRefunded >= p.getAmountCents()) {
-            p.setPaymentStatus(PaymentStatus.REFUNDED);
-        } else {
-            p.setPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED);
-        }
-
-        paymentRepository.save(p);
-
-        log.info("Webhook: refund {} processed for payment {}, amount {}, total refunded {} (status {})",
-                refundId, paymentId, refundAmount, updatedRefunded, p.getPaymentStatus());
+        paymentService.reconcileRefund(root.path("payload").path("refund").path("entity").path("payment_id").asText());
     }
 }

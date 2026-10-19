@@ -14,12 +14,20 @@ interface SelectServiceProps {
 const SelectService = ({ onNext }: SelectServiceProps) => {
   const { state, setSpa, setService } = useBookingFlow();
 
-  const { data: spas, isLoading: loadingSpas } = useQuery({
+  const {
+    data: spas,
+    isLoading: loadingSpas,
+    isError: spasError
+  } = useQuery({
     queryKey: ['booking-spas'],
-    queryFn: () => searchSpas({ limit: 6 })
+    queryFn: () => searchSpas({ size: 6 })
   });
 
-  const { data: services, isLoading: loadingServices } = useQuery({
+  const {
+    data: services,
+    isLoading: loadingServices,
+    isError: servicesError
+  } = useQuery({
     queryKey: ['booking-services', state.spaId],
     queryFn: () => getSpaServices(state.spaId || ''),
     enabled: Boolean(state.spaId)
@@ -38,6 +46,7 @@ const SelectService = ({ onNext }: SelectServiceProps) => {
       <p className="text-sm text-slate-600">Pick your spa and service to get started.</p>
 
       <div className="grid gap-4 md:grid-cols-3">
+        {spasError && <p role="alert">Unable to load spas. Please retry.</p>}
         {loadingSpas && <Spinner />}
         {spas?.map((spa: Spa) => (
           <div key={spa.id} onClick={() => setSpa(spa.id, spa.name)} className="cursor-pointer">
@@ -49,6 +58,8 @@ const SelectService = ({ onNext }: SelectServiceProps) => {
       {state.spaId && (
         <div className="space-y-3">
           <h3 className="text-xl font-semibold text-slate-900">Services at {state.spaName}</h3>
+          {servicesError && <p role="alert">Unable to load services.</p>}
+          {services?.length === 0 && <p>No bookable services at this spa.</p>}
           {loadingServices && <Spinner />}
           {services?.map((service) => (
             <ServiceCard key={service.id} service={service} onBook={(svc) => setService(svc)} />

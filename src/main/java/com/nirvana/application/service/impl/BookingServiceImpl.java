@@ -219,6 +219,9 @@ public class BookingServiceImpl implements BookingService {
         booking.setRemainderCents(payableCents);
         booking.setRefundStatus(RefundStatus.NONE);
         booking.setCustomerNotes(request.getSpecialRequest());
+        booking.setPolicySnapshotJson(service.getCancellationPolicyJson() != null
+                ? service.getCancellationPolicyJson()
+                : "{\"defaultCutoffMinutes\":" + CANCELLATION_CUTOFF_MINUTES + ",\"defaultFeePercent\":0,\"defaultRoute\":\"ORIGINAL_METHOD\"}");
         booking.setStartTs(slot.getStartTs());
         booking.setEndTs(slot.getEndTs());
         booking.setScheduledBy(CancellationActor.USER);
@@ -307,7 +310,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingRescheduleResponse rescheduleBooking(Long bookingId, Long userId, BookingRescheduleRequest request) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+        Booking booking = bookingRepository.findOwnedForUpdate(bookingId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.NO_SHOW) {
@@ -363,7 +366,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingCancelResponse cancelBooking(Long bookingId, Long userId) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+        Booking booking = bookingRepository.findOwnedForUpdate(bookingId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
 
         if (booking.getStatus() == BookingStatus.CANCELLED
@@ -465,6 +468,7 @@ public class BookingServiceImpl implements BookingService {
                 .status(booking.getStatus())
                 .paymentMode(booking.getPaymentMode())
                 .canCancel(eligibility.canCancel())
+                .refundStatus(booking.getRefundStatus().name())
                 .cancellationReason(eligibility.reason())
                 .build();
     }

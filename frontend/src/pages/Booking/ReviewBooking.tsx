@@ -35,7 +35,14 @@ const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
             <p className="text-sm text-slate-500">Service</p>
             <p className="text-lg font-semibold text-slate-900">{state.service.name}</p>
-            <p className="text-sm text-slate-500">{state.service.durationMinutes} mins · ${state.service.price.toFixed(2)}</p>
+            <p className="text-sm text-slate-500">
+              {state.service.durationMinutes} mins ·{' '}
+              {new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: state.service.currency
+              }).format(state.service.price)}{' '}
+              per guest · {state.guests} guest(s)
+            </p>
           </div>
         )}
         {state.slot && (

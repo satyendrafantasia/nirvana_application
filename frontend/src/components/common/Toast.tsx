@@ -38,7 +38,9 @@ const Toast = () => {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <div className={`${colors[toast.type]} text-white rounded-xl px-4 py-3 shadow-lg`}>{toast.message}</div>
+      <div className={`${colors[toast.type]} text-white rounded-xl px-4 py-3 shadow-lg`}>
+        {toast.message}
+      </div>
     </div>
   );
 };

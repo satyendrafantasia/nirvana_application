@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { errorMessage } from '../../api/client';
 import { showToast } from '../../components/common/Toast';
 
 const Login = () => {
@@ -21,7 +22,7 @@ const Login = () => {
       showToast('Logged in successfully', 'success');
       navigate(redirect);
     },
-    onError: () => showToast('Login failed. Check your credentials.', 'error')
+    onError: (e) => showToast(errorMessage(e), 'error')
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -37,12 +38,16 @@ const Login = () => {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <Input name="email" type="email" label="Email" placeholder="you@example.com" required />
           <Input name="password" type="password" label="Password" placeholder="••••••••" required />
-          <Button type="submit" className="w-full">
+          <Button type="submit" disabled={mutation.isPending} className="w-full">
             {mutation.isPending ? 'Signing in...' : 'Login'}
           </Button>
         </form>
+        <Link to="/auth/otp">Sign in with OTP / verify MFA</Link>
         <p className="text-sm text-slate-600">
-          New here? <Link to="/auth/register" className="text-primary-600">Create an account</Link>
+          New here?{' '}
+          <Link to="/auth/register" className="text-primary-600">
+            Create an account
+          </Link>
         </p>
       </div>
     </div>

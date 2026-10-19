@@ -9,7 +9,7 @@ type ButtonProps<T extends ElementType> = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   children: ReactNode;
-} & ComponentProps<T>;
+} & Omit<ComponentProps<T>, 'as' | 'variant' | 'size' | 'children'>;
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-primary-600 text-white hover:bg-primary-700',
@@ -35,7 +35,7 @@ const Button = <T extends ElementType = 'button'>({
   return (
     <Component
       className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500',
+        'disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500',
         variantClasses[variant],
         sizeClasses[size],
         className

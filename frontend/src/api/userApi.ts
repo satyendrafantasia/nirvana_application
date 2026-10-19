@@ -1,12 +1,6 @@
 import client from './client';
 import { UserProfile } from '../types/user';
-
-export const getMe = async () => {
-  const { data } = await client.get<UserProfile>('/api/me');
-  return data;
-};
-
-export const updateProfile = async (payload: Partial<UserProfile>) => {
-  const { data } = await client.put<UserProfile>('/api/me', payload);
-  return data;
+export const getMe = async (): Promise<UserProfile> => {
+  const { data } = await client.get<{ userId: number; username: string }>('/api/auth/me');
+  return { id: String(data.userId), email: data.username, firstName: data.username, lastName: '' };
 };

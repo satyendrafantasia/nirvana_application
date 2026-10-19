@@ -98,6 +98,7 @@ public class Therapist extends BaseEntity {
 
     // Languages as json in DB (Postgres) for quick filtering
     @Column(name = "languages", columnDefinition = "json")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String[] languages;
 
     // Certifications and qualifications

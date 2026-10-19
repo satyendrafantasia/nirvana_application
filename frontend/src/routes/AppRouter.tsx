@@ -16,12 +16,26 @@ const AppRouter = () => {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/spas" element={<SpaSearch />} />
-      <Route path="/spas/:spaId" element={<SpaDetails />} />
+      <Route
+        path="/spas"
+        element={
+          <RequireAuth>
+            <SpaSearch />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/spas/:spaId"
+        element={
+          <RequireAuth>
+            <SpaDetails />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/booking/*"
         element={
-          <RequireAuth redirectTo="/auth/login?redirect=/booking">
+          <RequireAuth redirectTo="/auth/login">
             <Booking />
           </RequireAuth>
         }

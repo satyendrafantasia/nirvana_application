@@ -16,6 +16,14 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :id")
+    Optional<Booking> findByIdForUpdate(@Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :id and b.user.id = :userId")
+    Optional<Booking> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
     boolean existsByBookingReference(String bookingReference);
 
     @EntityGraph(attributePaths = {"spa", "service"})

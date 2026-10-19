@@ -5,6 +5,7 @@ import RatingBadge from '../../components/spa/RatingBadge';
 import ServiceCard from '../../components/spa/ServiceCard';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { Service } from '../../types/spa';
+import SpaInformation from '../../components/spa/SpaInformation';
 import Spinner from '../../components/common/Spinner';
 
 const SpaDetails = () => {
@@ -12,7 +13,11 @@ const SpaDetails = () => {
   const navigate = useNavigate();
   const { setSpa, setService } = useBookingFlow();
 
-  const { data: spa, isLoading } = useQuery({
+  const {
+    data: spa,
+    isLoading,
+    isError
+  } = useQuery({
     queryKey: ['spa', spaId],
     queryFn: () => getSpaDetails(spaId),
     enabled: Boolean(spaId)
@@ -31,6 +36,12 @@ const SpaDetails = () => {
     navigate('/booking');
   };
 
+  if (isError)
+    return (
+      <p role="alert" className="p-10">
+        Unable to load this spa. Please retry from search.
+      </p>
+    );
   if (isLoading || !spa) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -44,7 +55,10 @@ const SpaDetails = () => {
       <div className="grid gap-6 rounded-3xl bg-white p-6 shadow-card md:grid-cols-5">
         <div className="md:col-span-3">
           <img
-            src={spa.coverImage || 'https://images.unsplash.com/photo-1556228724-4a44ebcdf3a8?auto=format&fit=crop&w=1200&q=80'}
+            src={
+              spa.coverImage ||
+              'https://images.unsplash.com/photo-1556228724-4a44ebcdf3a8?auto=format&fit=crop&w=1200&q=80'
+            }
             alt={spa.name}
             className="h-80 w-full rounded-2xl object-cover"
           />
@@ -57,10 +71,13 @@ const SpaDetails = () => {
             </div>
             <RatingBadge rating={spa.rating} count={spa.reviewCount} />
           </div>
-          <p className="text-slate-600">Luxurious treatments, serene spaces, and expert therapists.</p>
+          <p className="text-slate-600">{spa.description}</p>
           <div className="rounded-2xl bg-primary-50 p-4 text-sm text-primary-800">
             <p className="font-semibold">Opening hours</p>
-            <p>Mon - Sun · 9:00 AM - 9:00 PM</p>
+            <p>
+              {spa.workingDays?.join(', ')} · {spa.openTimeLocal || 'Contact spa'} –{' '}
+              {spa.closeTimeLocal || ''} {spa.timezone}
+            </p>
           </div>
         </div>
       </div>
@@ -73,6 +90,7 @@ const SpaDetails = () => {
           ))}
         </div>
       </section>
+      <SpaInformation spaId={spaId} />
     </div>
   );
 };

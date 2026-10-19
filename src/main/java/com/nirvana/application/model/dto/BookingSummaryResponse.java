@@ -23,6 +23,7 @@ public class BookingSummaryResponse {
     OffsetDateTime startTs;
     OffsetDateTime endTs;
     BookingStatus status;
+    String refundStatus;
     PaymentMode paymentMode;
     boolean canCancel;
     String cancellationReason;

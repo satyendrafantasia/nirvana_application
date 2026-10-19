@@ -19,6 +19,7 @@ import java.util.List;
 public class PaymentReconciliationJob {
 
     private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
 
     @Value("${reliability.payments.reconcile-threshold-minutes:15}")
     private int reconcileThresholdMinutes;
@@ -31,11 +32,9 @@ public class PaymentReconciliationJob {
         stale.stream()
                 .filter(p -> p.getCreatedAt() != null && p.getCreatedAt().isBefore(threshold))
                 .forEach(payment -> {
-                    payment.setPaymentStatus(PaymentStatus.FAILED);
-                    payment.setMetaJson("{\"reason\":\"stale-unconfirmed\"}");
-                    paymentRepository.save(payment);
-                    log.warn("Reconciliation marked payment {} as FAILED after {} minutes without capture",
-                            payment.getId(), reconcileThresholdMinutes);
+                    if (!"RAZORPAY".equals(payment.getGateway())) return;
+                    try { paymentService.reconcilePendingOrder(payment.getIntentId()); }
+                    catch (RuntimeException ex) {log.warn("Reconciliation deferred for payment {}: {}", payment.getId(), ex.getMessage());}
                 });
     }
 }

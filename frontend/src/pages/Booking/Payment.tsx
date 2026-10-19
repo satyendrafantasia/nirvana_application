@@ -1,109 +1,133 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import PaymentMethodCard from '../../components/booking/PaymentMethodCard';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
-import { createBooking } from '../../api/bookingApi';
-import { initiatePayment } from '../../api/paymentApi';
+import { createBooking, CreatedBooking } from '../../api/bookingApi';
+import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
+import { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
-import { showToast } from '../../components/common/Toast';
-
-interface PaymentProps {
+export default function Payment({
+  onNext,
+  onBack,
+  onConfirm
+}: {
   onNext: () => void;
   onBack: () => void;
-  onConfirm: (booking: BookingSummary) => void;
-}
-
-const Payment = ({ onNext, onBack, onConfirm }: PaymentProps) => {
+  onConfirm: (b: BookingSummary) => void;
+}) {
   const { state, setPaymentMode, setNotes } = useBookingFlow();
-  const [notes, updateNotes] = useState(state.notes || '');
-
+  const [created, setCreated] = useState<CreatedBooking>();
+  const [coupon, setCoupon] = useState('');
+  const [loyalty, setLoyalty] = useState(false);
+  const [usePackage, setUsePackage] = useState(false);
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!state.service || !state.slot || !state.spaId || !state.paymentMode) {
-        throw new Error('Missing booking details');
-      }
-      const booking = await createBooking({
-        spaId: state.spaId,
-        serviceId: state.service.id,
-        slot: state.slot,
-        therapistId: state.therapistId,
-        therapistType: state.therapistType,
-        paymentMode: state.paymentMode,
-        notes,
-        bookingSource: state.bookingSource
-      });
-
-      if (state.paymentMode === 'ONLINE') {
-        const paymentIntent = await initiatePayment(booking.id, 'ONLINE');
-        if (paymentIntent.redirectUrl) {
-          window.location.href = paymentIntent.redirectUrl;
-        }
-      }
-
-      return booking;
+      if (!state.spaId || !state.service || !state.selectedSlot || !state.paymentMode)
+        throw new Error('Select a service and available appointment time.');
+      const booking =
+        created ||
+        (await createBooking({
+          spaId: state.spaId,
+          serviceId: state.service.id,
+          slotId: state.selectedSlot.id,
+          guests: state.guests,
+          therapistId: state.therapistId,
+          therapistType: state.therapistType,
+          paymentMode: state.paymentMode,
+          paymentMethod: 'RAZORPAY',
+          specialRequest: state.notes,
+          couponCode: coupon || undefined,
+          redeemLoyaltyPoints: loyalty,
+          payWithPackage: usePackage,
+          bookingSource: 'WEB'
+        }));
+      setCreated(booking);
+      let status=booking.status;
+      if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
+        status=(await (booking.razorpay ? payWithRazorpay(booking.razorpay) : resumePayment(String(booking.bookingId)))).status;
+      return {
+        ...booking,
+        id: String(booking.bookingId),
+        reference: booking.bookingReference,
+        spaName: state.spaName || '',
+        service: state.service,
+        slot: state.slot || '',
+        status
+      };
     },
-    onSuccess: (booking) => {
-      onConfirm(booking);
-      showToast('Booking confirmed', 'success');
+    onSuccess: (b) => {
+      onConfirm(b);
       onNext();
-    },
-    onError: () => {
-      showToast('Unable to process booking. Please try again.', 'error');
     }
   });
-
-  const canPay = useMemo(() => Boolean(state.paymentMode), [state.paymentMode]);
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-900">Payment</h2>
-          <p className="text-sm text-slate-600">Choose how you'd like to pay.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={onBack} size="sm">
-            Back
-          </Button>
-          <Button onClick={() => mutation.mutate()} size="sm" disabled={!canPay || mutation.isPending}>
-            {mutation.isPending ? 'Processing...' : 'Confirm booking'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <PaymentMethodCard
-          label="Pay online"
-          description="Secure online payment to confirm instantly."
-          method="ONLINE"
-          selected={state.paymentMode === 'ONLINE'}
-          onSelect={(method) => setPaymentMode(method as 'ONLINE' | 'PAY_AT_SPA')}
-        />
-        <PaymentMethodCard
-          label="Pay at spa"
-          description="Reserve now, pay when you arrive."
-          method="PAY_AT_SPA"
-          selected={state.paymentMode === 'PAY_AT_SPA'}
-          onSelect={(method) => setPaymentMode(method as 'ONLINE' | 'PAY_AT_SPA')}
-        />
-      </div>
-
-      <div>
-        <label className="text-sm font-medium text-slate-700">Notes (optional)</label>
-        <textarea
-          className="mt-2 w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-slate-800 shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-          rows={3}
-          placeholder="Add preferences or comments"
-          value={notes}
-          onChange={(e) => {
-            updateNotes(e.target.value);
-            setNotes(e.target.value);
-          }}
-        />
+    <div className="space-y-5">
+      <h2 className="text-2xl font-semibold">Complete your appointment</h2>
+      <p>Final prices, discounts and eligibility are calculated by the spa before payment.</p>
+      <fieldset disabled={!!created || mutation.isPending} className="space-y-4">
+        <label className="block">
+          Payment method
+          <select
+            className="block border rounded-xl p-3 w-full"
+            value={state.paymentMode}
+            onChange={(e) => setPaymentMode(e.target.value as 'ONLINE' | 'OFFLINE')}
+          >
+            <option value="ONLINE">Pay securely with Razorpay</option>
+            <option value="OFFLINE">Pay at spa</option>
+          </select>
+        </label>
+        <label className="block">
+          Coupon code
+          <input
+            className="block border rounded-xl p-3 w-full"
+            value={coupon}
+            maxLength={64}
+            onChange={(e) => setCoupon(e.target.value)}
+          />
+        </label>
+        <label className="block">
+          <input type="checkbox" checked={loyalty} onChange={(e) => setLoyalty(e.target.checked)} />{' '}
+          Redeem available loyalty points
+        </label>
+        <label className="block">
+          <input
+            type="checkbox"
+            checked={usePackage}
+            onChange={(e) => setUsePackage(e.target.checked)}
+          />{' '}
+          Use an eligible package I already own
+        </label>
+        <label className="block">
+          Special requests
+          <textarea
+            className="block border rounded-xl p-3 w-full"
+            maxLength={2000}
+            value={state.notes || ''}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
+      </fieldset>
+      {created && (
+        <p>
+          Reference: {created.bookingReference} · Total:{' '}
+          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: created.currency }).format(
+            created.totalCents / 100
+          )}
+        </p>
+      )}
+      {mutation.isError && (
+        <p role="alert" className="text-rose-700">
+          {errorMessage(mutation.error)}
+        </p>
+      )}
+      <div className="flex gap-3">
+        <Button variant="secondary" disabled={!!created || mutation.isPending} onClick={onBack}>
+          Back
+        </Button>
+        <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? 'Processing…' : created ? 'Retry payment' : 'Book appointment'}
+        </Button>
       </div>
     </div>
   );
-};
-
-export default Payment;
+}

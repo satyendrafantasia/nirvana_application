@@ -1,61 +1,56 @@
-import { useQuery } from '@tanstack/react-query';
-import { getTherapists } from '../../api/bookingApi';
-import TherapistCard from '../../components/booking/TherapistCard';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
-
-interface SelectTherapistProps {
+export default function SelectTherapist({
+  onNext,
+  onBack
+}: {
   onNext: () => void;
   onBack: () => void;
-}
-
-const SelectTherapist = ({ onNext, onBack }: SelectTherapistProps) => {
+}) {
   const { state, setTherapist } = useBookingFlow();
-
-  const { data: therapists } = useQuery({
-    queryKey: ['therapists', state.spaId],
-    queryFn: () => getTherapists(state.spaId || ''),
-    enabled: Boolean(state.spaId)
-  });
-
+  const slot = state.selectedSlot;
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-900">Choose therapist</h2>
-          <p className="text-sm text-slate-600">Select your preferred therapist or let the spa assign.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={onBack} size="sm">
-            Back
-          </Button>
-          <Button onClick={onNext} size="sm">
-            Continue
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {therapists?.map((therapist) => (
-          <TherapistCard
-            key={therapist.id}
-            therapist={therapist}
-            selected={state.therapistId === therapist.id}
-            onSelect={(id) => setTherapist(id, 'SPECIFIC')}
-          />
-        ))}
-        <button
-          onClick={() => setTherapist(undefined, 'ANY')}
-          className={`rounded-2xl border p-4 text-left shadow-sm transition hover:border-primary-200 ${
-            state.therapistType === 'ANY' ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
-          }`}
+      <h2 className="text-2xl font-semibold">Choose your therapist</h2>
+      <p>Availability is specific to your selected service and time.</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Button
+          variant={!state.therapistId && !state.therapistType ? 'primary' : 'secondary'}
+          onClick={() => setTherapist()}
         >
-          <p className="text-base font-semibold text-slate-800">No preference</p>
-          <p className="text-sm text-slate-500">Let the spa assign the best available therapist.</p>
-        </button>
+          No preference
+        </Button>
+        {slot?.therapistSelectionEnabled &&
+          slot.therapists
+            .filter((t) => t.available)
+            .map((t) => (
+              <Button
+                key={t.id}
+                variant={state.therapistId === t.id ? 'primary' : 'secondary'}
+                onClick={() => setTherapist(t.id)}
+              >
+                {t.name} · {t.type}
+              </Button>
+            ))}
+        {slot?.therapistTypeSelectionEnabled &&
+          slot.therapistTypes
+            .filter((t) => t.availableCount > 0)
+            .map((t) => (
+              <Button
+                key={t.type}
+                variant={state.therapistType === t.type ? 'primary' : 'secondary'}
+                onClick={() => setTherapist(undefined, t.type)}
+              >
+                {t.type} therapist
+              </Button>
+            ))}
+      </div>
+      <div className="flex gap-3">
+        <Button variant="secondary" onClick={onBack}>
+          Back
+        </Button>
+        <Button onClick={onNext}>Review appointment</Button>
       </div>
     </div>
   );
-};
-
-export default SelectTherapist;
+}

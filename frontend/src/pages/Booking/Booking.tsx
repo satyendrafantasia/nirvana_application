@@ -38,9 +38,15 @@ const Booking = () => {
       <StepIndicator currentStep={currentStep} steps={steps} />
       <div className="mt-6 rounded-3xl bg-white p-6 shadow-card">
         {currentStep === 1 && <SelectService onNext={() => setCurrentStep(2)} />}
-        {currentStep === 2 && <SelectSlot onNext={() => setCurrentStep(3)} onBack={() => setCurrentStep(1)} />}
-        {currentStep === 3 && <SelectTherapist onNext={() => setCurrentStep(4)} onBack={() => setCurrentStep(2)} />}
-        {currentStep === 4 && <ReviewBooking onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(3)} />}
+        {currentStep === 2 && (
+          <SelectSlot onNext={() => setCurrentStep(3)} onBack={() => setCurrentStep(1)} />
+        )}
+        {currentStep === 3 && (
+          <SelectTherapist onNext={() => setCurrentStep(4)} onBack={() => setCurrentStep(2)} />
+        )}
+        {currentStep === 4 && (
+          <ReviewBooking onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(3)} />
+        )}
         {currentStep === 5 && (
           <Payment
             onNext={() => setCurrentStep(6)}
@@ -48,7 +54,9 @@ const Booking = () => {
             onConfirm={(booking) => setSummary(booking)}
           />
         )}
-        {currentStep === 6 && <BookingConfirmation summary={summary} onRestart={() => setCurrentStep(1)} />}
+        {currentStep === 6 && (
+          <BookingConfirmation summary={summary} onRestart={() => setCurrentStep(1)} />
+        )}
       </div>
       {!canProceed && (
         <p className="mt-3 text-sm text-rose-500">Complete the required details to continue.</p>

@@ -62,7 +62,10 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("User must accept privacy policy to register");
         }
 
-        RoleType roleType = Optional.ofNullable(request.getRoleType()).orElse(RoleType.CUSTOMER);
+        if (request.getRoleType() != null && request.getRoleType() != RoleType.CUSTOMER) {
+            throw new org.springframework.security.access.AccessDeniedException("Public registration creates customer accounts only");
+        }
+        RoleType roleType = RoleType.CUSTOMER;
         Role role = Optional.ofNullable(roleRepository.findByRoleType(roleType))
                 .orElseThrow(() -> new EntityNotFoundException("Role not configured: " + roleType));
 

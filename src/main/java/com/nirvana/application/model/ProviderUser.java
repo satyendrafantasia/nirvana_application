@@ -55,6 +55,7 @@ public class ProviderUser extends BaseEntity {
 
     // extra
     @Column(name = "languages", columnDefinition = "json")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String[] languages;
     @Column(name = "rating_avg")
     private Float ratingAvg = 0f;

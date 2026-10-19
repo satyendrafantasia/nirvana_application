@@ -128,6 +128,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> forbidden(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.status(403).body(base(HttpStatus.FORBIDDEN, "Access denied", request.getRequestURI(), null).build());
+    }
+
+    @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> entityMissing(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.status(404).body(base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), null).build());
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<ApiErrorResponse> invalidOperation(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.status(409).body(base(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), null).build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex,
                                                           HttpServletRequest request) {

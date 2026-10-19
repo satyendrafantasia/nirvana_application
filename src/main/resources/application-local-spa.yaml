@@ -1,0 +1,32 @@
+# Optional isolated local MariaDB environment. The default production MySQL configuration is unchanged.
+spring:
+  datasource:
+    url: ${SPA_DB_URL:jdbc:mariadb://127.0.0.1:3307/nirvana_spa_test}
+    driver-class-name: org.mariadb.jdbc.Driver
+    username: ${SPA_DB_USER:root}
+    password: ${SPA_DB_PASSWORD}
+  data:
+    redis:
+      repositories:
+        enabled: false
+  jpa:
+    show-sql: false
+    database-platform: com.nirvana.application.config.LocalMariaDbDialect
+server:
+  port: 8081
+email:
+  enabled: false
+sms:
+  enabled: false
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+payments:
+  razorpay:
+    enabled: ${RAZORPAY_ENABLED:false}
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+logging:
+  level:
+    org.hibernate.SQL: WARN

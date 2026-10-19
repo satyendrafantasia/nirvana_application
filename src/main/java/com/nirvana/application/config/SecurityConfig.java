@@ -60,6 +60,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .exceptionHandling(errors -> errors.defaultAuthenticationEntryPointFor(
+                        (request, response, exception) -> {response.setStatus(401); response.setContentType("application/json"); response.getWriter().write("{\"message\":\"Please sign in\"}");},
+                        request -> request.getRequestURI().startsWith("/api/")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/auth/**",

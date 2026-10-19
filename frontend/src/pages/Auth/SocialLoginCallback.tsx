@@ -1,37 +1,9 @@
-import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import Spinner from '../../components/common/Spinner';
-import { useAuth } from '../../hooks/useAuth';
-import { showToast } from '../../components/common/Toast';
-
-const SocialLoginCallback = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { loginWithGoogleToken } = useAuth();
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const token = urlParams.get('token');
-    if (token) {
-      loginWithGoogleToken(token)
-        .then(() => {
-          showToast('Logged in with Google', 'success');
-          navigate('/');
-        })
-        .catch(() => {
-          showToast('Google login failed', 'error');
-          navigate('/auth/login');
-        });
-    } else {
-      navigate('/auth/login');
-    }
-  }, [location.search, loginWithGoogleToken, navigate]);
-
+import { Link } from 'react-router-dom';
+export default function SocialLoginCallback() {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
-      <Spinner />
+    <div className="p-10">
+      <p>Social sign-in is not configured for this frontend deployment.</p>
+      <Link to="/auth/login">Sign in with your account</Link>
     </div>
   );
-};
-
-export default SocialLoginCallback;
+}

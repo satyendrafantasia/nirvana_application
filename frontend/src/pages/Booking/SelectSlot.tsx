@@ -12,12 +12,16 @@ interface SelectSlotProps {
 }
 
 const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
-  const { state, setSlot } = useBookingFlow();
+  const { state, setSlot, setGuests } = useBookingFlow();
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
-  const { data: slots, isLoading } = useQuery({
-    queryKey: ['slots', state.spaId, date],
-    queryFn: () => getSlots(state.spaId || '', date),
+  const {
+    data: slots,
+    isLoading,
+    isError
+  } = useQuery({
+    queryKey: ['slots', state.spaId, state.service?.id, date, state.guests],
+    queryFn: () => getSlots(state.spaId || '', state.service?.id || '', date, state.guests),
     enabled: Boolean(state.spaId)
   });
 
@@ -26,7 +30,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Select a time</h2>
-          <p className="text-sm text-slate-600">Pick a date and slot for your visit.</p>
+          <p className="text-sm text-slate-600">Pick a date and slot for your visit. Times shown in {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onBack} size="sm">
@@ -43,14 +47,29 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           type="date"
           label="Date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          min={new Date().toLocaleDateString('en-CA')}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setSlot(undefined);
+          }}
         />
       </div>
 
+      <Input
+        type="number"
+        label="Guests"
+        min={state.service?.minPersons || 1}
+        max={state.service?.maxPersons || 1}
+        value={state.guests}
+        onChange={(e) => setGuests(Math.max(1, Number(e.target.value)))}
+      />
       <div>
+        {isError && (
+          <p role="alert">Unable to load availability. Please try another date or retry.</p>
+        )}
         {isLoading && <p className="text-sm text-slate-500">Loading slots...</p>}
         {slots && slots.length > 0 ? (
-          <SlotGrid slots={slots} selectedSlot={state.slot} onSelect={setSlot} />
+          <SlotGrid slots={slots} selectedSlot={state.selectedSlot?.id} onSelect={setSlot} />
         ) : (
           <p className="text-sm text-slate-500">No slots available for the selected date.</p>
         )}

@@ -8,21 +8,24 @@ const Navbar = () => {
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100 shadow-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between flex-wrap gap-3 px-4 py-3">
         <Link to="/" className="flex items-center gap-2 text-lg font-semibold text-primary-700">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-100 text-primary-700 font-bold">
             NW
           </span>
           Nirvana Wellness
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium text-slate-700 md:flex">
+        <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-700">
           <NavLink to="/" className={({ isActive }) => (isActive ? 'text-primary-600' : '')}>
             Home
           </NavLink>
           <NavLink to="/spas" className={({ isActive }) => (isActive ? 'text-primary-600' : '')}>
             Browse Spas
           </NavLink>
-          <NavLink to="/me/bookings" className={({ isActive }) => (isActive ? 'text-primary-600' : '')}>
+          <NavLink
+            to="/me/bookings"
+            className={({ isActive }) => (isActive ? 'text-primary-600' : '')}
+          >
             My Bookings
           </NavLink>
         </nav>

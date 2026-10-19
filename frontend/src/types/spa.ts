@@ -2,6 +2,11 @@ export interface Spa {
   id: string;
   name: string;
   address: string;
+  description?: string;
+  openTimeLocal?: string;
+  closeTimeLocal?: string;
+  workingDays?: string[];
+  timezone?: string;
   city?: string;
   rating?: number;
   reviewCount?: number;
@@ -15,5 +20,8 @@ export interface Service {
   name: string;
   durationMinutes: number;
   price: number;
+  currency: string;
+  minPersons?: number;
+  maxPersons?: number;
   description?: string;
 }

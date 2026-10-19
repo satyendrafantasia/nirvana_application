@@ -13,7 +13,10 @@ const SpaCard = ({ spa }: SpaCardProps) => {
     <div className="card flex flex-col overflow-hidden">
       <div className="h-40 w-full overflow-hidden">
         <img
-          src={spa.coverImage || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'}
+          src={
+            spa.coverImage ||
+            'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
+          }
           alt={spa.name}
           className="h-full w-full object-cover"
         />

@@ -17,6 +17,7 @@ public class RefundController {
 
     private final RefundManagementService refundManagementService;
     private final InvoiceService invoiceService;
+    private final com.nirvana.application.service.impl.PaymentService paymentService;
 
     @PostMapping("/refunds")
     public ResponseEntity<RefundResponseDto> requestRefund(@PathVariable Long bookingId,
@@ -32,7 +33,7 @@ public class RefundController {
     }
 
     @PostMapping("/refunds/approve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ResponseEntity<RefundResponseDto> approveRefund(@PathVariable Long bookingId,
                                                            @Valid @RequestBody AdminRefundDecisionRequest request) {
         Long adminId = SecurityUtils.getCurrentUserId();
@@ -40,7 +41,7 @@ public class RefundController {
     }
 
     @PostMapping("/vouchers")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLATFORM_ADMIN')")
     public ResponseEntity<VoucherResponse> issueVoucher(@PathVariable Long bookingId,
                                                         @Valid @RequestBody VoucherIssueRequest request) {
         Long adminId = SecurityUtils.getCurrentUserId();
@@ -49,6 +50,7 @@ public class RefundController {
 
     @PostMapping("/invoice/pdf")
     public ResponseEntity<InvoiceResponseDto> ensureInvoicePdf(@PathVariable Long bookingId) {
+        paymentService.requireBookingAccess(bookingId);
         return ResponseEntity.ok(invoiceService.generateInvoiceForBooking(bookingId));
     }
 }

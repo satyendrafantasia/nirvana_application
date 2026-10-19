@@ -82,6 +82,7 @@ public class Service extends BaseEntity {
     @Column(name = "images", columnDefinition = "json")
     private String imagesJson;
     @Column(name = "equipment_required", columnDefinition = "json")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String[] equipmentRequired;
     @Column(name = "therapist_gender_preference")
     private String therapistGenderPreference;

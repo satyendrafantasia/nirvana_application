@@ -29,7 +29,7 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     /**
-     * Step 1 — Create Razorpay order.
+     * Step 1 â€” Create Razorpay order.
      * POST /api/bookings/{bookingId}/payments/razorpay/order
      */
     @PostMapping("/order")
@@ -44,7 +44,7 @@ public class PaymentController {
     }
 
     /**
-     * Step 2 — Confirm Razorpay payment.
+     * Step 2 â€” Confirm Razorpay payment.
      * POST /api/bookings/{bookingId}/payments/razorpay/confirm
      */
     @PostMapping("/confirm")
@@ -53,16 +53,16 @@ public class PaymentController {
             @ApiResponse(responseCode = "200", description = "Payment confirmed"),
             @ApiResponse(responseCode = "400", description = "Invalid confirmation", content = @Content(schema = @Schema(implementation = com.nirvana.application.api.ApiErrorResponse.class)))
     })
-    public ResponseEntity<Void> confirmPayment(
+    public ResponseEntity<java.util.Map<String, String>> confirmPayment(
             @Parameter(description = "Booking identifier") @PathVariable Long bookingId,
             @Valid @RequestBody RazorpayConfirmRequest request) {
 
         paymentService.confirmRazorpayPayment(bookingId, request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(paymentService.paymentStatus(bookingId));
     }
 
     /**
-     * Retry a payment — regenerate order_id.
+     * Retry a payment â€” regenerate order_id.
      * POST /api/bookings/{bookingId}/payments/razorpay/retry
      */
     @PostMapping("/retry")

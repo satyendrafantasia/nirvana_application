@@ -40,13 +40,26 @@ const Register = () => {
             <Input name="lastName" label="Last name" required />
           </div>
           <Input name="email" type="email" label="Email" required />
-          <Input name="password" type="password" label="Password" required />
-          <Button type="submit" className="w-full">
+          <Input
+            name="password"
+            type="password"
+            label="Password"
+            minLength={6}
+            maxLength={20}
+            required
+          />
+          <label className="block text-sm">
+            <input type="checkbox" required /> I accept the spa platform privacy policy.
+          </label>
+          <Button disabled={mutation.isPending} type="submit" className="w-full">
             {mutation.isPending ? 'Creating...' : 'Register'}
           </Button>
         </form>
         <p className="text-sm text-slate-600">
-          Already have an account? <Link to="/auth/login" className="text-primary-600">Login</Link>
+          Already have an account?{' '}
+          <Link to="/auth/login" className="text-primary-600">
+            Login
+          </Link>
         </p>
       </div>
     </div>

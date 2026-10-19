@@ -11,6 +11,8 @@ import lombok.Data;
 
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 @Schema(name = "UserRegistrationRequest", description = "Payload for registering a new Nirvana user account.")
 public class UserRegistrationDTO {
 

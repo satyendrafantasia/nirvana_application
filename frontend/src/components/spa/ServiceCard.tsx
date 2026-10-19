@@ -15,7 +15,11 @@ const ServiceCard = ({ service, onBook }: ServiceCardProps) => {
         <p className="text-sm text-slate-500">Duration: {service.durationMinutes} mins</p>
       </div>
       <div className="flex flex-col items-end gap-2">
-        <p className="text-lg font-semibold text-primary-700">${service.price.toFixed(2)}</p>
+        <p className="text-lg font-semibold text-primary-700">
+          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: service.currency }).format(
+            service.price
+          )}
+        </p>
         {onBook && (
           <Button size="sm" onClick={() => onBook(service)}>
             Book

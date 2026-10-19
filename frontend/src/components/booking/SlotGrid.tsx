@@ -4,19 +4,19 @@ import { Slot } from '../../types/booking';
 interface SlotGridProps {
   slots: Slot[];
   selectedSlot?: string;
-  onSelect: (slotIso: string) => void;
+  onSelect: (slot: Slot) => void;
 }
 
 const SlotGrid = ({ slots, selectedSlot, onSelect }: SlotGridProps) => {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {slots.map((slot) => {
-        const isSelected = selectedSlot === slot.startTime;
+        const isSelected = selectedSlot === slot.id;
         return (
           <button
-            key={slot.startTime}
+            key={slot.id}
             disabled={!slot.available}
-            onClick={() => onSelect(slot.startTime)}
+            onClick={() => onSelect(slot)}
             className={clsx(
               'rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition',
               slot.available
@@ -25,8 +25,18 @@ const SlotGrid = ({ slots, selectedSlot, onSelect }: SlotGridProps) => {
               isSelected && 'border-primary-500 bg-primary-50 text-primary-700'
             )}
           >
-            <div>{new Date(slot.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-            <p className="text-xs text-slate-500">{new Date(slot.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+            <div>
+              {new Date(slot.startTime).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+            <p className="text-xs text-slate-500">
+              {new Date(slot.endTime).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
           </button>
         );
       })}

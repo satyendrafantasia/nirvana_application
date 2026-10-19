@@ -24,7 +24,12 @@ const StepIndicator = ({ currentStep, steps }: StepIndicatorProps) => {
             >
               {stepNumber}
             </span>
-            <span className={clsx('text-sm font-medium', isActive ? 'text-primary-700' : 'text-slate-500')}>
+            <span
+              className={clsx(
+                'text-sm font-medium',
+                isActive ? 'text-primary-700' : 'text-slate-500'
+              )}
+            >
               {step}
             </span>
             {index < steps.length - 1 && <span className="text-slate-200">—</span>}

@@ -1,7 +1,9 @@
 import { createContext, ReactNode, useCallback, useEffect, useState } from 'react';
-import { login as loginApi, register as registerApi, loginWithGoogle } from '../api/authApi';
+import { login as loginApi, register as registerApi } from '../api/authApi';
 import { AuthResponse, LoginPayload, RegisterPayload, User } from '../types/auth';
 import { getMe } from '../api/userApi';
+import client from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthContextValue {
   user: User | null;
@@ -12,7 +14,7 @@ interface AuthContextValue {
   logout: () => void;
   hydrateUser: () => Promise<void>;
   setUser: (user: User | null) => void;
-  loginWithGoogleToken: (idToken: string) => Promise<void>;
+  acceptAuth: (response: AuthResponse) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -20,6 +22,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 const TOKEN_KEY = 'nirvana_token';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
   const [user, setUserState] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,12 +43,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     persistAuth(response);
   };
 
-  const loginWithGoogleToken = async (idToken: string) => {
-    const response = await loginWithGoogle(idToken);
-    persistAuth(response);
-  };
-
   const logout = () => {
+    const refreshToken = localStorage.getItem('nirvana_refresh');
+    if (refreshToken) void client.post('/api/auth/logout', { refreshToken }).catch(() => {});
+    localStorage.removeItem('nirvana_refresh');
+    queryClient.clear();
     setUserState(null);
     setToken(null);
     localStorage.removeItem(TOKEN_KEY);
@@ -86,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout,
     hydrateUser,
     setUser: setUserState,
-    loginWithGoogleToken
+    acceptAuth: persistAuth
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -82,8 +82,8 @@ public class Booking extends BaseEntity {
      * The concrete time slot reserved by this booking.
      * We ALSO snapshot start/end below to survive slot changes.
      */
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "slot_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id", nullable = false)
     private Slot slot;
 
     /**

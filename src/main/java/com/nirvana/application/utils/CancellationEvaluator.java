@@ -54,7 +54,9 @@ public class CancellationEvaluator {
             return CancellationEligibility.denied("Service already started");
         }
 
-        CancellationPolicy policy = resolvePolicy(booking.getService(), cutoffMinutes);
+        String policyJson = booking.getPolicySnapshotJson() != null ? booking.getPolicySnapshotJson()
+                : booking.getService() == null ? null : booking.getService().getCancellationPolicyJson();
+        CancellationPolicy policy = resolvePolicy(policyJson, cutoffMinutes);
         long minutesUntilStart = Duration.between(now, start).toMinutes();
 
         Optional<PolicyRule> matchedRule = policy.rules().stream()
@@ -87,12 +89,12 @@ public class CancellationEvaluator {
         return membership.getPlan().getName();
     }
 
-    private CancellationPolicy resolvePolicy(Service service, int cutoffMinutes) {
-        if (service == null || service.getCancellationPolicyJson() == null) {
+    private CancellationPolicy resolvePolicy(String policyJson, int cutoffMinutes) {
+        if (policyJson == null) {
             return CancellationPolicy.defaultPolicy(cutoffMinutes);
         }
         try {
-            Map<String, Object> map = MAPPER.readValue(service.getCancellationPolicyJson(), new TypeReference<>() {});
+            Map<String, Object> map = MAPPER.readValue(policyJson, new TypeReference<>() {});
             int defaultCutoff = ((Number) map.getOrDefault("defaultCutoffMinutes", cutoffMinutes)).intValue();
             int fee = ((Number) map.getOrDefault("defaultFeePercent", 0)).intValue();
             RefundRoute route = RefundRoute.valueOf(
