@@ -39,15 +39,20 @@ export const resumePackage = async (id: number) =>
   (await client.post<PackageCheckout>(`/api/packages/mine/${id}/checkout`)).data;
 export const confirmPackage = async (id: number, result: RazorpayResult) =>
   (await client.post<OwnedPackage>(`/api/packages/mine/${id}/confirm`, result)).data;
-export async function payForPackage(intent: PackageCheckout): Promise<OwnedPackage> {
+export async function payForPackage(
+  intent: PackageCheckout,
+  spaPackage = false
+): Promise<OwnedPackage> {
   const id = intent.purchase.subscriptionId,
-    key = `nirvana_package_${id}`;
+    key = `nirvana_${spaPackage ? 'spa_package' : 'package'}_${id}`;
   if (intent.purchase.status !== 'PAYMENT_PENDING') {
     sessionStorage.removeItem(key);
     return intent.purchase;
   }
   const verify = async (result: RazorpayResult) => {
-    const purchase = await confirmPackage(id, result);
+    const purchase = spaPackage
+      ? (await client.post<OwnedPackage>(`/api/v1/user/packages/${id}/confirm`, result)).data
+      : await confirmPackage(id, result);
     sessionStorage.removeItem(key);
     return purchase;
   };

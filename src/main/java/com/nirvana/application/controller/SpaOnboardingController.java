@@ -18,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/onboarding/spas")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
 public class SpaOnboardingController {
 
     private final SpaOnboardingService spaOnboardingService;

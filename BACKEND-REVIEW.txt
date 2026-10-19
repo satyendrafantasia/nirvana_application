@@ -17,7 +17,7 @@ Browser: signed in, selected a real database spa/service/date/slot, viewed thera
 
 LIMITS
 Razorpay provider calls were mocked in regression tests; no real charge or refund was executed. Merchant keys and webhook secret are required to validate Razorpay test-mode end to end. Email/SMS are disabled locally; delivery was not tested. Late cancelled captures require refund follow-up. Local integration used MariaDB 11.4; validate deployment migrations on a backup/staging copy of the production MySQL database.
-This is a focused booking/payment fix, not an exhaustive audit of every backend module. Admin/provider consoles and the additional screens listed in frontend/README.md remain outside this customer booking integration.
+This is a focused booking/payment fix, not an exhaustive audit of every backend module. Customer, staff and admin workspaces have now been connected; see the latest validation below.
 
 LOCAL PREVIEW
 Frontend http://localhost:5173 ; API http://localhost:8081
@@ -28,3 +28,9 @@ No production database or external financial transaction was used.
 PACKAGE PURCHASE ADDITION
 Packages and My Packages menus now connect to the central package catalog and subscriptions used by booking redemption. Added server-priced Razorpay order creation, resumable purchases, captured-payment activation, webhook activation and refund revocation. The legacy client-asserted payment-success purchase endpoint is disabled. V31 adds immutable checkout price/session/validity snapshots and unique order IDs; V32 normalizes legacy package payment statuses. The original GLOBAL_BRONZE seed is supported.
 Validation: 28 backend tests (including 10 package safety tests), 16 frontend tests, build and lint passed. Live API checks verified authentication, catalog, owned packages, disabled-gateway rejection and forged-success rejection. Browser verified menu links, catalog, purchase review, clear disabled-gateway message and owned-package empty state. No real gateway payment was performed; Razorpay credentials are required. The catalog preview uses existing demo prices, not a new commercial price recommendation.
+
+
+CUSTOMER / STAFF TABS UPDATE
+Added all identified customer and staff feature groups, with server-backed forms and role-restricted menus/routes. Staff endpoints enforce current database roles; spa-specific management checks ownership. Administrator-only actions are restricted separately. Compliance responses no longer return the full User entity. Corporate employee DTO serialization and legacy enum values are fixed (V33).
+Location-specific packages now have verified Razorpay checkout/recovery/webhook settlement (V34) and a separate booking redemption option. No package sessions are granted on an unverified client assertion. Main booking checkout creates and consumes a real slot hold; waitlist actions are connected.
+Latest validation: 43 backend tests, 20 frontend tests, TypeScript/Vite build and ESLint pass. Payment gateway calls are mocked. Customer direct staff navigation is denied in the browser; staff API calls return 403 for customers. Existing provider credentials are still required for real checkout, OTP delivery, Google imports and S3 uploads.

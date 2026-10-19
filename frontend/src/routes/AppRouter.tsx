@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Packages from '../pages/Packages/Packages';
 import MyPackages from '../pages/Packages/MyPackages';
+import FeaturePage from '../features/FeaturePage';
+import PasswordReset from '../pages/Auth/PasswordReset';
+import Media from '../pages/Staff/Media';
 import Home from '../pages/Home/Home';
 import SpaSearch from '../pages/SpaSearch/SpaSearch';
 import SpaDetails from '../pages/SpaDetails/SpaDetails';
@@ -17,6 +20,23 @@ import { RequireAuth } from '../components/layout/RequireAuth';
 const AppRouter = () => {
   return (
     <Routes>
+      <Route
+        path="/features/:feature"
+        element={
+          <RequireAuth>
+            <FeaturePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/staff/media"
+        element={
+          <RequireAuth>
+            <Media />
+          </RequireAuth>
+        }
+      />
+      <Route path="/auth/password" element={<PasswordReset />} />
       <Route
         path="/packages"
         element={

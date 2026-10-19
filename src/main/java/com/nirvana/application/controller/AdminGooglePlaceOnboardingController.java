@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/google-places/spas")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class AdminGooglePlaceOnboardingController {
 
     private final GooglePlaceOnboardingService googlePlaceOnboardingService;

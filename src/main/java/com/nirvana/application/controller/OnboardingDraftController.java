@@ -19,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/onboarding/spas/drafts")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
 public class OnboardingDraftController {
 
     private final OnboardingDraftService onboardingDraftService;

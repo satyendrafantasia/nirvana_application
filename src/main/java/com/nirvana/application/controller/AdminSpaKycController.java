@@ -14,6 +14,7 @@ import java.time.ZoneOffset;
 @RestController
 @RequestMapping("/api/admin/spas")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class AdminSpaKycController {
 
     private final SpaRepository spaRepository;

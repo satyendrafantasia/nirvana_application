@@ -3,6 +3,7 @@ import { AuthResponse, LoginPayload, RegisterPayload } from '../types/auth';
 export interface AuthWire {
   accessToken?: string;
   refreshToken?: string;
+  roles?: string[];
   userId: number;
   username: string;
   mfaRequired?: boolean;
@@ -17,7 +18,7 @@ export const authView = (r: AuthWire): AuthResponse => {
   if (r.refreshToken) localStorage.setItem('nirvana_refresh', r.refreshToken);
   return {
     token: r.accessToken,
-    user: { id: String(r.userId), email: r.username, firstName: r.username, lastName: '' }
+    user: { id: String(r.userId), email: r.username, firstName: r.username, lastName: '', roles: r.roles || [] }
   };
 };
 export const login = async (p: LoginPayload) =>

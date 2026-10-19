@@ -25,6 +25,7 @@ public class AdminInventoryController {
     private final InventoryCalendarService inventoryCalendarService;
 
     @GetMapping("/calendar")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     public InventoryCalendarResponse getCalendar(@RequestParam Long spaId,
                                                  @RequestParam(required = false) Long serviceId,
                                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -33,6 +34,7 @@ public class AdminInventoryController {
     }
 
     @PostMapping("/day")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#request.spaId)")
     public InventoryDayResponse upsertDay(@Valid @RequestBody InventoryDayRequest request) {
         return inventoryCalendarService.upsertDay(request);
     }

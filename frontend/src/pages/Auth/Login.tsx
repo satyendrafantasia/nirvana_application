@@ -42,6 +42,7 @@ const Login = () => {
             {mutation.isPending ? 'Signing in...' : 'Login'}
           </Button>
         </form>
+        <Link className="block text-primary-700" to="/auth/password">Forgot password?</Link>
         <Link to="/auth/otp">Sign in with OTP / verify MFA</Link>
         <p className="text-sm text-slate-600">
           New here?{' '}

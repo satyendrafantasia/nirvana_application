@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/admin/audit")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class ProviderAuditController {
 
     private final ProviderAuditService providerAuditService;

@@ -20,6 +20,7 @@ import java.util.List;
 @RequestMapping("/api/v1/spa/{spaId}/packages")
 @RequiredArgsConstructor
 @Validated
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
 public class SpaPackageOwnerController {
 
     private final SpaPackageService spaPackageService;

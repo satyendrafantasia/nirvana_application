@@ -35,10 +35,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + id));
 
-        // Prefer roles from token to avoid extra join if present, otherwise fall back to DB roles
-        Set<GrantedAuthority> authorities = rolesFromToken != null && !rolesFromToken.isEmpty()
-                ? rolesFromToken.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toSet())
-                : UserPrincipal.buildAuthorities(user.getRoles());
+        Set<GrantedAuthority> authorities = UserPrincipal.buildAuthorities(user.getRoles());
+        if (!Boolean.TRUE.equals(user.getIsActive())) throw new org.springframework.security.authentication.DisabledException("Account disabled");
 
         return new UserPrincipal(
                 user.getId(),

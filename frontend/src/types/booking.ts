@@ -20,6 +20,7 @@ export interface Slot {
   therapistTypes: { type: string; availableCount: number }[];
 }
 export interface BookingPayload {
+  holdToken?: string;
   spaId: string;
   serviceId: string;
   slotId: string;
@@ -32,6 +33,7 @@ export interface BookingPayload {
   couponCode?: string;
   redeemLoyaltyPoints?: boolean;
   payWithPackage?: boolean;
+  payWithSpaPackage?: boolean;
   bookingSource?: string;
 }
 export interface BookingSummary {

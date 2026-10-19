@@ -5,6 +5,7 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   email: string;
+  roles?: string[];
   phone?: string;
   preferredCity?: string;
 }

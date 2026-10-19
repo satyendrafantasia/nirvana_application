@@ -30,6 +30,7 @@ public class ContentVariantController {
         return contentVariantService.listActiveVariants(experimentKey, locale);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
     @PostMapping("/content-variants")
     public ContentVariantResponse createVariant(@Valid @RequestBody ContentVariantRequest request) {
         return contentVariantService.createVariant(request);

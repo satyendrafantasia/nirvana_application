@@ -21,6 +21,7 @@ public class BookingManagerController {
     private final BookingManagerService bookingManagerService;
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     public ManagerBookingListResponse listBookings(@PathVariable Long spaId,
                                                    @RequestParam(value = "window", required = false) BookingWindow window,
                                                    @RequestParam(value = "page", defaultValue = "0") int page,
@@ -30,6 +31,7 @@ public class BookingManagerController {
     }
 
     @GetMapping("/analytics")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     public BookingAnalyticsResponse analytics(@PathVariable Long spaId,
                                               @RequestParam(value = "window", required = false) BookingWindow window) {
         return bookingManagerService.getAnalytics(spaId, window);

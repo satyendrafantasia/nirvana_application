@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 @Tag(name = "Media", description = "Pre-signed URL generation and media attachments")
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
 public class MediaController {
 
     private final MediaService mediaService;

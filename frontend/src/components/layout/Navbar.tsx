@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import FeatureMenu from './FeatureMenu';
 import Button from '../common/Button';
 
 const Navbar = () => {
@@ -40,6 +41,7 @@ const Navbar = () => {
           >
             My Packages
           </NavLink>
+          <FeatureMenu />
         </nav>
         <div className="flex items-center gap-3">
           {user ? (

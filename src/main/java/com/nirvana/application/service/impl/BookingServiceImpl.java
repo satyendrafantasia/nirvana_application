@@ -78,6 +78,7 @@ public class BookingServiceImpl implements BookingService {
     private final WaitlistService waitlistService;
     private final TherapistRepository therapistRepository;
     private final PackageSubscriptionService packageSubscriptionService;
+    private final com.nirvana.application.service.SpaPackageUsageService spaPackageUsageService;
 
     @Override
     @Transactional
@@ -166,15 +167,22 @@ public class BookingServiceImpl implements BookingService {
         }
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
-        boolean payWithPackage = Boolean.TRUE.equals(request.getPayWithPackage());
+        boolean spaPackage = Boolean.TRUE.equals(request.getPayWithSpaPackage());
+        if (spaPackage && Boolean.TRUE.equals(request.getPayWithPackage())) throw new IllegalArgumentException("Choose one package payment option");
+        boolean payWithPackage = spaPackage || Boolean.TRUE.equals(request.getPayWithPackage());
         if (payWithPackage) {
             paymentMode = PaymentMode.OFFLINE;
+            if (spaPackage) {
+                var eligibility = spaPackageUsageService.canUseSpaPackage(userId, spa.getId());
+                if (!eligibility.isCanUse()) throw new IllegalStateException(eligibility.getReason());
+            } else {
             var eligibility = packageSubscriptionService.canUsePackage(userId, spa.getId());
             if (!eligibility.isCanUse()) {
                 String reason = eligibility.getReason() != null
                         ? eligibility.getReason()
                         : "Package not eligible for this booking";
                 throw new IllegalStateException(reason);
+            }
             }
         }
         String paymentMethod = request.getPaymentMethod() != null
@@ -273,7 +281,8 @@ public class BookingServiceImpl implements BookingService {
             PackageUsageConsumeRequest consumeRequest = new PackageUsageConsumeRequest();
             consumeRequest.setBookingId(saved.getId());
             consumeRequest.setSpaId(spa.getId());
-            packageSubscriptionService.consumePackageSession(userId, consumeRequest);
+            if (spaPackage) spaPackageUsageService.consumeSession(userId, spa.getId(), saved.getId(), "Booking checkout");
+            else packageSubscriptionService.consumePackageSession(userId, consumeRequest);
             saved = bookingRepository.findById(saved.getId())
                     .orElse(saved);
         }

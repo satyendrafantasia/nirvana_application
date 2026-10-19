@@ -27,6 +27,7 @@ public class FaqController {
         return faqService.listActiveFaqs(category);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
     @PostMapping("/faqs")
     public FaqResponse createFaq(@Valid @RequestBody FaqRequest request) {
         return faqService.createFaq(request);

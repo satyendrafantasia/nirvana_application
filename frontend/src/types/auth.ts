@@ -3,6 +3,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
+  roles?: string[];
 }
 
 export interface AuthResponse {
@@ -12,6 +13,7 @@ export interface AuthResponse {
 
 export interface LoginPayload {
   email: string;
+  roles?: string[];
   password: string;
 }
 
@@ -19,5 +21,6 @@ export interface RegisterPayload {
   firstName: string;
   lastName: string;
   email: string;
+  roles?: string[];
   password: string;
 }

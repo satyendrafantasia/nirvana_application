@@ -20,6 +20,7 @@ export default function Payment({
   const [coupon, setCoupon] = useState('');
   const [loyalty, setLoyalty] = useState(false);
   const [usePackage, setUsePackage] = useState(false);
+  const [useSpaPackage, setUseSpaPackage] = useState(false);
   const mutation = useMutation({
     mutationFn: async () => {
       if (!state.spaId || !state.service || !state.selectedSlot || !state.paymentMode)
@@ -27,6 +28,7 @@ export default function Payment({
       const booking =
         created ||
         (await createBooking({
+          holdToken: state.holdToken,
           spaId: state.spaId,
           serviceId: state.service.id,
           slotId: state.selectedSlot.id,
@@ -39,12 +41,17 @@ export default function Payment({
           couponCode: coupon || undefined,
           redeemLoyaltyPoints: loyalty,
           payWithPackage: usePackage,
+          payWithSpaPackage: useSpaPackage,
           bookingSource: 'WEB'
         }));
       setCreated(booking);
-      let status=booking.status;
+      let status = booking.status;
       if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
-        status=(await (booking.razorpay ? payWithRazorpay(booking.razorpay) : resumePayment(String(booking.bookingId)))).status;
+        status = (
+          await (booking.razorpay
+            ? payWithRazorpay(booking.razorpay)
+            : resumePayment(String(booking.bookingId)))
+        ).status;
       return {
         ...booking,
         id: String(booking.bookingId),
@@ -93,9 +100,23 @@ export default function Payment({
           <input
             type="checkbox"
             checked={usePackage}
-            onChange={(e) => setUsePackage(e.target.checked)}
+            onChange={(e) => {
+              setUsePackage(e.target.checked);
+              setUseSpaPackage(false);
+            }}
           />{' '}
-          Use an eligible package I already own
+          Use a Nirvana central package I own
+        </label>
+        <label className="block">
+          <input
+            type="checkbox"
+            checked={useSpaPackage}
+            onChange={(e) => {
+              setUseSpaPackage(e.target.checked);
+              setUsePackage(false);
+            }}
+          />{' '}
+          Use a package I bought for this spa
         </label>
         <label className="block">
           Special requests

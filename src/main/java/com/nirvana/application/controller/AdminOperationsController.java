@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/operations")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class AdminOperationsController {
 
     private final OperationsObservabilityService operationsObservabilityService;

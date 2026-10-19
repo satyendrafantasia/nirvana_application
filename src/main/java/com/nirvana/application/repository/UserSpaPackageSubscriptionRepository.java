@@ -13,6 +13,11 @@ import java.util.Optional;
 
 public interface UserSpaPackageSubscriptionRepository extends JpaRepository<UserSpaPackageSubscription, Long> {
 
+    @Query("select s.id from UserSpaPackageSubscription s where s.razorpayOrderId = :orderId")
+    Optional<Long> findIdByOrder(@Param("orderId") String orderId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from UserSpaPackageSubscription s where s.id = :id")
+    Optional<UserSpaPackageSubscription> findForUpdate(@Param("id") Long id);
     List<UserSpaPackageSubscription> findByUserIdOrderByPurchaseDateDesc(Long userId);
 
     Optional<UserSpaPackageSubscription> findByIdAndUserId(Long id, Long userId);

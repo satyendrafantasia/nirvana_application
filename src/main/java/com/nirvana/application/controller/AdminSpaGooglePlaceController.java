@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/spas")
 @RequiredArgsConstructor
 @Tag(name = "Admin Spa Google Place", description = "Admin linkage of spas to Google Maps Place IDs")
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class AdminSpaGooglePlaceController {
 
     private final GoogleBookingService googleBookingService;

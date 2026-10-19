@@ -37,6 +37,7 @@ public class SpaController {
             @ApiResponse(responseCode = "201", description = "Spa created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SpaResponseDTO.class)))
     })
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
     public SpaResponseDTO createSpa(@Valid @RequestBody SpaRequestDTO request) {
         return spaService.createSpa(request);
     }
@@ -67,11 +68,13 @@ public class SpaController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Spa updated", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SpaResponseDTO.class)))
     })
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#id)")
     public SpaResponseDTO updateSpa(@Parameter(description = "Spa identifier") @PathVariable Long id,
                                     @Valid @RequestBody SpaRequestDTO request) {
         return spaService.updateSpa(id, request);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#id)")
     @DeleteMapping("/{id}")
     @Operation(summary = "Deactivate spa", description = "Soft deactivate a spa from discovery and booking.", security = {@SecurityRequirement(name = "bearerAuth")})
     @ApiResponses({

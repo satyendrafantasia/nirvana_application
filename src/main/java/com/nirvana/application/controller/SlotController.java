@@ -65,6 +65,7 @@ public class SlotController {
         return bookingHoldService.holdSlot(userId, request);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     @PostMapping("/{slotId}/sync")
     public SlotAvailabilityResponse syncAvailability(
             @PathVariable Long spaId,

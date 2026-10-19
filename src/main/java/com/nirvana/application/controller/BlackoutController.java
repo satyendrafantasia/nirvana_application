@@ -22,11 +22,13 @@ public class BlackoutController {
     private final BlackoutService blackoutService;
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#request.spaId)")
     public BlackoutWindowResponse createBlackout(@Valid @RequestBody BlackoutWindowRequest request) {
         return blackoutService.createBlackout(request);
     }
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     public List<BlackoutWindowResponse> list(@RequestParam Long spaId) {
         return blackoutService.listForSpa(spaId);
     }

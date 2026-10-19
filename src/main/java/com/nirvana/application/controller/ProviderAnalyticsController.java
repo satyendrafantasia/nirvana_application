@@ -16,6 +16,7 @@ public class ProviderAnalyticsController {
     private final ProviderAnalyticsService providerAnalyticsService;
 
     @GetMapping("/spa/{spaId}")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#spaId)")
     public ProviderAnalyticsResponse getSpaAnalytics(@PathVariable Long spaId) {
         return providerAnalyticsService.getSpaSummary(spaId);
     }

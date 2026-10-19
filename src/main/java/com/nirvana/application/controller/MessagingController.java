@@ -55,7 +55,7 @@ public class MessagingController {
         return communicationService.postMessage(threadId, userId, request);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("@staffAccess.admin()")
     @PostMapping("/messages/{messageId}/moderate")
     public ChatMessageResponse moderate(
             @PathVariable Long messageId,

@@ -27,7 +27,7 @@ The backend's existing authentication requirements are preserved: sign in before
 - My bookings with pagination, server cancellation eligibility, cancellation confirmation, rescheduling and pending-payment retry.
 - Spa reviews and FAQ display.
 
-No hotel room/night flow is used. Admin/provider consoles, social OAuth browser handoff, password reset screens and notification management are not implemented by this frontend change. Account settings shows the existing auth profile only: there is no invented /api/me update endpoint. Privacy/terms content still needs the operator's approved policy before registration is deployed publicly.
+No hotel room/night flow is used. Customer, spa staff and administration workspaces are now available. Social OAuth browser handoff is not implemented. Account settings shows the existing auth profile only: there is no invented /api/me update endpoint. Privacy/terms content still needs the operator's approved policy before registration is deployed publicly.
 
 ## Local integration profile
 
@@ -41,16 +41,29 @@ SPA_DB_URL and SPA_DB_USER can override local defaults. Flyway applies migration
 
 ## Validation
 
-28 backend tests passed against isolated MariaDB, including payment/webhook safety and Spring context startup. Executable JAR packaged successfully. 16 frontend contract/payment tests, production build and ESLint passed. 25 live API checks passed, including slot capacity, ownership, booking, reschedule and cancellation. Browser completed a Pay at spa booking and displayed its persisted CONFIRMED status.
+43 backend tests passed against isolated MariaDB, including payment/webhook safety and Spring context startup. Executable JAR packaged successfully. 20 frontend contract/payment/role tests, production build and ESLint passed. 25 live API checks passed, including slot capacity, ownership, booking, reschedule and cancellation. Browser completed a Pay at spa booking and displayed its persisted CONFIRMED status.
 
 Razorpay gateway calls are mocked in regression tests; merchant test credentials are still required for a real gateway checkout/refund test. OTP delivery was not tested. See BACKEND-REVIEW.txt for details and deployment limits. Deployment and provider configuration are separate from this source change.
 
 ## Packages
 
-Packages and My Packages are available in the header and footer menus. The catalog uses Nirvana's central service packages, which are the same subscriptions consumed by booking checkout. It shows configured prices, session counts, validity and eligible spas. Spa-owner-specific level packages remain a separate backend product.
+Packages and My Packages are available in the header and footer menus. The catalog uses Nirvana's central service packages, which are the same subscriptions consumed by booking checkout. It shows configured prices, session counts, validity and eligible spas. Spa-owner-specific packages are available under My account > Spa Packages, with their own verified Razorpay checkout, purchase recovery, session history and booking redemption option.
 
 The new /api/packages/catalog and /api/packages/mine endpoints provide customer views. POST /api/packages/{id}/checkout creates or resumes a pending Razorpay order. POST /api/packages/mine/{id}/checkout reconciles payment before retrying, and /confirm verifies the signed result and fetched capture, amount, currency and order. Webhooks also activate verified captures. Purchase price, sessions and validity are snapshotted. Client-declared payment status at the legacy /purchase endpoint is rejected.
 
 V31 adds package checkout snapshots and the unique gateway order ID. V32 normalizes the original seed's legacy PAID package payment status. GLOBAL_BRONZE is retained as a supported legacy catalog tier. Package prices use the configured payments.razorpay.currency (INR by default).
 
 Razorpay merchant keys and capture/webhook settings must be configured for real test-mode checkout. The local profile leaves payments disabled and displays a clear error instead of granting unpaid sessions. Test failures/dismissals leave a resumable purchase in My Packages. A customer can have one active package at a time; pending purchases must be resumed before starting another tier. Gateway-confirmed refunds revoke the package's remaining sessions.
+
+
+## Customer and staff workspaces
+
+My account exposes Notifications, Messages, My Reviews, Payments & Refunds, Corporate Benefits, Package Activity, Spa Packages, Nearby & Directions, Account & Privacy, Availability & Waitlist, Google Booking, account details and password reset. Forms use the API schemas with explicit action definitions in src/features/catalog.json. Required parameters, enums, dates, nested fields and multipart employee uploads are supported; requests contain only the selected action's fields. Backend validation and eligibility remain authoritative.
+
+Manage spa exposes onboarding/profile/address/KYC, spa package setup, calendar/inventory/blackouts, slot synchronization, analytics, and media upload. Administration exposes corporate onboarding/deals/employees, operations, approvals, refunds, vouchers, audit/support, moderation, FAQ/content and notification templates.
+
+Menus and direct routes are restricted using server-returned roles. ROLE_SPA_OWNER and ROLE_SPA_MANAGER (plus the existing ROLE_Spa_MANAGER spelling) see staff workspaces; ROLE_ADMIN and ROLE_PLATFORM_ADMIN see staff and administration. Backend method guards independently enforce these roles and spa ownership. JWT authentication reloads current database roles and rejects disabled accounts. Public registration still cannot self-assign staff/admin access.
+
+Booking now reserves a ten-minute slot hold before checkout and passes its token to booking creation. Customers can join unavailable slots' waitlists. V33 normalizes legacy corporate enum values; employee responses use a bounded DTO rather than serializing user entities. V34 adds unique Razorpay order IDs and currency snapshots for spa package checkout. Central and spa-specific packages are separate redemption options.
+
+Provider-dependent actions require configured Razorpay, email/SMS, Google or S3 credentials as applicable. Local preview does not deliver external messages or execute real payments. No profile-edit endpoint was invented where the backend only supports reading the account.

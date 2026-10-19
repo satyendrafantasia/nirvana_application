@@ -20,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/support-overrides")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class SupportOverrideController {
 
     private final SupportOverrideService supportOverrideService;

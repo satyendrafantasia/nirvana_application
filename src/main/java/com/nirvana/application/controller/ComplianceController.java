@@ -22,13 +22,15 @@ public class ComplianceController {
     private final ComplianceService complianceService;
 
     @PostMapping("/consent")
-    public User updateConsent(@Valid @RequestBody ConsentUpdateRequest request) {
-        return complianceService.recordConsent(resolveUserId(), request);
+    public java.util.Map<String,String> updateConsent(@Valid @RequestBody ConsentUpdateRequest request) {
+        complianceService.recordConsent(resolveUserId(), request);
+        return java.util.Map.of("message", "Privacy preferences saved");
     }
 
     @PostMapping("/erase")
-    public User erase(@Valid @RequestBody DataErasureRequest request) {
-        return complianceService.eraseUserData(resolveUserId(), request);
+    public java.util.Map<String,String> erase(@Valid @RequestBody DataErasureRequest request) {
+        complianceService.eraseUserData(resolveUserId(), request);
+        return java.util.Map.of("message", "Your personal data has been erased");
     }
 
     private Long resolveUserId() {

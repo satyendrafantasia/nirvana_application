@@ -25,6 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Corporate", description = "Corporate onboarding, deal management and employee eligibility")
 @SecurityRequirement(name = "bearerAuth")
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class CorporateController {
 
     private final CorporateService corporateService;
@@ -102,7 +103,11 @@ public class CorporateController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Employees returned", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = CorporateEmployee.class))))
     })
-    public List<CorporateEmployee> getEmployees(@Parameter(description = "Corporate identifier") @PathVariable Long corporateId) {
-        return corporateEmployeeService.getEmployeesByCorporate(corporateId);
+    public List<EmployeeView> getEmployees(@Parameter(description = "Corporate identifier") @PathVariable Long corporateId) {
+        return corporateEmployeeService.getEmployeesByCorporate(corporateId).stream()
+                .map(e -> new EmployeeView(e.getId(), e.getEmployeeEmail(), e.getEmployeeIdentifier(),
+                        e.getStatus().name(), e.getUser() == null ? null : e.getUser().getId()))
+                .toList();
     }
+    public record EmployeeView(Long id, String employeeEmail, String employeeIdentifier, String status, Long userId) {}
 }

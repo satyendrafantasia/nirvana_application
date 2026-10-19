@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { Slot } from '../types/booking';
 
 interface BookingState {
+  holdToken?: string;
+  holdExpiresAt?: string;
   spaId?: string;
   spaName?: string;
   service?: Service;
@@ -26,6 +28,7 @@ interface BookingContextValue {
   setTherapist: (id?: string, type?: string) => void;
   setPaymentMode: (mode: 'ONLINE' | 'OFFLINE') => void;
   setNotes: (notes: string) => void;
+  setHold: (token: string, expiresAt: string) => void;
   reset: () => void;
 }
 
@@ -50,6 +53,8 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       service: undefined,
       slot: undefined,
       selectedSlot: undefined,
+      holdToken: undefined,
+      holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
     }));
@@ -60,6 +65,8 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       guests: service.minPersons || 1,
       slot: undefined,
       selectedSlot: undefined,
+      holdToken: undefined,
+      holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
     }));
@@ -67,6 +74,8 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     setState((prev) => ({
       ...prev,
       selectedSlot,
+      holdToken: undefined,
+      holdExpiresAt: undefined,
       slot: selectedSlot?.startTime,
       therapistId: undefined,
       therapistType: undefined
@@ -77,6 +86,8 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       guests,
       slot: undefined,
       selectedSlot: undefined,
+      holdToken: undefined,
+      holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
     }));
@@ -85,12 +96,15 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
   const setPaymentMode = (paymentMode: 'ONLINE' | 'OFFLINE') =>
     setState((prev) => ({ ...prev, paymentMode }));
   const setNotes = (notes: string) => setState((prev) => ({ ...prev, notes }));
+  const setHold = (holdToken: string, holdExpiresAt: string) =>
+    setState((prev) => ({ ...prev, holdToken, holdExpiresAt }));
   const reset = () => setState({ bookingSource: 'WEB', guests: 1, paymentMode: 'ONLINE' });
 
   return (
     <BookingContext.Provider
       value={{
         state,
+        setHold,
         setSpa,
         setService,
         setSlot,

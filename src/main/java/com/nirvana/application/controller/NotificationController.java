@@ -21,6 +21,7 @@ public class NotificationController {
 
     private final CommunicationService communicationService;
 
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
     @PostMapping("/send")
     public NotificationResponse sendNotification(@Valid @RequestBody NotificationSendRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
@@ -43,13 +44,13 @@ public class NotificationController {
         return communicationService.markNotificationRead(notificationId, userId);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
     @PostMapping("/templates")
     public NotificationTemplateResponse upsertTemplate(@Valid @RequestBody NotificationTemplateRequest request) {
         return communicationService.upsertTemplate(request);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
     @GetMapping("/templates")
     public List<NotificationTemplateResponse> listTemplates() {
         return communicationService.listTemplates();

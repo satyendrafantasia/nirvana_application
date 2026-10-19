@@ -31,6 +31,7 @@ public class RazorpayWebhookController {
     private final PaymentRepository paymentRepository;
     private final com.nirvana.application.service.impl.PackageCheckoutService packageCheckoutService;
     private final PaymentWebhookEventRepository webhookEventRepository;
+    private final com.nirvana.application.service.impl.SpaPackageCheckoutService spaPackageCheckoutService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/webhook")
@@ -95,6 +96,7 @@ public class RazorpayWebhookController {
 
         paymentService.reconcileCapturedPayment(orderId, paymentId);
         packageCheckoutService.captured(orderId, paymentId);
+        spaPackageCheckoutService.captured(orderId, paymentId);
     }
 
     private void handlePaymentFailed(JsonNode root) {
@@ -104,6 +106,7 @@ public class RazorpayWebhookController {
 
     private void handleRefundProcessed(JsonNode root) {
         paymentService.reconcileRefund(root.path("payload").path("refund").path("entity").path("payment_id").asText());
+        spaPackageCheckoutService.refunded(root.path("payload").path("refund").path("entity").path("payment_id").asText());
         packageCheckoutService.refunded(root.path("payload").path("refund").path("entity").path("payment_id").asText());
     }
 }
