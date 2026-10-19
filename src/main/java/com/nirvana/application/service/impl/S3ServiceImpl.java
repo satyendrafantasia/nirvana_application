@@ -86,6 +86,11 @@ public class S3ServiceImpl implements S3Service {
 
     @Override
     public String getFileUrl(String key) {
+        // Imported catalog photos may already be public HTTPS URLs, not bucket keys.
+        if (key != null && key.startsWith("https://")) {
+            java.net.URI uri = java.net.URI.create(key);
+            if (uri.getHost() != null && uri.getUserInfo() == null) return uri.toASCIIString();
+        }
         return amazonS3.getUrl(bucketName, key).toString();
     }
 
