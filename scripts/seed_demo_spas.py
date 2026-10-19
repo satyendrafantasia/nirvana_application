@@ -77,4 +77,3 @@ def main():
  lines+=['COMMIT;',"SELECT id,name,city FROM spa WHERE JSON_UNQUOTE(JSON_EXTRACT(meta,'$.demoBatch'))="+q(BATCH)+' ORDER BY id;']
  output=sql('\n'.join(lines));Path(args.report).write_text(json.dumps({'batch':BATCH,'database':'nirvana_spa_test','availabilityFrom':start.isoformat(),'availabilityThrough':(start+dt.timedelta(days=6)).isoformat(),'spas':report,'databaseRows':output},indent=2),encoding='utf-8');print(output);print('Created 10 spas, 30 services, 20 therapists, 20 packages, 20 rooms, 20 photo references, 210 inventory days and 1260 slots.')
 if __name__=='__main__':main()
-
