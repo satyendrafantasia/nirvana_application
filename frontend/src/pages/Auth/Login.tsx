@@ -7,10 +7,15 @@ import { useAuth } from '../../hooks/useAuth';
 import { errorMessage } from '../../api/client';
 import { showToast } from '../../components/common/Toast';
 
-const Login = () => {
+const Login = ({ owner = false }: { owner?: boolean }) => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const redirect = params.get('redirect') || '/';
+  const requested = params.get('redirect');
+  const redirect = owner
+    ? '/owner'
+    : requested?.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : '/';
   const { login } = useAuth();
 
   const mutation = useMutation({
@@ -35,7 +40,9 @@ const Login = () => {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-10">
       <div className="card space-y-6 p-6">
-        <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          {owner ? 'Spa owner sign in' : 'Welcome back'}
+        </h1>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <Input name="email" type="email" label="Email" placeholder="you@example.com" required />
           <Input name="password" type="password" label="Password" placeholder="••••••••" required />
@@ -46,11 +53,13 @@ const Login = () => {
         <Link className="block text-primary-700" to="/auth/password">
           Forgot password?
         </Link>
-        <Link to="/auth/otp">Sign in with OTP / verify MFA</Link>
-        <SocialLogin />
+        <Link to={owner ? '/auth/otp?redirect=/owner' : '/auth/otp'}>
+          Sign in with OTP / verify MFA
+        </Link>
+        {!owner && <SocialLogin />}
         <p className="text-sm text-slate-600">
           New here?{' '}
-          <Link to="/auth/register" className="text-primary-600">
+          <Link to={owner ? '/owner/signup' : '/auth/register'} className="text-primary-600">
             Create an account
           </Link>
         </p>

@@ -6,7 +6,7 @@ import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import client, { errorMessage } from '../../api/client';
 import { authView } from '../../api/authApi';
-export default function Register() {
+export default function Register({ owner = false }: { owner?: boolean }) {
   const [email, setEmail] = useState(''),
     [verification, setVerification] = useState(''),
     [registration, setRegistration] = useState('');
@@ -29,6 +29,7 @@ export default function Register() {
       }
       if (form.get('password') !== form.get('confirm')) throw new Error('Passwords must match.');
       const { data } = await client.post('/api/auth/register/complete', {
+        accountType: owner ? 'SPA_OWNER' : 'CUSTOMER',
         registrationToken: registration,
         acceptPrivacyPolicy: form.get('privacy') === 'on',
         fullName: String(form.get('fullName')),
@@ -41,12 +42,20 @@ export default function Register() {
           username: data.user.email || data.user.phoneNumber
         })
       );
-      navigate('/');
+      navigate(owner ? '/owner/onboarding' : '/');
     }
   });
   return (
     <div className="max-w-md mx-auto p-8 space-y-5">
-      <h1 className="text-2xl font-bold">Create an account</h1>
+      <h1 className="text-2xl font-bold">
+        {owner ? 'Create your spa owner account' : 'Create an account'}
+      </h1>
+      {owner && (
+        <p>
+          Create and manage your own spas. Each new spa stays unpublished until administrator
+          approval.
+        </p>
+      )}
       <p>
         {registration
           ? 'Complete your verified account.'
@@ -118,7 +127,7 @@ export default function Register() {
           {errorMessage(action.error)}
         </p>
       )}
-      <Link to="/auth/login">Already have an account? Sign in</Link>
+      <Link to={owner ? '/owner/login' : '/auth/login'}>Already have an account? Sign in</Link>
     </div>
   );
 }

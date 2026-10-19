@@ -7,6 +7,10 @@ import lombok.Data;
 @Data
 public class CompleteRegistrationRequest {
 
+    public enum AccountType { CUSTOMER, SPA_OWNER }
+    @jakarta.validation.constraints.NotNull
+    private AccountType accountType = AccountType.CUSTOMER;
+
     @NotBlank
     private String registrationToken;
 

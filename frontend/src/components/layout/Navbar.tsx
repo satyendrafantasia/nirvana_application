@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { isStaff } from '../../auth/roles';
 import FeatureMenu from './FeatureMenu';
 import Button from '../common/Button';
 
@@ -40,6 +41,12 @@ const Navbar = () => {
             className={({ isActive }) => (isActive ? 'text-primary-600' : '')}
           >
             My Packages
+          </NavLink>
+          <NavLink
+            to={isStaff(user?.roles) ? '/owner' : '/owner/login'}
+            className="text-primary-700"
+          >
+            {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
           </NavLink>
           <FeatureMenu />
         </nav>

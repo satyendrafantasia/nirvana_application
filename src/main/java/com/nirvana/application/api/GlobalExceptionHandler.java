@@ -143,6 +143,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(409).body(base(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), null).build());
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> statusException(org.springframework.web.server.ResponseStatusException ex, HttpServletRequest request) {
+        return ResponseEntity.status(ex.getStatusCode()).body(base(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), request.getRequestURI(), null).build());
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> unreadable(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(base(HttpStatus.BAD_REQUEST, "Invalid request body", request.getRequestURI(), null).build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex,
                                                           HttpServletRequest request) {

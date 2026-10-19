@@ -12,12 +12,12 @@ import java.util.List;
 public class ProviderAuditService {
 
     private final ProviderAuditLogRepository providerAuditLogRepository;
+    private final com.nirvana.application.repository.SpaRepository spaRepository;
 
     public ProviderAuditLog log(Long spaId, String actorType, Long actorId, String action, String details) {
         ProviderAuditLog log = new ProviderAuditLog();
         if (spaId != null) {
-            log.setSpa(new com.nirvana.application.model.Spa());
-            log.getSpa().setId(spaId);
+            log.setSpa(spaRepository.getReferenceById(spaId));
         }
         log.setActorType(actorType);
         log.setActorId(actorId);

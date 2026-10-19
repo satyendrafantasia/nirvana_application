@@ -37,13 +37,33 @@ export default function FeaturePage() {
     );
   return <Workspace key={item.id} id={item.id} />;
 }
-function Workspace({ id }: { id: string }) {
-  const item = features.find((f) => f.id === id)!;
+export function Workspace({
+  id,
+  spaId,
+  section
+}: {
+  id: string;
+  spaId?: string;
+  section?: string;
+}) {
+  const original = features.find((f) => f.id === id)!;
+  const item =
+    section === 'availability'
+      ? {
+          ...original,
+          title: 'Availability',
+          actions: [
+            features.find((f) => f.id === 'availability')!.actions[0],
+            ...original.actions.filter((a) => !a.path.includes('/bookings'))
+          ]
+        }
+      : original;
   const { user } = useAuth();
   const [active, setActive] = useState(0);
-  const [values, setValues] = useState<Values>(() =>
-    Object.fromEntries(new URLSearchParams(window.location.search))
-  );
+  const [values, setValues] = useState<Values>(() => ({
+    ...Object.fromEntries(new URLSearchParams(window.location.search)),
+    ...(spaId ? { spaId } : {})
+  }));
   const [extraChoices, setExtraChoices] = useState<Record<string, Choice[]>>({});
   const spas = useQuery({
     queryKey: ['workspace-spas', user?.id],
@@ -62,7 +82,14 @@ function Workspace({ id }: { id: string }) {
   const services = useQuery({
     queryKey: ['workspace-services', values.spaId],
     enabled: !!values.spaId,
-    queryFn: async () => (await client.get(`/api/spas/${values.spaId}/services`)).data
+    queryFn: async () =>
+      (
+        await client.get(
+          isStaff(user?.roles)
+            ? `/api/owner/spas/${values.spaId}/services`
+            : `/api/spas/${values.spaId}/services`
+        )
+      ).data
   });
   const mapChoices = (data: unknown, idKey: string, nameKey: string): Choice[] =>
     Array.isArray(data)
@@ -145,8 +172,10 @@ function Workspace({ id }: { id: string }) {
         key={item.actions[active].title}
         op={item.actions[active]}
         values={values}
-        setValues={setValues}
-        choices={choices}
+        setValues={(v) => setValues(spaId ? { ...v, spaId } : v)}
+        choices={
+          spaId ? { ...choices, spaId: choices.spaId.filter((s) => s.value === spaId) } : choices
+        }
         remember={remember}
       />
     </div>

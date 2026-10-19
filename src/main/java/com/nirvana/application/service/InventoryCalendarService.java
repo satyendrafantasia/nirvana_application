@@ -48,21 +48,17 @@ public class InventoryCalendarService {
 
         com.nirvana.application.model.Service service = null;
         if (request.getServiceId() != null) {
-            service = serviceRepository.findById(request.getServiceId())
+            service = serviceRepository.findByIdAndSpa_Id(request.getServiceId(), request.getSpaId())
                     .orElseThrow(() -> new IllegalArgumentException("Service not found"));
         }
 
         Optional<InventoryCalendarEntry> existing = (service == null)
-                ? inventoryCalendarRepository.findBySpa_IdAndServiceDate(request.getSpaId(), request.getServiceDate())
+                ? inventoryCalendarRepository.findBySpa_IdAndServiceIsNullAndServiceDate(request.getSpaId(), request.getServiceDate())
                 : inventoryCalendarRepository.findBySpa_IdAndService_IdAndServiceDate(request.getSpaId(), service.getId(), request.getServiceDate());
 
         InventoryCalendarEntry entry = existing.orElseGet(InventoryCalendarEntry::new);
         var beforeState = existing
-                .map(e -> Map.of(
-                        "availableUnits", e.getAvailableUnits(),
-                        "basePriceCents", e.getBasePriceCents(),
-                        "overridePriceCents", e.getOverridePriceCents(),
-                        "locked", e.getLocked()))
+                .map(e -> snapshot(e))
                 .orElse(Map.of());
         entry.setSpa(spa);
         entry.setService(service);
@@ -72,7 +68,7 @@ public class InventoryCalendarService {
         entry.setOverridePriceCents(request.getOverridePriceCents());
         entry.setLocked(Boolean.TRUE.equals(request.getLocked()));
         entry.setNote(request.getNote());
-        entry.setCurrency("INR");
+        entry.setCurrency(service == null ? spa.getDefaultCurrency() : service.getCurrency());
 
         InventoryCalendarEntry saved = inventoryCalendarRepository.save(entry);
         providerAuditService.log(spa.getId(), "SYSTEM", null, "INVENTORY_CALENDAR_UPSERT",
@@ -83,15 +79,16 @@ public class InventoryCalendarService {
                 saved.getId(),
                 null,
                 beforeState,
-                Map.of(
-                        "availableUnits", saved.getAvailableUnits(),
-                        "basePriceCents", saved.getBasePriceCents(),
-                        "overridePriceCents", saved.getOverridePriceCents(),
-                        "locked", saved.getLocked()),
+                snapshot(saved),
                 "Inventory update for spa " + spa.getId());
         return toResponse(saved);
     }
 
+    private Map<String,Object> snapshot(InventoryCalendarEntry e) {
+        Map<String,Object> state = new java.util.HashMap<>();
+        state.put("availableUnits",e.getAvailableUnits());state.put("basePriceCents",e.getBasePriceCents());
+        state.put("overridePriceCents",e.getOverridePriceCents());state.put("locked",e.getLocked());return state;
+    }
     private InventoryDayResponse toResponse(InventoryCalendarEntry entry) {
         InventoryDayResponse response = new InventoryDayResponse();
         response.setId(entry.getId());

@@ -42,6 +42,9 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         SpaManager spaManager = resolveSpaManager(ownerUserId);
         Spa spa = new Spa();
         spa.setName(request.getName());
+        // Editable defaults for a draft; the spa remains unpublished until reviewed.
+        spa.setOpenTimeLocal(java.time.LocalTime.of(9, 0));
+        spa.setCloseTimeLocal(java.time.LocalTime.of(18, 0));
         spa.setDescription(request.getDescription());
         spa.setPhone(request.getPhone());
         spa.setEmail(request.getEmail());
@@ -56,11 +59,12 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         if (request.getAddress() != null) {
             spa.setAddress(normalizeAddress(request.getAddress()));
             if (spa.getAddress() != null) {
-                spa.setTimezone(spa.getAddress().getTimezone());
+                if (spa.getAddress().getTimezone() != null) spa.setTimezone(spa.getAddress().getTimezone());
                 spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
             }
         }
 
+        if (spa.getTimezone() == null || spa.getTimezone().isBlank()) spa.setTimezone("Asia/Kolkata");
         spa.setSpaManager(spaManager);
 
         Spa saved = spaRepository.save(spa);
@@ -119,7 +123,7 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
 
         // keep timezone column in sync if you really need the separate field
         if (spa.getAddress() != null) {
-            spa.setTimezone(spa.getAddress().getTimezone());
+            if (spa.getAddress().getTimezone() != null) spa.setTimezone(spa.getAddress().getTimezone());
             spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
         }
 
@@ -229,6 +233,8 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
         a.setGooglePlaceId(dto.getGooglePlaceId());
         a.setFormattedAddress(dto.getFormattedAddress());
         a.setTimezone(dto.getTimezone());
+        a.setLatitude(dto.getLatitude());
+        a.setLongitude(dto.getLongitude());
         return addressNormalizationService.normalize(a);
     }
 

@@ -71,8 +71,6 @@ public class Service extends BaseEntity {
     private Set<Therapist> therapists = new HashSet<>();
 
     private Long version;
-    private OffsetDateTime createdAt;
-    private OffsetDateTime updatedAt;
 
     @Column(name = "min_persons", nullable = false)
     private Integer minPersons = 1;

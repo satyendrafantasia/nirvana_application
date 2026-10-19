@@ -82,3 +82,16 @@ Provider-dependent actions require configured Razorpay, email/SMS, Google or S3 
 - Administration > File Management: retrieve a link, download a blob or confirm permanent deletion by object key. Admin-only query-parameter routes support keys containing slashes. S3 credentials/storage access are required; media upload remains in Manage spa.
 
 The added /api/spas/{id}/settings route requires the same spa ownership guard as updates. /api/s3/object routes inherit the administrator guard. Drafts are scoped to their owner. The new screens also reject direct navigation for unauthorized roles.
+
+
+## Spa owner portal
+
+Use `/owner/signup` for email-verified owner registration and `/owner/login` for owner sign-in. Owners enter `/owner`, with a spa selector and dedicated Overview, Bookings, Availability, Therapists, Services, Packages, Settings and Onboarding tabs. The main navigation includes “For spa owners” / “Owner dashboard”. Customer accounts cannot enter this workspace.
+
+Registration accepts only CUSTOMER or SPA_OWNER account types. SPA_OWNER adds the owner authority after successful OTP verification; signup cannot grant administrator access. Existing customer accounts are not automatically promoted. OTP delivery requires the configured email provider (disabled in the local test profile).
+
+Onboarding saves/resumes drafts for registration, business details, address and KYC, with a next-step button after submission. New spas remain inactive and unverified pending platform review. Settings cannot activate a spa as an owner. Owners may operate multiple spas; V36 removes the old one-spa-per-manager database constraint and V37 permits partial address data during onboarding.
+
+The owner catalog APIs under `/api/owner/spas/{spaId}` support GET/POST services and therapists, plus PUT `/{services|therapists}/{id}`. Every call checks role and spa ownership. Therapist updates require the returned version, service assignments must belong to the same spa, and inactive/unavailable therapists are excluded from new selection. Disabling a service or therapist preserves existing bookings. Services can be created before spa approval.
+
+Bookings and summaries use the existing scoped manager APIs. Availability includes slot lookup/synchronization, daily capacity and blackout windows. Inventory updates reject foreign services and support empty override prices. Spa packages use the existing level-based save API; edit a level to change its price, session allowance or sale status. Platform administration remains outside the owner portal.

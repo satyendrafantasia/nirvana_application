@@ -36,6 +36,8 @@ public class Spa extends BaseEntity {
     // Address embedded, no OneToOne
     @Embedded
     @AttributeOverrides({
+            @AttributeOverride(name = "addressLine", column = @Column(name = "address_line1", length = 255)),
+            @AttributeOverride(name = "city", column = @Column(name = "city", length = 100)),
             @AttributeOverride(name = "timezone", column = @Column(name = "timezone", insertable = false, updatable = false))
     })
     private Address address;
@@ -65,7 +67,7 @@ public class Spa extends BaseEntity {
     @Column(name = "owner_name")
     private String ownerName;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "spa_manager_id")
     private SpaManager spaManager;
 

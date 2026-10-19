@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { requestOtp, verifyOtp } from '../../api/authApi';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,6 +12,7 @@ export default function OtpVerification() {
   const [verificationId, setVerificationId] = useState(sessionStorage.getItem('nirvana_mfa') || '');
   const { acceptAuth } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const request = useMutation({
     mutationFn: () => requestOtp(email),
     onSuccess: (r) => setVerificationId(r.verificationId)
@@ -20,7 +21,7 @@ export default function OtpVerification() {
     mutationFn: () => verifyOtp(verificationId, otp),
     onSuccess: (r) => {
       acceptAuth(r);
-      navigate('/me/bookings');
+      navigate(params.get('redirect') === '/owner' ? '/owner' : '/me/bookings');
     }
   });
   return (

@@ -13,5 +13,5 @@ public interface InventoryCalendarRepository extends JpaRepository<InventoryCale
     List<InventoryCalendarEntry> findBySpa_IdAndServiceDateBetween(Long spaId, LocalDate start, LocalDate end);
     List<InventoryCalendarEntry> findBySpa_IdAndService_IdAndServiceDateBetween(Long spaId, Long serviceId, LocalDate start, LocalDate end);
     Optional<InventoryCalendarEntry> findBySpa_IdAndService_IdAndServiceDate(Long spaId, Long serviceId, LocalDate date);
-    Optional<InventoryCalendarEntry> findBySpa_IdAndServiceDate(Long spaId, LocalDate date);
+    Optional<InventoryCalendarEntry> findBySpa_IdAndServiceIsNullAndServiceDate(Long spaId, LocalDate date);
 }

@@ -8,6 +8,7 @@ import lombok.Data;
 @Builder
 @AllArgsConstructor
 public class RegistrationAuthResponse {
+    private java.util.Set<String> roles;
     private String accessToken;
     private String refreshToken;
     private String tokenType;

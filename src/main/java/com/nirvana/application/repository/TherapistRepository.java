@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface TherapistRepository extends JpaRepository<Therapist, Long> {
+    List<Therapist> findBySpa_IdOrderByNameAsc(Long spaId);
+    java.util.Optional<Therapist> findByIdAndSpa_Id(Long id, Long spaId);
 
     @Query("""
             SELECT DISTINCT t FROM Therapist t

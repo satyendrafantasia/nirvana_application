@@ -51,7 +51,7 @@ public class RegistrationService {
         validateVerification(verification);
         enforceUniqueConstraints(verification);
 
-        Role role = Optional.ofNullable(roleRepository.findByRoleType(RoleType.CUSTOMER))
+        Role role = Optional.ofNullable(roleRepository.findByRoleType(request.getAccountType() == CompleteRegistrationRequest.AccountType.SPA_OWNER ? RoleType.Spa_MANAGER : RoleType.CUSTOMER))
                 .orElseThrow(() -> new RegistrationException("ROLE_NOT_CONFIGURED", "Default role not configured", HttpStatus.INTERNAL_SERVER_ERROR));
 
         User user = User.builder()
@@ -61,7 +61,7 @@ public class RegistrationService {
                 .name(request.getFullName())
                 .displayName(request.getFullName())
                 .role(role)
-                .roles(Set.of(Roles.USER))
+                .roles(new java.util.HashSet<>(request.getAccountType() == CompleteRegistrationRequest.AccountType.SPA_OWNER ? Set.of(Roles.USER, Roles.SPA_OWNER) : Set.of(Roles.USER)))
                 .password(passwordEncoder.encode(request.getPassword()))
                 .active(true)
                 .isActive(true)
@@ -85,6 +85,7 @@ public class RegistrationService {
         return RegistrationAuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken.getToken())
+                .roles(user.getRoles())
                 .tokenType("Bearer")
                 .expiresIn(Duration.ofMinutes(jwtProperties.getExpirationMinutes()).toSeconds())
                 .user(RegisteredUserDto.builder()

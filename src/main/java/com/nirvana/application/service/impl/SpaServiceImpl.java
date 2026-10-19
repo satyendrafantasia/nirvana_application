@@ -92,6 +92,9 @@ public class SpaServiceImpl implements SpaService {
         if (!admin && ((!Objects.equals(request.getCommissionPct(), spa.getCommissionPct())) || !Objects.equals(request.getFeatured(), spa.getIsFeatured()))) {
             throw new org.springframework.security.access.AccessDeniedException("Only administrators can change platform commission or featured placement");
         }
+        if (!admin && Boolean.TRUE.equals(request.getActive()) && !Boolean.TRUE.equals(spa.getIsActive())) {
+            throw new org.springframework.security.access.AccessDeniedException("Spa activation requires administrator approval");
+        }
         applyRequestToEntity(spa, request, true);
         attachTherapists(spa, request.getTherapistIds());
         attachServices(spa, request.getServiceIds());

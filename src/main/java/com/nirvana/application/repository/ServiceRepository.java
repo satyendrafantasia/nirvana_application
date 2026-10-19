@@ -13,6 +13,8 @@ import java.util.Collection;
 import java.util.List;
 
 public interface ServiceRepository extends JpaRepository<Service, Long> {
+    java.util.List<Service> findBySpa_IdOrderByNameAsc(Long spaId);
+    java.util.Optional<Service> findByIdAndSpa_Id(Long id, Long spaId);
 
     List<Service> findBySpaIdAndIsActiveTrueOrderByNameAsc(Long spaId);
 

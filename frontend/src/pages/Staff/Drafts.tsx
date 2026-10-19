@@ -21,7 +21,7 @@ const steps: Record<string, { title: string; schema: string; path?: string }> = 
   ADDRESS: { title: 'Address', schema: 'AddressDTO', path: 'address' },
   KYC: { title: 'Verification documents', schema: 'SpaKycRequest', path: 'kyc' }
 };
-export default function Drafts() {
+export default function Drafts({ owner = false }: { owner?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [step, setStep] = useState('REGISTER_SPA');
@@ -100,11 +100,42 @@ export default function Drafts() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ['draft-spas'] });
+      void qc.invalidateQueries({ queryKey: ['owner-spas'] });
     }
   });
   return (
     <div className="max-w-4xl mx-auto p-8 space-y-5">
-      <h1 className="text-3xl font-bold">Onboarding Drafts</h1>
+      <h1 className="text-3xl font-bold">{owner ? 'Set up your spa' : 'Onboarding Drafts'}</h1>
+      {owner && (
+        <p>
+          Complete registration, business details, address and verification documents. You can save
+          any step and return later. Approval is handled by the platform.
+        </p>
+      )}
+      {owner && created && (
+        <div className="rounded-xl bg-green-50 p-4 space-y-3">
+          <p>Step saved successfully.</p>
+          {step !== 'KYC' ? (
+            <Button
+              onClick={() => {
+                setSpaId(String(created));
+                setStep(
+                  step === 'REGISTER_SPA' ? 'DETAILS' : step === 'DETAILS' ? 'ADDRESS' : 'KYC'
+                );
+                setCreated(undefined);
+                setCurrent(undefined);
+                setValue({});
+                action.reset();
+              }}
+            >
+              Continue to next step
+            </Button>
+          ) : (
+            <Link to="/owner">Return to your dashboard — verification pending</Link>
+          )}
+        </div>
+      )}
       <p>
         Save unfinished registration details, then resume and submit when ready. Saved drafts expire
         after 48 hours unless extended.

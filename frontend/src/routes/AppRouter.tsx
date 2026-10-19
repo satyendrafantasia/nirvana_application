@@ -14,12 +14,23 @@ import OtpVerification from '../pages/Auth/OtpVerification';
 import SocialLoginCallback from '../pages/Auth/SocialLoginCallback';
 import MyBookings from '../pages/Profile/MyBookings';
 import AccountSettings from '../pages/Profile/AccountSettings';
+import OwnerPortal from '../pages/Owner/OwnerPortal';
 import NotFound from '../pages/Static/NotFound';
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
   return (
     <Routes>
+      <Route path="/owner/login" element={<Login owner />} />
+      <Route path="/owner/signup" element={<Register owner />} />
+      <Route
+        path="/owner/*"
+        element={
+          <RequireAuth redirectTo="/owner/login">
+            <OwnerPortal />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/features/:feature"
         element={

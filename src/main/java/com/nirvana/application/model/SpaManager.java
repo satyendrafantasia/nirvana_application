@@ -32,15 +32,15 @@ public class SpaManager {
 
 
 
-    @OneToOne(mappedBy = "spaManager", fetch = FetchType.LAZY)
-    private Spa spa;
+    @OneToMany(mappedBy = "spaManager", fetch = FetchType.LAZY)
+    private List<Spa> spas = new ArrayList<>();
 
     @Override
     public String toString() {
         return "SpaManager{" +
                 "id=" + id +
                 ", user=" + user +
-                ", SpaList=" + spa +
+                ", spaManagerId=" + id +
                 '}';
     }
 

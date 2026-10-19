@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -6,10 +6,10 @@ import { isAdmin } from '../../auth/roles';
 import Fields from '../../features/Fields';
 import { resolve, clean } from '../../features/model';
 import Button from '../../components/common/Button';
-export default function SpaSettings() {
+export default function SpaSettings({ initialSpaId = '' }: { initialSpaId?: string }) {
   const { user } = useAuth();
   const admin = isAdmin(user?.roles);
-  const [id, setId] = useState('');
+  const [id, setId] = useState(initialSpaId);
   const [value, setValue] = useState<Record<string, unknown>>();
   const [deactivate, setDeactivate] = useState(false);
   const spas = useQuery({
@@ -24,7 +24,7 @@ export default function SpaSettings() {
     ...schema,
     properties: Object.fromEntries(
       Object.entries(schema.properties || {}).filter(
-        ([k]) => k !== 'version' && (admin || !['commissionPct', 'featured'].includes(k))
+        ([k]) => k !== 'version' && (admin || !['commissionPct', 'featured', 'active'].includes(k))
       )
     )
   };
@@ -39,18 +39,21 @@ export default function SpaSettings() {
       return mode;
     }
   });
+  useEffect(() => {
+    if (initialSpaId) action.mutate('load');
+  }, [initialSpaId]);
   return (
     <div className="max-w-5xl mx-auto p-8 space-y-5">
       <h1 className="text-3xl font-bold">Full Spa Settings</h1>
       <p>
-        Load a spa before editing. Times use HH:mm:ss in the spa’s timezone. Service and therapist
+        Load a spa before editing. Times use HH:mm:ss in the spaâ€™s timezone. Service and therapist
         identifiers must belong to this spa or be unassigned.
       </p>
       <label className="block">
         Spa
         <select
           className="block border rounded-xl p-3 w-full"
-          disabled={action.isPending}
+          disabled={action.isPending || !!initialSpaId}
           value={id}
           onChange={(e) => {
             setId(e.target.value);

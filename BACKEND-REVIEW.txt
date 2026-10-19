@@ -42,3 +42,12 @@ Backend repairs: explicit optional OAuth configuration binding; session-bound si
 Real OTP delivery, external OAuth sign-in, Razorpay charges and S3 file mutations require provider configuration and were not executed in the local preview. The interactive map uses OpenStreetMap tiles while ETA requests use the configured backend routing provider.
 
 Validation (2026-10-19): full Maven package passed 56 backend tests; frontend passed 25 tests, production build and lint. All 23 live API checks passed, including denied customer access, token rotation, settings reads and repeated draft saves/cleanup. Browser verified settings populated from the backend and nearby map results.
+
+OWNER PORTAL UPDATE
+Dedicated /owner/signup, /owner/login and /owner workspace with guided draft onboarding, multiple-spa selection, booking summary/list, inventory/slot controls, therapist and service CRUD, spa package edits and settings.
+Verified signup accepts only CUSTOMER or SPA_OWNER; owner signup cannot grant administrator privileges. Owners cannot activate unpublished spas or call the legacy unowned spa-creation endpoint. Catalog requests enforce spa ownership and therapist/service membership; therapist writes use optimistic versions.
+V36 enables multiple spas per owner and V37 allows incomplete addresses while onboarding. Draft spas have editable default hours 09:00-18:00 and Asia/Kolkata timezone until supplied by address/settings. All remain inactive until admin review.
+Repaired service timestamp shadowing, optional-price inventory audit snapshots, cross-spa inventory service checks, and managed spa references in provider audit records. OTP registration errors now retain their intended status instead of generic server errors.
+
+Owner update validation: 60 backend tests passed in a full Maven package; 29 frontend tests, production build and lint passed. Integration tests cover verified signup/login, multiple owned spas, onboarding details/address/KYC, therapist creation/edit/version conflicts, foreign service and owner denial, packages, repeated inventory updates and activation restrictions. Test database migrations V36 and V37 applied successfully.
+Live verification: completed owner registration using a disposable pre-verified local OTP fixture, then login, spa onboarding, service/therapist/package API calls and dashboard loading. Browser verified customer access denial and a persisted therapist name edit. No external OTP was sent; the preview spa remains unpublished and its package inactive.
