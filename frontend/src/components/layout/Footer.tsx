@@ -6,7 +6,9 @@ const Footer = () => {
           <p className="font-semibold text-primary-700">Nirvana Wellness</p>
           <p className="text-slate-500">Make time for your wellbeing.</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
+          <a href="/packages">Packages</a>
+          <a href="/me/packages">My Packages</a>
           <a href="/spas">Explore spas</a>
           <a href="/me/bookings">Your appointments</a>
         </div>

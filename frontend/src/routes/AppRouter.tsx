@@ -1,4 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import Packages from '../pages/Packages/Packages';
+import MyPackages from '../pages/Packages/MyPackages';
 import Home from '../pages/Home/Home';
 import SpaSearch from '../pages/SpaSearch/SpaSearch';
 import SpaDetails from '../pages/SpaDetails/SpaDetails';
@@ -15,6 +17,22 @@ import { RequireAuth } from '../components/layout/RequireAuth';
 const AppRouter = () => {
   return (
     <Routes>
+      <Route
+        path="/packages"
+        element={
+          <RequireAuth>
+            <Packages />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/me/packages"
+        element={
+          <RequireAuth>
+            <MyPackages />
+          </RequireAuth>
+        }
+      />
       <Route path="/" element={<Home />} />
       <Route
         path="/spas"

@@ -72,6 +72,14 @@ public class UserPackageSubscription extends BaseEntity {
     @Builder.Default
     private List<UserPackageUsageLog> usageLogs = new ArrayList<>();
 
+    @Column(name = "razorpay_order_id", unique = true, length = 128)
+    private String razorpayOrderId;
+    private Integer amountCents;
+    @Column(length = 3)
+    private String currency;
+    private Integer purchasedSessions;
+    private Integer purchasedValidityDays;
+
     @Version
     private Long version;
 }

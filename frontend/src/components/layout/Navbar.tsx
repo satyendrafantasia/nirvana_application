@@ -28,6 +28,18 @@ const Navbar = () => {
           >
             My Bookings
           </NavLink>
+          <NavLink
+            to="/packages"
+            className={({ isActive }) => (isActive ? 'text-primary-600' : '')}
+          >
+            Packages
+          </NavLink>
+          <NavLink
+            to="/me/packages"
+            className={({ isActive }) => (isActive ? 'text-primary-600' : '')}
+          >
+            My Packages
+          </NavLink>
         </nav>
         <div className="flex items-center gap-3">
           {user ? (

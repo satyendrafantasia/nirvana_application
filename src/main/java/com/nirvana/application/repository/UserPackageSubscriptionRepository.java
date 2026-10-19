@@ -13,6 +13,17 @@ import java.util.Optional;
 
 public interface UserPackageSubscriptionRepository extends JpaRepository<UserPackageSubscription, Long> {
 
+    java.util.List<UserPackageSubscription> findByUserIdOrderByPurchaseDateDesc(Long userId);
+    Optional<UserPackageSubscription> findByRazorpayOrderId(String orderId);
+    @Query("select s.id from UserPackageSubscription s where s.razorpayOrderId = :orderId")
+    Optional<Long> findIdByOrder(@Param("orderId") String orderId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from UserPackageSubscription s where s.id = :id")
+    Optional<UserPackageSubscription> findForUpdate(@Param("id") Long id);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from UserPackageSubscription s where s.id = :id and s.user.id = :userId")
+    Optional<UserPackageSubscription> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
     @EntityGraph(attributePaths = {"servicePackage", "servicePackage.eligibleSpas"})
     Optional<UserPackageSubscription> findByUserIdAndStatus(Long userId, PackageStatus status);
 

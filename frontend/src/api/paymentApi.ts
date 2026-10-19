@@ -9,11 +9,20 @@ export const initiatePayment = async (id: string) =>
     )
   ).data;
 export const confirmPayment = async (id: string, result: RazorpayResult) => {
-  return (await client.post<{status:string;refundStatus:string}>(`/api/bookings/${id}/payments/razorpay/confirm`, result)).data;
+  return (
+    await client.post<{ status: string; refundStatus: string }>(
+      `/api/bookings/${id}/payments/razorpay/confirm`,
+      result
+    )
+  ).data;
 };
-export const resumePayment = async (id:string) => {
-  const saved=sessionStorage.getItem(`nirvana_payment_${id}`);
-  if(saved){const status=await confirmPayment(id,JSON.parse(saved));sessionStorage.removeItem(`nirvana_payment_${id}`);return status;}
+export const resumePayment = async (id: string) => {
+  const saved = sessionStorage.getItem(`nirvana_payment_${id}`);
+  if (saved) {
+    const status = await confirmPayment(id, JSON.parse(saved));
+    sessionStorage.removeItem(`nirvana_payment_${id}`);
+    return status;
+  }
   return payWithRazorpay(await initiatePayment(id));
 };
 type Checkout = { open: () => void; on: (event: string, handler: () => void) => void };
@@ -23,25 +32,16 @@ declare global {
   }
 }
 let scriptPromise: Promise<void> | undefined;
-export const payWithRazorpay = async (intent: PaymentIntent): Promise<{status:string;refundStatus:string}> => {
-  const saved=sessionStorage.getItem(`nirvana_payment_${intent.bookingId}`);
-  if(saved){const status=await confirmPayment(String(intent.bookingId),JSON.parse(saved));sessionStorage.removeItem(`nirvana_payment_${intent.bookingId}`);return status;}
-  if (!window.Razorpay) {
-    scriptPromise ??= new Promise<void>((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      s.onload = () => resolve();
-      s.onerror = () => {
-        scriptPromise = undefined;
-        s.remove();
-        reject(new Error('Unable to load Razorpay. Please retry.'));
-      };
-      document.head.append(s);
-    });
-    await scriptPromise;
+export const payWithRazorpay = async (
+  intent: PaymentIntent
+): Promise<{ status: string; refundStatus: string }> => {
+  const saved = sessionStorage.getItem(`nirvana_payment_${intent.bookingId}`);
+  if (saved) {
+    const status = await confirmPayment(String(intent.bookingId), JSON.parse(saved));
+    sessionStorage.removeItem(`nirvana_payment_${intent.bookingId}`);
+    return status;
   }
-  if (!window.Razorpay) throw new Error('Razorpay is unavailable');
-  const Razorpay = window.Razorpay;
+  const Razorpay = await loadRazorpay();
   return new Promise((resolve, reject) => {
     const checkout = new Razorpay({
       key: intent.razorpayKeyId,
@@ -56,9 +56,9 @@ export const payWithRazorpay = async (intent: PaymentIntent): Promise<{status:st
         contact: intent.customerPhone
       },
       handler: async (result: RazorpayResult) => {
-        sessionStorage.setItem(`nirvana_payment_${intent.bookingId}`,JSON.stringify(result));
+        sessionStorage.setItem(`nirvana_payment_${intent.bookingId}`, JSON.stringify(result));
         try {
-          const status=await confirmPayment(String(intent.bookingId), result);
+          const status = await confirmPayment(String(intent.bookingId), result);
           sessionStorage.removeItem(`nirvana_payment_${intent.bookingId}`);
           resolve(status);
         } catch (e) {
@@ -80,3 +80,22 @@ export const payWithRazorpay = async (intent: PaymentIntent): Promise<{status:st
     checkout.open();
   });
 };
+
+export async function loadRazorpay() {
+  if (!window.Razorpay) {
+    scriptPromise ??= new Promise<void>((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      s.onload = () => resolve();
+      s.onerror = () => {
+        scriptPromise = undefined;
+        s.remove();
+        reject(new Error('Unable to load Razorpay. Please retry.'));
+      };
+      document.head.append(s);
+    });
+    await scriptPromise;
+  }
+  if (!window.Razorpay) throw new Error('Razorpay is unavailable');
+  return window.Razorpay;
+}

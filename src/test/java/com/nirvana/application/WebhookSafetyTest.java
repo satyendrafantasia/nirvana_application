@@ -17,14 +17,14 @@ class WebhookSafetyTest {
     @Test void invalidSignatureCannotMutatePayments(){
         var props=new RazorpayProperties();props.setWebhookSecret("secret");
         var service=mock(PaymentService.class);var payments=mock(PaymentRepository.class);var events=mock(PaymentWebhookEventRepository.class);
-        var controller=new RazorpayWebhookController(props,service,payments,events);
+        var controller=new RazorpayWebhookController(props,service,payments,mock(com.nirvana.application.service.impl.PackageCheckoutService.class),events);
         var request=new MockHttpServletRequest();request.addHeader("X-Razorpay-Signature","invalid");
         assertEquals(400,controller.handleWebhook(request,"{}").getStatusCode().value());verifyNoInteractions(service,payments,events);
     }
     @Test void authenticatedCaptureUsesSharedVerificationAndHeaderEventId() throws Exception {
         var props=new RazorpayProperties();props.setWebhookSecret("secret");
         var service=mock(PaymentService.class);var payments=mock(PaymentRepository.class);var events=mock(PaymentWebhookEventRepository.class);
-        var controller=new RazorpayWebhookController(props,service,payments,events);
+        var controller=new RazorpayWebhookController(props,service,payments,mock(com.nirvana.application.service.impl.PackageCheckoutService.class),events);
         String payload="{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_1\",\"order_id\":\"order_1\"}}}}";
         var request=new MockHttpServletRequest();request.addHeader("X-Razorpay-Event-Id","evt_1");
         Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec("secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));request.addHeader("X-Razorpay-Signature",HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8))));

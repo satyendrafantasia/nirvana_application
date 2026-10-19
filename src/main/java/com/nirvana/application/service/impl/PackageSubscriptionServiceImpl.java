@@ -54,38 +54,7 @@ public class PackageSubscriptionServiceImpl implements PackageSubscriptionServic
     @Override
     @Transactional
     public PackagePurchaseResponse purchasePackage(Long userId, CreatePackagePurchaseRequest request) {
-        if (!isPaymentSuccessful(request.getPaymentStatus())) {
-            throw new PackagePaymentFailedException("Payment not completed for package purchase");
-        }
-
-        ensureNoActivePackage(userId);
-
-        ServicePackage servicePackage = servicePackageRepository.findByPackageTypeAndActiveTrue(request.getPackageType())
-                .orElseThrow(() -> new EntityNotFoundException("Package not configured: " + request.getPackageType()));
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
-
-        OffsetDateTime now = OffsetDateTime.now();
-        int sessionCount = servicePackage.getSessionCount() != null
-                ? servicePackage.getSessionCount()
-                : request.getPackageType().getSessions();
-        UserPackageSubscription subscription = new UserPackageSubscription();
-        subscription.setUser(user);
-        subscription.setServicePackage(servicePackage);
-        subscription.setPackageType(servicePackage.getPackageType());
-        subscription.setPurchaseDate(now);
-        subscription.setActivatedAt(now);
-        subscription.setPaymentStatus(request.getPaymentStatus());
-        subscription.setPaymentReference(request.getPaymentReference());
-        subscription.setRemainingSessions(sessionCount);
-        subscription.setStatus(PackageStatus.ACTIVE);
-        subscription.setExpiryDate(resolveExpiry(now, servicePackage.getValidityDays()));
-
-        subscriptionRepository.save(subscription);
-        log.info("Package {} purchased by user {}", subscription.getPackageType(), userId);
-
-        return toPurchaseResponse(subscription);
+        throw new IllegalStateException("Use package Razorpay checkout to purchase and verify payment");
     }
 
     @Override
