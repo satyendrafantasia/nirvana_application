@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { createBooking, CreatedBooking } from '../../api/bookingApi';
 import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
-import { errorMessage } from '../../api/client';
+import client, { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
 export default function Payment({
   onNext,
@@ -21,6 +21,17 @@ export default function Payment({
   const [loyalty, setLoyalty] = useState(false);
   const [usePackage, setUsePackage] = useState(false);
   const [useSpaPackage, setUseSpaPackage] = useState(false);
+  const eligibility = useQuery({
+    queryKey: ['booking-package-eligibility', state.spaId, useSpaPackage],
+    enabled: !!state.spaId && (usePackage || useSpaPackage) && !created,
+    queryFn: async () =>
+      (
+        await client.get<{ canUse: boolean; reason?: string; remainingSessions?: number }>(
+          useSpaPackage ? '/api/v1/user/packages/can-use' : '/api/packages/can-use',
+          { params: { spaId: state.spaId } }
+        )
+      ).data
+  });
   const mutation = useMutation({
     mutationFn: async () => {
       if (!state.spaId || !state.service || !state.selectedSlot || !state.paymentMode)
@@ -128,6 +139,17 @@ export default function Payment({
           />
         </label>
       </fieldset>
+      {(usePackage || useSpaPackage) && !created && (
+        <p role="status">
+          {eligibility.isPending
+            ? 'Checking package eligibility…'
+            : eligibility.isError
+              ? errorMessage(eligibility.error)
+              : eligibility.data?.canUse
+                ? 'Your package is eligible for this spa.'
+                : eligibility.data?.reason || 'This package cannot be used for this appointment.'}
+        </p>
+      )}
       {created && (
         <p>
           Reference: {created.bookingReference} · Total:{' '}
@@ -145,7 +167,13 @@ export default function Payment({
         <Button variant="secondary" disabled={!!created || mutation.isPending} onClick={onBack}>
           Back
         </Button>
-        <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button
+          disabled={
+            mutation.isPending ||
+            (!created && (usePackage || useSpaPackage) && eligibility.data?.canUse !== true)
+          }
+          onClick={() => mutation.mutate()}
+        >
           {mutation.isPending ? 'Processing…' : created ? 'Retry payment' : 'Book appointment'}
         </Button>
       </div>

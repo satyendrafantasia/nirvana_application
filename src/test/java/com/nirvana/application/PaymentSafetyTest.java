@@ -53,6 +53,43 @@ class PaymentSafetyTest {
         var principal=new UserPrincipal(id,"customer","customer@test.invalid","",true,List.of());
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
     }
+    JSONObject paidLink() throws Exception {
+        gateway.paymentLink=mock(com.razorpay.PaymentLinkClient.class);
+        payment.setPaymentLinkId("plink_test");booking.setBookingReference("BOOK-test");
+        when(payments.findByPaymentLinkId("plink_test")).thenReturn(Optional.of(payment));
+        remote("captured",true,125000,"INR","order_link");
+        return new JSONObject().put("id","plink_test").put("reference_id","BOOK-test").put("amount",125000).put("amount_paid",125000).put("currency","INR").put("status","paid").put("order_id","order_link").put("payments",new org.json.JSONArray().put(new JSONObject().put("payment_id","pay_test")));
+    }
+    @Test void verifiedPaymentLinkConfirmsOnceWithoutReplacingReceipt() throws Exception {
+        var link=paidLink();when(gateway.paymentLink.fetch("plink_test")).thenReturn(new com.razorpay.PaymentLink(link));
+        service.reconcilePaymentLink("plink_test");service.reconcilePaymentLink("plink_test");
+        assertEquals(BookingStatus.CONFIRMED,booking.getStatus());assertEquals("order_test",payment.getIntentId());assertEquals("order_link",payment.getPaymentLinkOrderId());assertEquals("existing-receipt",payment.getReceiptUrl());verify(notifications,times(1)).scheduleBookingNotifications(booking);
+    }
+    @Test void linkForWrongBookingCannotConfirm() throws Exception {
+        var link=paidLink().put("reference_id","another");when(gateway.paymentLink.fetch("plink_test")).thenReturn(new com.razorpay.PaymentLink(link));
+        assertThrows(IllegalArgumentException.class,()->service.reconcilePaymentLink("plink_test"));assertEquals(BookingStatus.PENDING_PAYMENT,booking.getStatus());
+    }
+    @Test void linkCurrencyMismatchCannotConfirm() throws Exception {
+        var link=paidLink().put("currency","GBP");when(gateway.paymentLink.fetch("plink_test")).thenReturn(new com.razorpay.PaymentLink(link));
+        assertThrows(IllegalArgumentException.class,()->service.reconcilePaymentLink("plink_test"));
+    }
+    @Test void partiallyPaidLinkCannotConfirm() throws Exception {
+        var link=paidLink().put("status","partially_paid").put("amount_paid",100);when(gateway.paymentLink.fetch("plink_test")).thenReturn(new com.razorpay.PaymentLink(link));
+        service.reconcilePaymentLink("plink_test");assertEquals(BookingStatus.PENDING_PAYMENT,booking.getStatus());
+    }
+    @Test void unrelatedOrderDoesNotBlockOtherProductWebhookHandlers() {
+        assertDoesNotThrow(()->service.reconcileCapturedPayment("package-order","package-payment"));
+    }
+    @Test void linkCreationReusesStoredLinkAndUsesAuthoritativeAmount() throws Exception {
+        gateway.paymentLink=mock(com.razorpay.PaymentLinkClient.class);
+        booking.setBookingReference("BOOK-test");booking.setStartTs(java.time.OffsetDateTime.now().plusDays(2));
+        when(payments.findByBookingIdAndGateway(10L,"RAZORPAY")).thenReturn(Optional.of(payment));
+        var link=new com.razorpay.PaymentLink(new JSONObject().put("id","plink_new").put("short_url","https://rzp.io/example").put("status","created").put("expire_by",booking.getStartTs().minusMinutes(30).toEpochSecond()));
+        when(gateway.paymentLink.create(any())).thenAnswer(invocation->{JSONObject request=invocation.getArgument(0);assertEquals(125000,request.getInt("amount"));assertEquals("INR",request.getString("currency"));assertFalse(request.getBoolean("accept_partial"));return link;});
+        when(gateway.paymentLink.fetch("plink_new")).thenReturn(link);
+        assertEquals("plink_new",service.createPaymentLinkForBooking(10L,null).razorpayPaymentLinkId());
+        service.createPaymentLinkForBooking(10L,null);verify(gateway.paymentLink,times(1)).create(any());assertEquals("existing-receipt",payment.getReceiptUrl());
+    }
     void remote(String status,boolean captured,int amount,String currency,String order) throws Exception {
         when(gateway.payments.fetch("pay_test")).thenReturn(new com.razorpay.Payment(new JSONObject().put("id","pay_test").put("order_id",order).put("amount",amount).put("currency",currency).put("status",status).put("captured",captured)));
     }

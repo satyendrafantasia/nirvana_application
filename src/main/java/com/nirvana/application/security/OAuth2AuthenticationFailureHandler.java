@@ -15,6 +15,8 @@ import java.util.Map;
 @Component
 public class OAuth2AuthenticationFailureHandler implements AuthenticationFailureHandler {
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
     private final ObjectMapper objectMapper;
 
     public OAuth2AuthenticationFailureHandler(ObjectMapper objectMapper) {
@@ -24,11 +26,6 @@ public class OAuth2AuthenticationFailureHandler implements AuthenticationFailure
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException, ServletException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("error", "oauth2_authentication_failed");
-        payload.put("message", exception.getMessage());
-        response.getWriter().write(objectMapper.writeValueAsString(payload));
+        response.sendRedirect(frontendUrl + "/auth/social/callback?error=oauth_failed");
     }
 }

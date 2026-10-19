@@ -40,7 +40,7 @@ public class MapController {
     public MapProviderConfigResponse providerConfig() {
         return new MapProviderConfigResponse(
                 mapProviderProperties.getProvider(),
-                mapProviderProperties.getActiveApiKey(),
+                null,
                 mapProviderProperties.getActiveBaseUrl(),
                 mapProviderProperties.getActiveStaticStyle()
         );

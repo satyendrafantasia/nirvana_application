@@ -306,6 +306,25 @@
           ],
           "body": null,
           "multipart": false
+        },
+        {
+          "title": "Create payment link",
+          "path": "/api/bookings/{bookingId}/payments/razorpay/payment-link",
+          "method": "POST",
+          "parameters": [
+            {
+              "name": "bookingId",
+              "in": "path",
+              "description": "Booking identifier",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          ],
+          "body": null,
+          "multipart": false
         }
       ]
     },
@@ -400,6 +419,24 @@
           "method": "GET",
           "path": "/api/packages/usage-history",
           "parameters": [],
+          "body": null,
+          "multipart": false
+        },
+        {
+          "title": "Check central package eligibility",
+          "path": "/api/packages/can-use",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "spaId",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          ],
           "body": null,
           "multipart": false
         }
@@ -894,6 +931,42 @@
           "body": {
             "$ref": "#/components/schemas/WaitlistRequest"
           },
+          "multipart": false
+        },
+        {
+          "title": "Therapist availability",
+          "path": "/api/spas/{spaId}/services/{serviceId}/therapists/availability",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "spaId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "format": "int64"
+              }
+            },
+            {
+              "name": "serviceId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "format": "int64"
+              }
+            },
+            {
+              "name": "date",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          ],
+          "body": null,
           "multipart": false
         }
       ]
@@ -1829,6 +1902,34 @@
           "multipart": false
         }
       ]
+    },
+    {
+      "id": "spa-settings",
+      "title": "Full Spa Settings",
+      "access": "staff",
+      "description": "Opening hours, assignments and location settings.",
+      "actions": []
+    },
+    {
+      "id": "onboarding-drafts",
+      "title": "Onboarding Drafts",
+      "access": "staff",
+      "description": "Save a new spa registration and resume it later.",
+      "actions": []
+    },
+    {
+      "id": "files",
+      "title": "File Management",
+      "access": "admin",
+      "description": "Download, inspect or delete a stored file by its key.",
+      "actions": []
+    },
+    {
+      "id": "map",
+      "title": "Interactive Map",
+      "access": "customer",
+      "description": "Explore nearby spas on the map and estimate travel time.",
+      "actions": []
     }
   ],
   "schemas": {

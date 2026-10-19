@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useEffect, useState } from 'react';
-import { login as loginApi, register as registerApi } from '../api/authApi';
+import { authView, login as loginApi, register as registerApi } from '../api/authApi';
 import { AuthResponse, LoginPayload, RegisterPayload, User } from '../types/auth';
 import { getMe } from '../api/userApi';
 import client from '../api/client';
@@ -78,6 +78,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     hydrateUser();
   }, [hydrateUser]);
+
+  useEffect(() => {
+    const renewed = (event: Event) => {
+      persistAuth(authView((event as CustomEvent).detail));
+    };
+    const expired = () => {
+      queryClient.clear();
+      setUserState(null);
+      setToken(null);
+    };
+    window.addEventListener('nirvana:renewed', renewed);
+    window.addEventListener('nirvana:expired', expired);
+    return () => {
+      window.removeEventListener('nirvana:renewed', renewed);
+      window.removeEventListener('nirvana:expired', expired);
+    };
+  }, [queryClient]);
 
   const value: AuthContextValue = {
     user,

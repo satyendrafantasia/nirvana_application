@@ -64,6 +64,7 @@ public class RazorpayWebhookController {
 
             switch (event) {
                 case "payment.captured" -> handlePaymentCaptured(root);
+                case "payment_link.paid" -> paymentService.reconcilePaymentLink(root.path("payload").path("payment_link").path("entity").path("id").asText());
                 case "payment.failed" -> handlePaymentFailed(root);
                 case "refund.processed" -> handleRefundProcessed(root);
                 default -> log.info("Ignoring unsupported Razorpay event: {}", event);

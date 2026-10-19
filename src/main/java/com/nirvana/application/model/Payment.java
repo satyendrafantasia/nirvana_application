@@ -102,6 +102,11 @@ public class Payment extends BaseEntity {
     @Column(name = "last_refund_id")
     private String lastRefundId;
 
+    @Column(name="payment_link_id", unique=true, length=128)
+    private String paymentLinkId;
+    @Column(name="payment_link_order_id", length=128)
+    private String paymentLinkOrderId;
+
     @Version
     private Long version;
 }

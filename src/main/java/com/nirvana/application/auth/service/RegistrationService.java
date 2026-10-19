@@ -65,6 +65,10 @@ public class RegistrationService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .active(true)
                 .isActive(true)
+                .privacyConsentedAt(OffsetDateTime.now())
+                .privacyConsentVersion("v1")
+                .consentSource("verified_registration")
+                .marketingOptIn(false)
                 .emailVerified(verification.getEmail() != null)
                 .phoneVerified(verification.getPhoneNumber() != null)
                 .build();

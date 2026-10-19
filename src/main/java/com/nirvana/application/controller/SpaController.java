@@ -42,6 +42,10 @@ public class SpaController {
         return spaService.createSpa(request);
     }
 
+    @GetMapping("/{id}/settings")
+    @org.springframework.security.access.prepost.PreAuthorize("@staffAccess.spa(#id)")
+    public SpaResponseDTO settings(@PathVariable Long id) { return spaService.getSpaById(id); }
+
     // SPA DETAILS for detail screen
     @GetMapping("/{id}")
     @Operation(summary = "Get spa details", description = "Fetch spa profile, amenities and imagery for detail screens.")

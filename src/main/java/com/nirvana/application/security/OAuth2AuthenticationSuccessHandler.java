@@ -17,6 +17,8 @@ import java.io.IOException;
 @Component
 public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
     private final AuthService authService;
     private final ObjectMapper objectMapper;
 
@@ -37,8 +39,11 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         String provider = token.getAuthorizedClientRegistrationId();
         AuthResponse authResponse = authService.socialLogin(provider, oauth2User);
 
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType("application/json");
-        response.getWriter().write(objectMapper.writeValueAsString(authResponse));
+        request.getSession(true);
+        request.changeSessionId();
+        request.getSession().setAttribute("SPA_OAUTH_RESULT", authResponse);
+        request.getSession().setAttribute("SPA_OAUTH_EXPIRES", System.currentTimeMillis() + 60000L);
+        response.setHeader("Cache-Control", "no-store");
+        response.sendRedirect(frontendUrl + "/auth/social/callback");
     }
 }

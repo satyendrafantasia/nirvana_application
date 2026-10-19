@@ -10,6 +10,9 @@ public class CompleteRegistrationRequest {
     @NotBlank
     private String registrationToken;
 
+    @jakarta.validation.constraints.AssertTrue(message="Privacy consent is required")
+    private boolean acceptPrivacyPolicy;
+
     @NotBlank
     @Size(min = 2, max = 255)
     private String fullName;

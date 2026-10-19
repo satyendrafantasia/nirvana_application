@@ -17,6 +17,13 @@ public class S3Controller {
 
     private final S3Service s3Service;
 
+    @GetMapping("/object/download")
+    public ResponseEntity<byte[]> downloadObject(@RequestParam String key) { return download(key); }
+    @GetMapping("/object/url")
+    public ResponseEntity<String> objectUrl(@RequestParam String key) { return getUrl(key); }
+    @DeleteMapping("/object")
+    public ResponseEntity<Void> deleteObject(@RequestParam String key) { return delete(key); }
+
     @PostMapping("/upload")
     public ResponseEntity<UploadResponse> upload(@RequestParam("file") MultipartFile file) {
         UploadResponse resp = s3Service.uploadFile(file);

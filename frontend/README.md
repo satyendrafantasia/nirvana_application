@@ -27,7 +27,7 @@ The backend's existing authentication requirements are preserved: sign in before
 - My bookings with pagination, server cancellation eligibility, cancellation confirmation, rescheduling and pending-payment retry.
 - Spa reviews and FAQ display.
 
-No hotel room/night flow is used. Customer, spa staff and administration workspaces are now available. Social OAuth browser handoff is not implemented. Account settings shows the existing auth profile only: there is no invented /api/me update endpoint. Privacy/terms content still needs the operator's approved policy before registration is deployed publicly.
+No hotel room/night flow is used. Customer, spa staff and administration workspaces are now available. Social OAuth browser handoff is connected when a provider is configured. Account settings shows the existing auth profile only: there is no invented /api/me update endpoint. Privacy/terms content still needs the operator's approved policy before registration is deployed publicly.
 
 ## Local integration profile
 
@@ -67,3 +67,18 @@ Menus and direct routes are restricted using server-returned roles. ROLE_SPA_OWN
 Booking now reserves a ten-minute slot hold before checkout and passes its token to booking creation. Customers can join unavailable slots' waitlists. V33 normalizes legacy corporate enum values; employee responses use a bounded DTO rather than serializing user entities. V34 adds unique Razorpay order IDs and currency snapshots for spa package checkout. Central and spa-specific packages are separate redemption options.
 
 Provider-dependent actions require configured Razorpay, email/SMS, Google or S3 credentials as applicable. Local preview does not deliver external messages or execute real payments. No profile-edit endpoint was invented where the backend only supports reading the account.
+
+
+## Remaining API features connected
+
+- Verified registration: request email OTP, verify, then complete registration with privacy consent. OTP delivery must be configured; disabled delivery produces a visible error and does not bypass verification.
+- Session renewal: a protected request that receives 401 refreshes once, shares concurrent refresh work, rotates both tokens, updates server-returned roles, and clears expired sessions. Logging out during refresh cannot restore that session.
+- Social login: configured provider buttons call the backend authorization endpoint. The success handler retains the result in the same browser session for a single exchange, expiring after 60 seconds. Tokens are never placed in callback URLs. Set FRONTEND_URL to the exact frontend origin; serve /api and /oauth2 through the same origin/proxy. Existing security.oauth2.client settings now bind explicitly and omit providers with blank credentials. Configure the provider callback as /oauth2/callback/{provider}. Real OAuth provider verification remains a deployment test.
+- Manage spa > Full Spa Settings: protected settings reads prefill hours, days, profile, tax/currency, assignments and media metadata. Version is preserved for optimistic locking. Platform commission and featured placement require administrator authority in both UI and backend. Deactivation requires an explicit checkbox. Administrators can load inactive/unlisted spas by ID.
+- Manage spa > Onboarding Drafts: save, list, resume, update, extend and delete drafts for registration, business details, address and KYC. Completed drafts are cleared after submission. Older draft formats can be reviewed without silently interpreting them as a different form. Updates return the flushed version so repeated saves work.
+- Payments & Refunds > Create payment link: creates or reuses a persisted Razorpay link using the stored payment amount/currency. V35 records the link and verified link order. Subscribe the webhook to payment_link.paid in addition to payment.captured and refund.processed. Server fetches link and payment before settlement; receipt URLs are not replaced with checkout URLs. Payment links do not automatically send SMS/email. External gateway calls are mocked in tests.
+- Package eligibility is shown before submitting package-funded bookings. Availability includes a dedicated therapist query. Booking creation still validates eligibility authoritatively.
+- Interactive Map: lazy-loaded Leaflet/OpenStreetMap tiles, location selection, nearby-spa markers, pagination and backend travel estimates. Browser location is requested only after clicking Use my location. Server map keys are not returned to the browser. Map tiles require network access and retain OpenStreetMap attribution.
+- Administration > File Management: retrieve a link, download a blob or confirm permanent deletion by object key. Admin-only query-parameter routes support keys containing slashes. S3 credentials/storage access are required; media upload remains in Manage spa.
+
+The added /api/spas/{id}/settings route requires the same spa ownership guard as updates. /api/s3/object routes inherit the administrator guard. Drafts are scoped to their owner. The new screens also reject direct navigation for unauthorized roles.

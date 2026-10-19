@@ -1,3 +1,4 @@
+import SocialLogin from './SocialLogin';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Input from '../../components/common/Input';
@@ -42,8 +43,11 @@ const Login = () => {
             {mutation.isPending ? 'Signing in...' : 'Login'}
           </Button>
         </form>
-        <Link className="block text-primary-700" to="/auth/password">Forgot password?</Link>
+        <Link className="block text-primary-700" to="/auth/password">
+          Forgot password?
+        </Link>
         <Link to="/auth/otp">Sign in with OTP / verify MFA</Link>
+        <SocialLogin />
         <p className="text-sm text-slate-600">
           New here?{' '}
           <Link to="/auth/register" className="text-primary-600">

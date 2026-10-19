@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, PaymentMfaVerifier.MfaProperties.class, OAuth2ClientProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, PaymentMfaVerifier.MfaProperties.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -121,6 +121,15 @@ public class SecurityConfig {
     }
 
     @Bean
+    public OAuth2ClientProperties spaOAuthProperties(org.springframework.core.env.Environment environment) {
+        var properties = org.springframework.boot.context.properties.bind.Binder.get(environment)
+            .bind("security.oauth2.client", org.springframework.boot.context.properties.bind.Bindable.of(OAuth2ClientProperties.class))
+            .orElseGet(OAuth2ClientProperties::new);
+        properties.getRegistration().entrySet().removeIf(e -> e.getValue().getClientId() == null || e.getValue().getClientId().isBlank() || e.getValue().getClientSecret() == null || e.getValue().getClientSecret().isBlank());
+        return properties;
+    }
+
+    @Bean
     public ClientRegistrationRepository clientRegistrationRepository(OAuth2ClientProperties clientProperties) {
         Map<String, OAuth2ClientProperties.Registration> regs = clientProperties.getRegistration();
         if (regs == null || regs.isEmpty()) {
@@ -134,23 +143,24 @@ public class SecurityConfig {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        return new InMemoryClientRegistrationRepository(registrations);
+        return registrations.isEmpty() ? id -> null : new InMemoryClientRegistrationRepository(registrations);
     }
 
     private ClientRegistration buildRegistration(String registrationId, OAuth2ClientProperties clientProperties) {
         OAuth2ClientProperties.Registration reg = clientProperties.getRegistration().get(registrationId);
-        if (reg == null) return null;
+        if (reg == null || reg.getClientId() == null || reg.getClientId().isBlank() || reg.getClientSecret() == null || reg.getClientSecret().isBlank()) return null;
 
         OAuth2ClientProperties.Provider provider = null;
-        if (reg.getProvider() != null) {
-            provider = clientProperties.getProvider().get(reg.getProvider());
-        }
-
-        ClientRegistration.Builder builder = ClientRegistration.withRegistrationId(registrationId)
+        String providerId = reg.getProvider() != null ? reg.getProvider() : registrationId;
+        provider = clientProperties.getProvider().get(providerId);
+        ClientRegistration.Builder base;
+        try { base = org.springframework.security.config.oauth2.client.CommonOAuth2Provider.valueOf(providerId.toUpperCase()).getBuilder(registrationId); }
+        catch (IllegalArgumentException unknown) { base = ClientRegistration.withRegistrationId(registrationId); }
+        ClientRegistration.Builder builder = base
                 .clientId(reg.getClientId())
                 .clientSecret(reg.getClientSecret())
                 .authorizationGrantType(resolveGrantType(reg.getAuthorizationGrantType()))
-                .redirectUri(reg.getRedirectUri() != null ? reg.getRedirectUri() : "{baseUrl}/login/oauth2/code/{registrationId}");
+                .redirectUri(reg.getRedirectUri() != null ? reg.getRedirectUri() : "{baseUrl}/oauth2/callback/{registrationId}");
 
         if (reg.getScope() != null && !reg.getScope().isEmpty()) {
             builder.scope(reg.getScope().toArray(new String[0]));

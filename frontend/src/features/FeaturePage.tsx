@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import client, { errorMessage } from '../api/client';
@@ -7,9 +7,13 @@ import { canOpen, isAdmin, isStaff } from '../auth/roles';
 import { features, Operation, resolve, Schema, buildRequest } from './model';
 import Fields, { Choice } from './Fields';
 import Results from './Results';
+import SpaSettings from '../pages/Staff/SpaSettings';
+import Drafts from '../pages/Staff/Drafts';
+import Files from '../pages/Staff/Files';
 import { payForPackage } from '../api/packageApi';
 import Button from '../components/common/Button';
 type Values = Record<string, unknown>;
+const SpaMap = lazy(() => import('../pages/SpaSearch/SpaMap'));
 export default function FeaturePage() {
   const { feature } = useParams();
   const { user } = useAuth();
@@ -21,6 +25,15 @@ export default function FeaturePage() {
         <h1 className="text-2xl font-bold">Access restricted</h1>
         <p>This area is available only to authorized staff.</p>
       </div>
+    );
+  if (item.id === 'spa-settings') return <SpaSettings />;
+  if (item.id === 'onboarding-drafts') return <Drafts />;
+  if (item.id === 'files') return <Files />;
+  if (item.id === 'map')
+    return (
+      <Suspense fallback={<p className="p-8">Loading map…</p>}>
+        <SpaMap />
+      </Suspense>
     );
   return <Workspace key={item.id} id={item.id} />;
 }
@@ -37,8 +50,7 @@ function Workspace({ id }: { id: string }) {
     queryFn: async () => {
       if (isStaff(user?.roles) && !isAdmin(user?.roles))
         return (await client.get('/api/onboarding/spas')).data;
-      return (await client.get('/api/spas/search', { params: { page: 0, size: 50 } })).data
-        .content;
+      return (await client.get('/api/spas/search', { params: { page: 0, size: 50 } })).data.content;
     }
   });
   const bookings = useQuery({

@@ -1,69 +1,124 @@
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
-import { showToast } from '../../components/common/Toast';
-
-const Register = () => {
+import client, { errorMessage } from '../../api/client';
+import { authView } from '../../api/authApi';
+export default function Register() {
+  const [email, setEmail] = useState(''),
+    [verification, setVerification] = useState(''),
+    [registration, setRegistration] = useState('');
+  const { acceptAuth } = useAuth();
   const navigate = useNavigate();
-  const { register } = useAuth();
-
-  const mutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const firstName = String(formData.get('firstName'));
-      const lastName = String(formData.get('lastName'));
-      const email = String(formData.get('email'));
-      const password = String(formData.get('password'));
-      await register({ firstName, lastName, email, password });
-    },
-    onSuccess: () => {
-      showToast('Account created', 'success');
+  const action = useMutation({
+    mutationFn: async (form: FormData) => {
+      if (!verification) {
+        const { data } = await client.post('/api/auth/register/request-otp', { email });
+        setVerification(data.verificationId);
+        return;
+      }
+      if (!registration) {
+        const { data } = await client.post('/api/auth/register/verify-otp', {
+          verificationId: verification,
+          otp: String(form.get('otp'))
+        });
+        setRegistration(data.registrationToken);
+        return;
+      }
+      if (form.get('password') !== form.get('confirm')) throw new Error('Passwords must match.');
+      const { data } = await client.post('/api/auth/register/complete', {
+        registrationToken: registration,
+        acceptPrivacyPolicy: form.get('privacy') === 'on',
+        fullName: String(form.get('fullName')),
+        password: String(form.get('password'))
+      });
+      acceptAuth(
+        authView({
+          ...data,
+          userId: data.user.id,
+          username: data.user.email || data.user.phoneNumber
+        })
+      );
       navigate('/');
-    },
-    onError: () => showToast('Registration failed. Try again.', 'error')
+    }
   });
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    mutation.mutate(formData);
-  };
-
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-10">
-      <div className="card space-y-6 p-6">
-        <h1 className="text-2xl font-bold text-slate-900">Create an account</h1>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input name="firstName" label="First name" required />
-            <Input name="lastName" label="Last name" required />
-          </div>
-          <Input name="email" type="email" label="Email" required />
+    <div className="max-w-md mx-auto p-8 space-y-5">
+      <h1 className="text-2xl font-bold">Create an account</h1>
+      <p>
+        {registration
+          ? 'Complete your verified account.'
+          : verification
+            ? `Enter the code sent to ${email}.`
+            : 'Verify your email to create your account.'}
+      </p>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          action.mutate(new FormData(e.currentTarget));
+        }}
+      >
+        {!verification ? (
           <Input
-            name="password"
-            type="password"
-            label="Password"
-            minLength={6}
-            maxLength={20}
+            label="Email"
+            type="email"
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
+        ) : !registration ? (
+          <Input label="Verification code" name="otp" required autoComplete="one-time-code" />
+        ) : (
+          <>
+            <Input label="Full name" name="fullName" required minLength={2} />
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={255}
+            />
+            <Input label="Confirm password" name="confirm" type="password" required minLength={8} />
+          </>
+        )}
+        {registration && (
           <label className="block text-sm">
-            <input type="checkbox" required /> I accept the spa platform privacy policy.
+            <input name="privacy" type="checkbox" required /> I accept the spa platform privacy
+            policy.
           </label>
-          <Button disabled={mutation.isPending} type="submit" className="w-full">
-            {mutation.isPending ? 'Creating...' : 'Register'}
-          </Button>
-        </form>
-        <p className="text-sm text-slate-600">
-          Already have an account?{' '}
-          <Link to="/auth/login" className="text-primary-600">
-            Login
-          </Link>
+        )}
+        <Button disabled={action.isPending} type="submit">
+          {action.isPending
+            ? 'Please wait…'
+            : registration
+              ? 'Create account'
+              : verification
+                ? 'Verify code'
+                : 'Send verification code'}
+        </Button>
+      </form>
+      {verification && !registration && (
+        <button
+          className="text-primary-700 underline"
+          onClick={() => {
+            setVerification('');
+            action.reset();
+          }}
+        >
+          Change email or request another code
+        </button>
+      )}
+      {action.isError && (
+        <p role="alert" className="text-rose-700">
+          {errorMessage(action.error)}
         </p>
-      </div>
+      )}
+      <Link to="/auth/login">Already have an account? Sign in</Link>
     </div>
   );
-};
-
-export default Register;
+}

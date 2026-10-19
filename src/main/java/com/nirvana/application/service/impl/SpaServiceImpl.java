@@ -87,6 +87,11 @@ public class SpaServiceImpl implements SpaService {
             throw new BusinessException("Version mismatch: concurrent modification detected");
         }
 
+        var authorities = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+        boolean admin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_PLATFORM_ADMIN"));
+        if (!admin && ((!Objects.equals(request.getCommissionPct(), spa.getCommissionPct())) || !Objects.equals(request.getFeatured(), spa.getIsFeatured()))) {
+            throw new org.springframework.security.access.AccessDeniedException("Only administrators can change platform commission or featured placement");
+        }
         applyRequestToEntity(spa, request, true);
         attachTherapists(spa, request.getTherapistIds());
         attachServices(spa, request.getServiceIds());
@@ -285,36 +290,24 @@ public class SpaServiceImpl implements SpaService {
     }
 
     private void attachMediaAssets(Spa spa, List<SpaMediaImageDto> images, List<SpaMediaVideoDto> videos) {
-        if (images == null && videos == null) {
-            return;
+        if (images == null && videos == null) return;
+        var existing = new java.util.HashMap<String,MediaAsset>();
+        for (var asset : spa.getMediaAssets()) existing.put(asset.getMediaType()+":"+asset.getObjectKey(), asset);
+        var desired = new java.util.ArrayList<MediaAsset>();
+        if (images == null) desired.addAll(spa.getMediaAssets().stream().filter(a -> a.getMediaType()==MediaType.IMAGE).toList());
+        else for (var image : images) desired.add(mediaForSettings(spa, existing, MediaType.IMAGE, image.getObjectKey(), image.getTitle(), image.getPosition()));
+        if (videos == null) desired.addAll(spa.getMediaAssets().stream().filter(a -> a.getMediaType()==MediaType.VIDEO).toList());
+        else for (var video : videos) desired.add(mediaForSettings(spa, existing, MediaType.VIDEO, video.getObjectKey(), video.getTitle(), video.getPosition()));
+        if (desired.stream().map(a -> a.getMediaType()+":"+a.getObjectKey()).distinct().count()!=desired.size()) throw new BusinessException("Duplicate media keys");
+        spa.getMediaAssets().clear();spa.getMediaAssets().addAll(desired);
+    }
+    private MediaAsset mediaForSettings(Spa spa, java.util.Map<String,MediaAsset> existing, MediaType type, String key, String title, Integer position) {
+        var asset = existing.get(type+":"+key);
+        if (asset == null) {
+            validateMediaObjectKey(spa.getId(),key,type);
+            asset=MediaAsset.builder().spa(spa).mediaType(type).objectKey(key).build();
         }
-        spa.getMediaAssets().clear();
-
-        if (images != null) {
-            images.forEach(image -> {
-                validateMediaObjectKey(spa.getId(), image.getObjectKey(), MediaType.IMAGE);
-                spa.getMediaAssets().add(MediaAsset.builder()
-                        .spa(spa)
-                        .mediaType(MediaType.IMAGE)
-                        .objectKey(image.getObjectKey())
-                        .title(image.getTitle())
-                        .position(image.getPosition())
-                        .build());
-            });
-        }
-
-        if (videos != null) {
-            videos.forEach(video -> {
-                validateMediaObjectKey(spa.getId(), video.getObjectKey(), MediaType.VIDEO);
-                spa.getMediaAssets().add(MediaAsset.builder()
-                        .spa(spa)
-                        .mediaType(MediaType.VIDEO)
-                        .objectKey(video.getObjectKey())
-                        .title(video.getTitle())
-                        .position(video.getPosition())
-                        .build());
-            });
-        }
+        asset.setTitle(title);asset.setPosition(position);return asset;
     }
 
     private LocalTime parseLocalTime(String value, String fieldName) {
@@ -357,7 +350,7 @@ public class SpaServiceImpl implements SpaService {
     }
 
     private String formatTime(LocalTime time) {
-        return time != null ? time.toString() : null;
+        return time != null ? time.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")) : null;
     }
 
     private SpaResponseDTO toResponseDto(Spa spa) {

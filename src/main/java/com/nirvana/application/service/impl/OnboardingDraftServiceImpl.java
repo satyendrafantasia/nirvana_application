@@ -49,7 +49,7 @@ public class OnboardingDraftServiceImpl implements OnboardingDraftService {
         draft.setLastClientEventAt(request.getClientEventAt());
         draft.setClientRequestId(request.getClientRequestId());
 
-        OnboardingDraft saved = repository.save(draft);
+        OnboardingDraft saved = repository.saveAndFlush(draft);
 
         log.info("Saved onboarding draft token={} owner={} step={} spaId={} clientRequestId={} version={}"
                 , saved.getResumeToken(), ownerUserId, saved.getStepKey(), saved.getSpaId(), saved.getClientRequestId(), saved.getVersion());
@@ -72,7 +72,7 @@ public class OnboardingDraftServiceImpl implements OnboardingDraftService {
         validateNotExpired(draft);
 
         draft.setExpiresAt(OffsetDateTime.now().plus(HOLD_DURATION));
-        OnboardingDraft saved = repository.save(draft);
+        OnboardingDraft saved = repository.saveAndFlush(draft);
         log.info("Heartbeat extended draft token={} owner={} until {}", saved.getResumeToken(), ownerUserId, saved.getExpiresAt());
         return toResponse(saved);
     }

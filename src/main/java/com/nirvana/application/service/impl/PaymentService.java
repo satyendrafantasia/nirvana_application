@@ -204,8 +204,8 @@ public class PaymentService {
     /** Called only after webhook authentication; no browser-supplied success flag is trusted. */
     @Transactional
     public void reconcileCapturedPayment(String orderId, String paymentId) {
-        Long bookingId = paymentRepository.findBookingIdByIntentId(orderId)
-                .orElseThrow(() -> new EntityNotFoundException("Payment order not found"));
+        Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElse(null);
+        if (bookingId == null) return; // Other products and payment links use their own reconciliation paths.
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
         // Reload after acquiring the booking lock so concurrent checkout/webhook events see committed state.
@@ -216,6 +216,7 @@ public class PaymentService {
     @Transactional
     public void reconcilePendingOrder(String orderId) {
         ensureRazorpayEnabled();
+        paymentRepository.findByIntentId(orderId).filter(p -> p.getPaymentLinkId()!=null).ifPresent(p -> reconcilePaymentLink(p.getPaymentLinkId()));
         try {
             for (com.razorpay.Payment remote : razorpayClient.orders.fetchPayments(orderId)) {
                 if ("captured".equals(remote.get("status"))) {
@@ -229,7 +230,8 @@ public class PaymentService {
 
     @Transactional
     public void reconcileFailedPayment(String orderId, String paymentId) {
-        Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElseThrow();
+        Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElse(null);
+        if (bookingId == null) return;
         bookingRepository.findByIdForUpdate(bookingId).orElseThrow();
         Payment payment = paymentRepository.findByIntentId(orderId).orElseThrow();
         if (payment.getPaymentStatus() != PaymentStatus.INIT && payment.getPaymentStatus() != PaymentStatus.PENDING) return;
@@ -244,12 +246,13 @@ public class PaymentService {
 
     @Transactional
     public void reconcileRefund(String paymentId) {
-        Long bookingId = paymentRepository.findBookingIdByTransactionId(paymentId).orElseThrow();
+        Long bookingId = paymentRepository.findBookingIdByTransactionId(paymentId).orElse(null);
+        if (bookingId == null) return;
         Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElseThrow();
         Payment payment = paymentRepository.findByTransactionId(paymentId).orElseThrow();
         try {
             com.razorpay.Payment remote = razorpayClient.payments.fetch(paymentId);
-            if (!payment.getIntentId().equals(remote.get("order_id")) || ((Number)remote.get("amount")).intValue() != payment.getAmountCents()
+            if ((!Objects.equals(payment.getIntentId(),remote.get("order_id")) && !Objects.equals(payment.getPaymentLinkOrderId(),remote.get("order_id"))) || ((Number)remote.get("amount")).intValue() != payment.getAmountCents()
                     || !payment.getCurrency().equalsIgnoreCase(remote.get("currency"))) throw new IllegalArgumentException("Refund payment mismatch");
             int refunded = ((Number)remote.get("amount_refunded")).intValue();
             if (refunded <= 0 || refunded > payment.getAmountCents()) throw new IllegalArgumentException("Invalid refunded amount");
@@ -264,6 +267,9 @@ public class PaymentService {
     }
 
     private void settleCapturedPayment(Booking booking, Payment payment, String paymentId) {
+        settleCapturedPayment(booking,payment,paymentId,payment.getIntentId());
+    }
+    private void settleCapturedPayment(Booking booking, Payment payment, String paymentId, String expectedOrderId) {
         ensureRazorpayEnabled();
         if (booking.getPaymentMode() != PaymentMode.ONLINE || !GATEWAY_RAZORPAY.equals(payment.getGateway())) {
             throw new IllegalArgumentException("Not an online Razorpay booking");
@@ -271,7 +277,7 @@ public class PaymentService {
         try {
             com.razorpay.Payment remote = razorpayClient.payments.fetch(paymentId);
             if (!paymentId.equals(remote.get("id"))
-                    || !payment.getIntentId().equals(remote.get("order_id"))
+                    || !expectedOrderId.equals(remote.get("order_id"))
                     || ((Number) remote.get("amount")).intValue() != payment.getAmountCents()
                     || !payment.getCurrency().equalsIgnoreCase(remote.get("currency"))) {
                 throw new IllegalArgumentException("Gateway payment does not match the stored order, amount and currency");
@@ -406,71 +412,56 @@ public class PaymentService {
     @Transactional
     public PaymentLinkInitResponse createPaymentLinkForBooking(Long bookingId, String idempotencyKey) {
         ensureRazorpayEnabled();
-
         Booking booking = ownedBooking(bookingId);
-
-        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getPaymentMode() != PaymentMode.ONLINE) {
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getPaymentMode() != PaymentMode.ONLINE)
             throw new IllegalStateException("Only pending online bookings can start payment");
-        }
-        int amountSubunits = booking.getRemainderCents();
-        if (amountSubunits <= 0) {
-            throw new IllegalStateException("Invalid amount for booking: " + amountSubunits);
-        }
-
+        Payment payment = paymentRepository.findByBookingIdAndGateway(bookingId, GATEWAY_RAZORPAY).orElseThrow(() -> new EntityNotFoundException("Payment order not found"));
         try {
-            JSONObject req = new JSONObject();
-            req.put("amount", amountSubunits);
-            req.put("currency", razorpayProps.getCurrency());
-            req.put("description", razorpayProps.getDescriptionPrefix()
-                    + " #" + booking.getBookingReference());
-            req.put("reference_id", booking.getBookingReference());
+            PaymentLink link;
+            if (payment.getPaymentLinkId() != null) {
+                link = razorpayClient.paymentLink.fetch(payment.getPaymentLinkId());
+                if ("paid".equals(link.get("status"))) reconcilePaidLink(payment, booking, link);
+                if ("cancelled".equals(link.get("status")) || "expired".equals(link.get("status"))) throw new IllegalStateException("Payment link expired or cancelled. Use booking checkout instead.");
+            } else {
+                long expiry = booking.getStartTs().minusMinutes(30).toEpochSecond();
+                if (expiry <= OffsetDateTime.now().plusMinutes(1).toEpochSecond()) throw new IllegalStateException("Too close to the appointment for a payment link. Use booking checkout.");
+                JSONObject req = new JSONObject().put("amount", payment.getAmountCents()).put("currency", payment.getCurrency())
+                    .put("reference_id", booking.getBookingReference()).put("description", "Spa appointment " + booking.getBookingReference())
+                    .put("accept_partial", false).put("expire_by", expiry).put("notify",new JSONObject().put("sms",false).put("email",false));
+                link = razorpayClient.paymentLink.create(req);
+                payment.setPaymentLinkId(link.get("id"));paymentRepository.save(payment);
+            }
+            return PaymentLinkInitResponse.builder().bookingId(bookingId).bookingReference(booking.getBookingReference())
+                .razorpayPaymentLinkId(link.get("id")).shortUrl(link.get("short_url")).status(link.get("status"))
+                .amount(BigDecimal.valueOf(payment.getAmountCents()).movePointLeft(2)).currency(payment.getCurrency())
+                .expireBy(OffsetDateTime.ofInstant(java.time.Instant.ofEpochSecond(((Number)link.get("expire_by")).longValue()),ZoneOffset.UTC)).build();
+        } catch (RazorpayException ex) { throw new IllegalStateException("Payment link unavailable", ex); }
+    }
 
-            // Customer info
-            JSONObject customer = new JSONObject();
-            customer.put("name", booking.getUser().getName());
-            customer.put("email", booking.getUser().getEmail());
-            customer.put("contact", booking.getUser().getPhone());
-            req.put("customer", customer);
+    @Transactional
+    public void reconcilePaymentLink(String linkId) {
+        var known = paymentRepository.findByPaymentLinkId(linkId);
+        if (known.isEmpty()) return;
+        Booking booking = bookingRepository.findByIdForUpdate(known.get().getBooking().getId()).orElseThrow();
+        Payment payment = paymentRepository.findByPaymentLinkId(linkId).orElseThrow();
+        ensureRazorpayEnabled();
+        try { reconcilePaidLink(payment, booking, razorpayClient.paymentLink.fetch(linkId)); }
+        catch (RazorpayException ex) { throw new IllegalStateException("Payment link verification unavailable", ex); }
+    }
 
-            // Expiry example: 30 mins before service start
-            long expireByEpoch = booking.getStartTs()
-                    .minusMinutes(30)
-                    .toEpochSecond();
-            req.put("expire_by", expireByEpoch);
-
-            // Optional: reminders, notifications config...
-
-            PaymentLink plink = razorpayClient.paymentLink.create(req);
-
-            BigDecimal amountMajor = BigDecimal
-                    .valueOf(amountSubunits)
-                    .movePointLeft(2);
-
-            PaymentLinkInitResponse response = PaymentLinkInitResponse.builder()
-                    .bookingId(booking.getId())
-                    .bookingReference(booking.getBookingReference())
-                    .razorpayPaymentLinkId(plink.get("id"))
-                    .shortUrl(plink.get("short_url"))
-                    .status(plink.get("status"))
-                    .amount(amountMajor)
-                    .currency(razorpayProps.getCurrency())
-                    .expireBy(OffsetDateTime.ofInstant(
-                            java.time.Instant.ofEpochSecond(expireByEpoch),
-                            ZoneOffset.UTC))
-                    .build();
-
-            paymentRepository.findTopByBookingIdAndGatewayOrderByCreatedAtDesc(bookingId, GATEWAY_RAZORPAY)
-                    .ifPresentOrElse(payment -> {
-                        payment.setIdempotencyKey(resolveIdempotencyKey(idempotencyKey));
-                        payment.setReceiptUrl(plink.get("short_url"));
-                        paymentRepository.save(payment);
-                    }, () -> log.debug("No primary payment record to attach link idempotency for booking {}", bookingId));
-
-            return response;
-        } catch (RazorpayException e) {
-            log.error("Error creating Razorpay payment link for booking {}", bookingId, e);
-            throw new RuntimeException("Error creating payment link", e);
-        }
+    private void reconcilePaidLink(Payment payment, Booking booking, PaymentLink link) throws RazorpayException {
+        if (!Objects.equals(payment.getPaymentLinkId(),link.get("id")) || !Objects.equals(booking.getBookingReference(),link.get("reference_id"))
+            || ((Number)link.get("amount")).intValue()!=payment.getAmountCents() || !Objects.equals(payment.getCurrency(),link.get("currency")))
+            throw new IllegalArgumentException("Payment link does not match this booking");
+        if (!"paid".equals(link.get("status"))) return;
+        if (((Number)link.get("amount_paid")).intValue()!=payment.getAmountCents()) throw new IllegalStateException("Full payment is required");
+        org.json.JSONArray paid = link.get("payments");
+        if (paid == null || paid.length()!=1) throw new IllegalStateException("Payment link needs manual reconciliation");
+        String paymentId=paid.getJSONObject(0).getString("payment_id");
+        String orderId=link.get("order_id");
+        if (orderId==null || orderId.isBlank()) throw new IllegalStateException("Payment link order missing");
+        payment.setPaymentLinkOrderId(orderId);
+        settleCapturedPayment(booking,payment,paymentId,orderId);
     }
 
     // ------------------ VISIBILITY ------------------

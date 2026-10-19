@@ -19,6 +19,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest @AutoConfigureMockMvc
 class StaffAuthorizationTest {
  @Autowired MockMvc mvc;
+ @Autowired com.fasterxml.jackson.databind.ObjectMapper json;
+ @Test void newStaffAndAdminReadsRejectCustomer() throws Exception {
+  for(String path:List.of("/api/spas/1/settings","/api/onboarding/spas/drafts","/api/s3/object/url?key=spas/1/test.png","/api/s3/object/download?key=spas/1/test.png"))
+   mvc.perform(get(path).with(authentication(auth("ROLE_USER")))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/s3/object/url?key=spas/1/test.png").with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/spas/1/settings").with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isForbidden());
+ }
+ @Test @org.springframework.transaction.annotation.Transactional
+ void draftSaveResumeExtendAndDeleteStayOwnerScoped() throws Exception {
+  var saved=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/onboarding/spas/drafts").with(authentication(auth("ROLE_SPA_OWNER"))).contentType("application/json").content("{\"step\":\"REGISTER_SPA\",\"payload\":\"{\\\"name\\\":\\\"Draft test\\\"}\"}")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+  String token=json.readTree(saved).get("resumeToken").asText();String path="/api/onboarding/spas/drafts/"+token;
+  mvc.perform(get(path).with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isOk());
+  long version=json.readTree(saved).get("version").asLong();
+  for(int i=0;i<2;i++){
+   var body=json.createObjectNode().put("step","REGISTER_SPA").put("payload","{\"name\":\"Updated draft "+i+"\"}").put("resumeToken",token).put("version",version);
+   var updated=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/onboarding/spas/drafts").with(authentication(auth("ROLE_SPA_OWNER"))).contentType("application/json").content(json.writeValueAsString(body))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+   long next=json.readTree(updated).get("version").asLong();assertTrue(next>version);version=next;
+  }
+  var other=new UserPrincipal(999998L,"other","other@example.test","",true,List.of(new SimpleGrantedAuthority("ROLE_SPA_OWNER")));
+  mvc.perform(get(path).with(authentication(new UsernamePasswordAuthenticationToken(other,null,other.getAuthorities())))).andExpect(status().isNotFound());
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path+"/heartbeat").with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isOk());
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(path).with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isOk());
+  mvc.perform(get(path).with(authentication(auth("ROLE_SPA_OWNER")))).andExpect(status().isNotFound());
+ }
+ @Test @org.springframework.transaction.annotation.Transactional
+ void settingsCanBeUpdatedByAdminButNotCustomer() throws Exception {
+  var original=mvc.perform(get("/api/spas/1/settings").with(authentication(auth("ROLE_PLATFORM_ADMIN")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+  var request=json.readValue(original,com.nirvana.application.model.dto.SpaRequestDTO.class);
+  request.setName("Settings integration test");String body=json.writeValueAsString(request);
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/spas/1").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(body)).andExpect(status().isForbidden());
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/spas/1").with(authentication(auth("ROLE_PLATFORM_ADMIN"))).contentType("application/json").content(body)).andExpect(status().isOk());
+  var updated=mvc.perform(get("/api/spas/1/settings").with(authentication(auth("ROLE_PLATFORM_ADMIN")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+  assertEquals("Settings integration test",json.readTree(updated).get("name").asText());
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/spas/1").with(authentication(auth("ROLE_USER")))).andExpect(status().isForbidden());
+ }
  private UsernamePasswordAuthenticationToken auth(String role){
   var principal=new UserPrincipal(999999L,"access-test","test@example.test","",true,List.of(new SimpleGrantedAuthority(role)));
   return new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities());
