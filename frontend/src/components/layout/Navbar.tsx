@@ -1,6 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { isStaff } from '../../auth/roles';
+import { isStaff, isAdmin } from '../../auth/roles';
 import FeatureMenu from './FeatureMenu';
 import Button from '../common/Button';
 
@@ -49,6 +49,7 @@ const Navbar = () => {
             {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
           </NavLink>
           <FeatureMenu />
+          {isAdmin(user?.roles) && <NavLink to="/admin/city-discovery">Import cities</NavLink>}
         </nav>
         <div className="flex items-center gap-3">
           {user ? (

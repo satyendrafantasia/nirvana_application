@@ -95,3 +95,41 @@ Onboarding saves/resumes drafts for registration, business details, address and 
 The owner catalog APIs under `/api/owner/spas/{spaId}` support GET/POST services and therapists, plus PUT `/{services|therapists}/{id}`. Every call checks role and spa ownership. Therapist updates require the returned version, service assignments must belong to the same spa, and inactive/unavailable therapists are excluded from new selection. Disabling a service or therapist preserves existing bookings. Services can be created before spa approval.
 
 Bookings and summaries use the existing scoped manager APIs. Availability includes slot lookup/synchronization, daily capacity and blackout windows. Inventory updates reject foreign services and support empty override prices. Spa packages use the existing level-based save API; edit a level to change its price, session allowance or sale status. Platform administration remains outside the owner portal.
+
+## City-by-city Google Places discovery
+
+Platform admins can open `/admin/city-discovery` using **Import cities** in the menu.
+Owners, managers and customers cannot access the backend endpoints or import UI.
+
+Set `GOOGLE_PLACES_API_KEY` in the backend environment, enable **Places API (New)**
+in the corresponding Google Cloud project, configure billing/quota and restrict the
+key to the server and Places API. Restart the backend. Never use a VITE variable
+for this server credential. The screen reports whether a key is configured;
+Google validates access when a request is made.
+
+Enter a city (include its state when ambiguous) and two-letter country code.
+Search saves up to 20 Place IDs. Use **Import next Google page** for another page,
+or enter another city. Repeated searches do not duplicate references within a city.
+The same business can appear in nearby-city searches; the Place ID identifies it.
+Google results are ranked, may include surrounding areas, and are not exhaustive.
+Searches and live detail requests may incur Google API charges.
+
+Migration V38 creates `city_place_discovery`, storing only Place ID, admin-entered
+city/country and discovery timestamp. Names, addresses, contact details, websites,
+photos, ratings and reviews are not copied into the database. **Load business
+details** requests current information with no-store responses and attribution.
+These references are not spa listings and are not published or bookable. Complete
+normal owner onboarding using independently supplied business details before
+publishing a Nirvana listing; this feature does not claim ownership of businesses.
+
+API (admin only):
+- `GET /api/admin/city-discovery/status`
+- `GET /api/admin/city-discovery/cities`
+- `POST /api/admin/city-discovery/search` with city, countryCode, optional pageToken
+- `GET /api/admin/city-discovery/places?city=...&countryCode=IN&page=0`
+- `GET /api/admin/city-discovery/places/{placeId}` (live details)
+
+Google policies: https://developers.google.com/maps/documentation/places/web-service/policies
+Text Search: https://developers.google.com/maps/documentation/places/web-service/text-search
+Before public deployment, publish the Terms of Use and Privacy Policy required by
+Google Maps Platform. This discovery interface is restricted to administrators.

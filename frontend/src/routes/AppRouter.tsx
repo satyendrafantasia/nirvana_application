@@ -4,6 +4,7 @@ import MyPackages from '../pages/Packages/MyPackages';
 import FeaturePage from '../features/FeaturePage';
 import PasswordReset from '../pages/Auth/PasswordReset';
 import Media from '../pages/Staff/Media';
+import CityDiscovery from '../pages/Staff/CityDiscovery';
 import Home from '../pages/Home/Home';
 import SpaSearch from '../pages/SpaSearch/SpaSearch';
 import SpaDetails from '../pages/SpaDetails/SpaDetails';
@@ -21,6 +22,14 @@ import { RequireAuth } from '../components/layout/RequireAuth';
 const AppRouter = () => {
   return (
     <Routes>
+      <Route
+        path="/admin/city-discovery"
+        element={
+          <RequireAuth>
+            <CityDiscovery />
+          </RequireAuth>
+        }
+      />
       <Route path="/owner/login" element={<Login owner />} />
       <Route path="/owner/signup" element={<Register owner />} />
       <Route
