@@ -5,7 +5,7 @@ import Toast from './components/common/Toast';
 
 function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-[#f7f8f2]">
       <Navbar />
       <main className="flex-1">
         <AppRouter />

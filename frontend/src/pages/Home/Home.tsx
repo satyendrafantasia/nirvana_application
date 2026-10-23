@@ -30,58 +30,35 @@ const Home = () => {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <section className="grid gap-10 rounded-3xl bg-gradient-to-br from-primary-50 to-white p-10 shadow-card md:grid-cols-2">
-        <div className="space-y-6">
-          <p className="inline-flex rounded-full bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-primary-600">
-            Spa & Wellness bookings
-          </p>
-          <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">
-            A little time for yourself.
-          </h1>
-          <p className="text-lg text-slate-600">
-            Search, book, and manage appointments across premium spas with realtime availability.
-          </p>
-          <form className="grid gap-3 md:grid-cols-3" onSubmit={handleSearch}>
-            <Input
-              name="q"
-              label="What are you looking for?"
-              placeholder="Massage, facial, sauna"
-            />
-            <Input name="city" label="City" placeholder="Bengaluru" />
-            <div className="flex items-end">
-              <Button type="submit" className="w-full">
-                Search spas
-              </Button>
-            </div>
-          </form>
-          <div className="flex items-center gap-4 text-sm text-slate-600">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-card">
-              ⭐
-            </span>
-            <p>Choose your treatment, find a time, and make room for wellbeing.</p>
-          </div>
+    <div className="home-shell mx-auto max-w-6xl px-4 py-10">
+      <section className="wellness-hero">
+        <div className="hero-copy">
+          <p className="eyebrow"><span /> YOUR EVERYDAY ESCAPE</p>
+          <h1>A little pause.<br /><span>A better you.</span></h1>
+          <p className="hero-description">Make room for feeling good. Discover spa experiences, find your moment, and leave the everyday behind.</p>
+          <a href="#find-your-spa" className="hero-discover">Find your kind of calm <span aria-hidden="true">↗</span></a>
+          <div className="hero-footnote"><span className="tiny-spark" aria-hidden="true">✳</span> A little time for yourself changes everything.</div>
         </div>
-        <div className="flex flex-col gap-4">
-          <div className="card p-5">
-            <p className="text-sm font-semibold text-primary-700">Your next moment of calm</p>
-            <h3 className="text-xl font-semibold text-slate-900">Wellness, on your schedule</h3>
-            <p className="text-sm text-slate-600">
-              Explore services and available appointment times.
-            </p>
-            <Button as={Link} to="/me/bookings" className="mt-4 w-full" variant="secondary">
-              Manage bookings
-            </Button>
-          </div>
-          <div className="card p-5">
-            <p className="text-sm font-semibold text-primary-700">Exclusive perks</p>
-            <ul className="list-disc space-y-2 pl-5 text-slate-600">
-              <li>Curated spas with genuine reviews</li>
-              <li>Secure payments or pay at spa</li>
-              <li>Instant confirmations & reminders</li>
-            </ul>
-          </div>
+        <div className="hero-art" role="img" aria-label="Sculptural green arches and a lime sun, an abstract moment of calm">
+          <div className="art-sun" /><div className="art-arch arch-back" /><div className="art-arch arch-front" />
+          <span className="art-topline">THE ART OF SLOWING DOWN</span>
+          <div className="art-caption"><span>Less rush.<br />More ritual.</span><span className="art-star" aria-hidden="true">✳</span></div>
+          <span className="art-number">NIRVANA / WELLNESS, REIMAGINED</span>
         </div>
+      </section>
+      <section id="find-your-spa" className="search-panel" aria-label="Find a spa">
+        <div className="search-heading"><span className="eyebrow">YOUR NEXT RESET</span><h2>Where will you unwind?</h2></div>
+        <form className="home-search" onSubmit={handleSearch}>
+          <Input name="q" label="Treatment or experience" placeholder="Massage, facial, sauna" />
+          <Input name="city" label="City" placeholder="Bengaluru" />
+          <Button type="submit" className="search-submit">Search spas <span aria-hidden="true">↗</span></Button>
+        </form>
+      </section>
+      <div className="wellness-strip"><span>TIME WELL SPENT</span><p>Discover your space</p><span aria-hidden="true">✳</span><p>Choose your ritual</p><span aria-hidden="true">✳</span><p>Make it your moment</p></div>
+      <section className="ritual-grid" aria-label="Explore wellness">
+        <Link to="/spas?q=Massage" className="ritual-card"><span className="ritual-index">01 / RESTORE</span><span className="ritual-symbol" aria-hidden="true">◌</span><h3>Release the day.</h3><p>Explore massages & body treatments</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
+        <Link to="/spas?q=Facial" className="ritual-card"><span className="ritual-index">02 / RENEW</span><span className="ritual-symbol" aria-hidden="true">✳</span><h3>Find your glow.</h3><p>Discover facials & skin rituals</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
+        <Link to="/packages" className="ritual-card"><span className="ritual-index">03 / REPEAT</span><span className="ritual-symbol" aria-hidden="true">∞</span><h3>Make it a ritual.</h3><p>Explore wellness packages</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
       </section>
 
       <section className="mt-12 space-y-6">
@@ -95,7 +72,7 @@ const Home = () => {
           {featuredSpas?.length ? (
             featuredSpas.map((spa: Spa) => <SpaCard spa={spa} key={spa.id} />)
           ) : (
-            <p className="text-sm text-slate-500">
+            <p className="listing-empty text-sm text-slate-500">
               {!user ? (
                 <Link to="/auth/login?redirect=/spas">
                   Sign in to explore spas and live availability.

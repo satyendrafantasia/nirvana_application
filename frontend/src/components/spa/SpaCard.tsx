@@ -10,8 +10,8 @@ interface SpaCardProps {
 
 const SpaCard = ({ spa }: SpaCardProps) => {
   return (
-    <div className="card flex flex-col overflow-hidden">
-      <div className="h-40 w-full overflow-hidden">
+    <div className="card spa-card flex flex-col overflow-hidden">
+      <div className="h-52 w-full overflow-hidden">
         <img
           src={
             spa.coverImage ||

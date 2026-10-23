@@ -5,23 +5,23 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          50: '#f2fbfa',
-          100: '#d8f3ef',
-          200: '#b1e7df',
-          300: '#7dd8c9',
-          400: '#52c4b0',
-          500: '#2a9c8b',
-          600: '#1e7d71',
-          700: '#19645c',
-          800: '#184f4a',
-          900: '#153f3d'
+          50: '#f0f5ec',
+          100: '#e1ead9',
+          200: '#c8dab9',
+          300: '#a8c394',
+          400: '#84a772',
+          500: '#628752',
+          600: '#42683a',
+          700: '#34532e',
+          800: '#294328',
+          900: '#203523'
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif']
+        sans: ['DM Sans', 'system-ui', 'sans-serif']
       },
       boxShadow: {
-        card: '0 8px 30px rgba(15, 23, 42, 0.08)'
+        card: '0 12px 36px rgba(32, 53, 35, 0.055)'
       },
       borderRadius: {
         xl2: '1rem'
