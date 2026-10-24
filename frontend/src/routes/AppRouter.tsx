@@ -1,3 +1,4 @@
+import Discovery from '../pages/Discovery/Discovery';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Packages from '../pages/Packages/Packages';
 import MyPackages from '../pages/Packages/MyPackages';
@@ -22,6 +23,14 @@ import { RequireAuth } from '../components/layout/RequireAuth';
 const AppRouter = () => {
   return (
     <Routes>
+      <Route
+        path="/discover"
+        element={
+          <RequireAuth>
+            <Discovery />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/admin/city-discovery"
         element={

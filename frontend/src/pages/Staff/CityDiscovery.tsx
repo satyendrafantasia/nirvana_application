@@ -1,3 +1,4 @@
+import Discovery from '../Discovery/Discovery';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
@@ -186,6 +187,13 @@ export default function CityDiscovery() {
       )}
       {message && <p role="status">{message}</p>}
       {busy && <p role="status">Contacting Google Places…</p>}
+      <Discovery
+        admin
+        onSaved={() => {
+          void cities.refetch();
+          void queryClient.invalidateQueries({ queryKey: ['city-discovery-places'] });
+        }}
+      />
       <h2 className="text-xl font-semibold">Imported cities</h2>
       <div className="flex flex-wrap gap-3">
         {cities.data?.map((c) => (

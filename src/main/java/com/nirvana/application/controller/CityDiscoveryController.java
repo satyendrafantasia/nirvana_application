@@ -25,6 +25,20 @@ public class CityDiscoveryController {
                                 @NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode,
                                 @Size(max=4096) String pageToken) {}
 
+    public record ReferencesRequest(@NotBlank @Size(max=100) String city,
+            @NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode,
+            @NotEmpty @Size(max=20) List<@Pattern(regexp="[A-Za-z0-9_-]{1,255}") String> placeIds) {}
+    @PostMapping("/references")
+    public Map<String,Integer> saveReferences(@Valid @RequestBody ReferencesRequest request) {
+        String city = request.city().strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        String country = request.countryCode().toUpperCase(Locale.ROOT);
+        Set<String> ids = new LinkedHashSet<>(request.placeIds());
+        transactions.executeWithoutResult(tx -> {
+            for (String id : ids) jdbc.update("INSERT INTO city_place_discovery (city,country_code,place_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id", city, country, id);
+        });
+        return Map.of("processed", ids.size());
+    }
+
     @GetMapping("/status")
     public Map<String,Boolean> status() { return Map.of("configured", places.configured()); }
 

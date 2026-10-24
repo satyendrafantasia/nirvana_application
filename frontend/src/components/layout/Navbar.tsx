@@ -11,7 +11,10 @@ const Navbar = () => {
   return (
     <header className="site-header sticky top-0 z-30">
       <div className="nav-shell mx-auto flex max-w-6xl items-center justify-between flex-wrap gap-3 px-4 py-3">
-        <Link to="/" className="brand flex items-center gap-2 text-lg font-semibold text-primary-700">
+        <Link
+          to="/"
+          className="brand flex items-center gap-2 text-lg font-semibold text-primary-700"
+        >
           <span className="brand-mark inline-flex h-9 w-9 items-center justify-center font-bold">
             n.
           </span>
@@ -48,6 +51,7 @@ const Navbar = () => {
           >
             {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
           </NavLink>
+          <NavLink to="/discover">Discover nearby</NavLink>
           <FeatureMenu />
           {isAdmin(user?.roles) && <NavLink to="/admin/city-discovery">Import cities</NavLink>}
         </nav>

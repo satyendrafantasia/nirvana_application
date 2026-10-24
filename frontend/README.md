@@ -133,3 +133,55 @@ Google policies: https://developers.google.com/maps/documentation/places/web-ser
 Text Search: https://developers.google.com/maps/documentation/places/web-service/text-search
 Before public deployment, publish the Terms of Use and Privacy Policy required by
 Google Maps Platform. This discovery interface is restricted to administrators.
+
+
+## Live city, locality and nearby discovery
+
+`/discover` is the authenticated customer discovery view. The admin city-discovery
+screen embeds the same live search with a separate explicit save-references action.
+City Text Search supports up to three pages. For locality search, enter city and
+locality, click Find locality boundary, and select the correct Google candidate;
+the subsequent spa search uses its viewport as a geographic restriction. Review
+ambiguous locations before searching. Nearby mode lets users select an address,
+hotel or landmark, or explicitly share their current position, then search within
+1–50 km with distance or popularity ranking. Nearby returns up to 20 results and
+has no pagination. No map is embedded, and Google results are not sent to Leaflet.
+
+Summary fields include name, address, Google rating, status and attribution.
+Phone and website details are fetched only on explicit request. Provider content,
+resolved areas and coordinates are held in page memory only; API responses use
+Cache-Control: no-store. No Google content is written to localStorage or a query
+cache. Admins can save up to 20 Place IDs under a city they enter. No names,
+addresses, ratings, details or coordinates are saved by discovery. Existing
+owner onboarding remains the source of Nirvana catalogue data.
+
+Matching uses spa.google_place_id and only active, verified spas. Google results
+must also report OPERATIONAL before showing Book on Nirvana. The link opens the
+spa catalogue page; actual services, inventory and booking eligibility are still
+validated by the booking flow. Other listings link to Google Maps.
+
+Backend endpoints (all require authentication):
+- GET /api/discovery/status
+- POST /api/discovery/locations: query, countryCode (five address/area candidates)
+- POST /api/discovery/search: mode TEXT with city, countryCode, optional locality,
+  bounds {low:{latitude,longitude},high:{latitude,longitude}}, pageToken; or mode
+  NEARBY with latitude, longitude, radiusMeters, rank DISTANCE/POPULARITY.
+- GET /api/discovery/places/{placeId}
+- POST /api/admin/city-discovery/references: city, countryCode, placeIds (admin only)
+
+Enable Places API (New), billing, and GOOGLE_PLACES_API_KEY on the server.
+No browser key is required for this list-based implementation. The shared Places
+client defaults to 60 outbound requests per minute per running server instance;
+override google.places.max-requests-per-minute as needed. This is a local guard,
+not an account-wide spending cap. Configure Google Cloud API quotas for the key's
+project and billing budget alerts in Cloud Console (alerts do not stop spending).
+Field masks affect billing; ratings increase the search SKU. Searches and address
+resolution are explicit actions, not keystroke requests or automatic retries.
+Production requires the operator's published Terms and Privacy Policy and the
+applicable Google Maps attribution and content-use requirements. Do not use a
+crawler or treat these ranked results as an exhaustive city database.
+
+Tests mock Google responses; live provider billing/key validation requires a
+configured project. Documentation:
+https://developers.google.com/maps/documentation/places/web-service/policies
+https://developers.google.com/maps/documentation/places/web-service/usage-and-billing
