@@ -136,7 +136,10 @@ public class OtpAuthService {
         }
         User user = resolveUserFromVerification(verification);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        // A reset usually means the old password may be known to someone else: end every session.
+        user.setCredentialsChangedAt(OffsetDateTime.now());
         userRepository.save(user);
+        refreshTokenService.revokeAll(user.getId());
         verification.setPasswordResetConsumed(true);
         otpVerificationRepository.save(verification);
     }

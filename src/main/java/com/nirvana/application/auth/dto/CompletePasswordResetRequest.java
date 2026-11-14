@@ -10,6 +10,6 @@ public class CompletePasswordResetRequest {
     private String passwordResetToken;
 
     @NotBlank
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @Size(min = 8, max = 72, message = "Password must be 8 to 72 characters")
     private String newPassword;
 }

@@ -18,4 +18,10 @@ public interface AuthService {
     void logout(LogoutRequest request);
 
     AuthResponse socialLogin(String provider, OAuth2User user);
+
+    /**
+     * Replaces the password after checking the current one, ends every existing session and
+     * returns a fresh session for the device that made the change.
+     */
+    AuthResponse changePassword(Long userId, String currentPassword, String newPassword);
 }

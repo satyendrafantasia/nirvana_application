@@ -60,6 +60,12 @@ public class RefreshTokenService {
                 });
     }
 
+    /** Ends every session of the user, on every device. */
+    @Transactional
+    public int revokeAll(Long userId) {
+        return refreshTokenRepository.revokeAllForUser(userId, OffsetDateTime.now());
+    }
+
     @Transactional
     public void revokeDeviceSessions(Long userId, String deviceFingerprint) {
         if (deviceFingerprint == null || deviceFingerprint.isBlank()) {

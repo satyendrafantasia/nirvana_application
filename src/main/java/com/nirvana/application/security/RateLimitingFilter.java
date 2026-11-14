@@ -78,6 +78,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isAuthPath(String path) {
+        if (path.equals("/api/me/account/password")) {
+            return true; // checks the current password, so it is a guessing target too
+        }
         if (!path.startsWith("/api/auth/") && !path.startsWith("/auth/")) {
             return false;
         }

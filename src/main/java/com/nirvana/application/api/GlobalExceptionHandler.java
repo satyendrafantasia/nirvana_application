@@ -153,6 +153,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(base(HttpStatus.BAD_REQUEST, "Invalid request body", request.getRequestURI(), null).build());
     }
 
+    /** A failed sign-in (wrong password, unknown or disabled account) is the caller's problem, not a server error. */
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> authenticationFailed(Exception ex, HttpServletRequest request) {
+        // One message for every cause, so the response does not reveal which accounts exist.
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(base(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.", request.getRequestURI(), null).build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex,
                                                           HttpServletRequest request) {

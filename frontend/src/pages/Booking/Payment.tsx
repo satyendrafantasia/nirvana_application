@@ -7,6 +7,7 @@ import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { createBooking, CreatedBooking } from '../../api/bookingApi';
 import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
+import { getAccount, MAX_POINTS_PER_BOOKING } from '../../api/accountApi';
 import { BookingSummary } from '../../types/booking';
 export default function Payment({
   onTimeConflict,onNext,
@@ -25,6 +26,8 @@ export default function Payment({
   const [loyalty, setLoyalty] = useState(false);
   const [usePackage, setUsePackage] = useState(false);
   const [useSpaPackage, setUseSpaPackage] = useState(false);
+  const account = useQuery({ queryKey: ['account'], queryFn: getAccount, staleTime: 30_000 });
+  const points = account.data?.loyaltyPoints;
   const eligibility = useQuery({
     queryKey: ['booking-package-eligibility', state.spaId, useSpaPackage],
     enabled: !!state.spaId && (usePackage || useSpaPackage) && !created,
@@ -81,6 +84,7 @@ export default function Payment({
     },
     onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && axios.isAxiosError(err) && err.response?.status === 409){setSlot(undefined);onTimeConflict();}},
     onSuccess: (b) => {
+      if (loyalty) void qc.invalidateQueries({ queryKey: ['account'] }); // the balance changed
       if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);
       onNext();
@@ -112,8 +116,20 @@ export default function Payment({
           />
         </label>
         <label className="block">
-          <input type="checkbox" checked={loyalty} onChange={(e) => setLoyalty(e.target.checked)} />{' '}
+          <input
+            type="checkbox"
+            checked={loyalty}
+            disabled={points === 0}
+            onChange={(e) => setLoyalty(e.target.checked)}
+          />{' '}
           Redeem available loyalty points
+          {points !== undefined && (
+            <span className="block text-sm text-slate-600">
+              {points === 0
+                ? 'You have no points yet. You earn points when an appointment is completed.'
+                : `You have ${points.toLocaleString('en-IN')} points. Up to ${Math.min(points, MAX_POINTS_PER_BOOKING).toLocaleString('en-IN')} can be used here, one paisa each.`}
+            </span>
+          )}
         </label>
         <label className="block">
           <input

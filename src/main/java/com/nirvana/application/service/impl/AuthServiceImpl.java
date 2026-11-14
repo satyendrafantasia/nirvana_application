@@ -174,6 +174,27 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(existing);
     }
 
+    @Override
+    @Transactional
+    public AuthResponse changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            // 400, not 401: the session itself is fine, only the typed password is wrong.
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Your current password is incorrect.");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Choose a new password that is different from your current one.");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setCredentialsChangedAt(OffsetDateTime.now());
+        userRepository.save(user);
+        refreshTokenService.revokeAll(userId);
+        return buildAuthResponse(user);
+    }
+
     private AuthResponse buildAuthResponse(User user) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
         var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());

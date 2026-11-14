@@ -80,6 +80,9 @@ public class User extends BaseEntity {
     private Boolean mfaEnabled = false;
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
+    /** Access tokens issued before this moment are no longer accepted. */
+    @Column(name = "credentials_changed_at")
+    private OffsetDateTime credentialsChangedAt;
 
     // verification & identity
     @Column(name = "phone_verified", nullable = false)
