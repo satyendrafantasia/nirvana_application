@@ -55,7 +55,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             boolean captchaProvided = captchaToken != null && captchaToken.equals(properties.getCaptchaBypassToken());
             if (!captchaProvided) {
                 Instant blockedUntil = now.plusSeconds(properties.getBlockSeconds());
-                log.warn("Rate limit triggered for key {} on path {}", userKey != null ? userKey : key, request.getRequestURI());
+                log.warn("Request rate limit reached");
                 reject(response, "Too many requests. Provide CAPTCHA token or wait.", blockedUntil);
                 return;
             }

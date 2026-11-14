@@ -103,12 +103,12 @@ public class SendGridNotificationService implements NotificationService {
             Response response = sendGrid.api(request);
             int statusCode = response.getStatusCode();
             if (statusCode >= 400) {
-                log.error("Failed to send email to {} with status {}: {}", toEmail, statusCode, response.getBody());
+                log.error("Notification delivery failed");
             } else {
-                log.info("Notification email sent to {} with status {}", toEmail, statusCode);
+                log.debug("Notification delivery processed");
             }
         } catch (IOException e) {
-            log.error("Error sending email to {}", toEmail, e);
+            log.error("Notification delivery failed");
         }
     }
 

@@ -1,3 +1,4 @@
+import { therapistLabel } from './therapistLabel';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 
@@ -11,7 +12,7 @@ const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Review your booking</h2>
           <p className="text-sm text-slate-600">Confirm details before payment.</p>
@@ -53,11 +54,12 @@ const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
             </p>
           </div>
         )}
-        {state.therapistType && (
+        {state.selectedSlot && (
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
             <p className="text-sm text-slate-500">Therapist</p>
             <p className="text-lg font-semibold text-slate-900">
-              {state.therapistType === 'ANY' ? 'Any available therapist' : 'Selected therapist'}
+              {state.selectedSlot.therapists.find(t => t.id === state.therapistId)?.name ||
+                (state.therapistType ? therapistLabel(state.therapistType) : 'Any available therapist')}
             </p>
           </div>
         )}

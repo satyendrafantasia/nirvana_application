@@ -45,6 +45,8 @@ public class SpaSearchController {
             @RequestParam(required = false) String countryCode,
             @RequestParam(required = false, name = "locality") String localityLike,
 
+            @RequestParam(required = false) String spaName,
+
             // Free text over name/address/tags
             @RequestParam(required = false, name = "q") String freeText,
 
@@ -82,6 +84,7 @@ public class SpaSearchController {
                 countryCode,
                 localityLike,
                 freeText,
+                spaName,
                 minLat,
                 maxLat,
                 minLon,

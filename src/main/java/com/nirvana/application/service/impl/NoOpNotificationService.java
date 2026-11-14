@@ -89,11 +89,11 @@ public class NoOpNotificationService implements NotificationService {
             MimeMessage message = buildMimeMessage(destination, subject, body);
             mailSender.send(message);
             logEntry.setStatus(NotificationStatus.SENT);
-            log.info("Notification email sent for booking {} -> {}", booking.getBookingReference(), destination);
+            log.debug("Notification delivery processed");
         } catch (MessagingException | MailException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
             logEntry.setErrorMessage(e.getMessage());
-            log.error("Failed to send notification for booking {} to {}", booking.getBookingReference(), destination, e);
+            log.error("Notification delivery failed");
         } finally {
             notificationLogRepository.save(logEntry);
         }

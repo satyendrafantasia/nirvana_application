@@ -1,23 +1,25 @@
-import Discovery from '../pages/Discovery/Discovery';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import Packages from '../pages/Packages/Packages';
-import MyPackages from '../pages/Packages/MyPackages';
-import FeaturePage from '../features/FeaturePage';
-import PasswordReset from '../pages/Auth/PasswordReset';
-import Media from '../pages/Staff/Media';
-import CityDiscovery from '../pages/Staff/CityDiscovery';
-import Home from '../pages/Home/Home';
-import SpaSearch from '../pages/SpaSearch/SpaSearch';
-import SpaDetails from '../pages/SpaDetails/SpaDetails';
-import Booking from '../pages/Booking/Booking';
-import Login from '../pages/Auth/Login';
-import Register from '../pages/Auth/Register';
-import OtpVerification from '../pages/Auth/OtpVerification';
-import SocialLoginCallback from '../pages/Auth/SocialLoginCallback';
-import MyBookings from '../pages/Profile/MyBookings';
-import AccountSettings from '../pages/Profile/AccountSettings';
-import OwnerPortal from '../pages/Owner/OwnerPortal';
-import NotFound from '../pages/Static/NotFound';
+import { lazy } from 'react';
+import TrustPage from '../pages/Static/TrustPage';
+const Discovery = lazy(() => import('../pages/Discovery/Discovery'));
+import { Route, Routes } from 'react-router-dom';
+const Packages = lazy(() => import('../pages/Packages/Packages'));
+const MyPackages = lazy(() => import('../pages/Packages/MyPackages'));
+const FeaturePage = lazy(() => import('../features/FeaturePage'));
+const PasswordReset = lazy(() => import('../pages/Auth/PasswordReset'));
+const Media = lazy(() => import('../pages/Staff/Media'));
+const CityDiscovery = lazy(() => import('../pages/Staff/CityDiscovery'));
+const Home = lazy(() => import('../pages/Home/Home'));
+const SpaSearch = lazy(() => import('../pages/SpaSearch/SpaSearch'));
+const SpaDetails = lazy(() => import('../pages/SpaDetails/SpaDetails'));
+const Booking = lazy(() => import('../pages/Booking/Booking'));
+const Login = lazy(() => import('../pages/Auth/Login'));
+const Register = lazy(() => import('../pages/Auth/Register'));
+const OtpVerification = lazy(() => import('../pages/Auth/OtpVerification'));
+const SocialLoginCallback = lazy(() => import('../pages/Auth/SocialLoginCallback'));
+const MyBookings = lazy(() => import('../pages/Profile/MyBookings'));
+const AccountSettings = lazy(() => import('../pages/Profile/AccountSettings'));
+const OwnerPortal = lazy(() => import('../pages/Owner/OwnerPortal'));
+const NotFound = lazy(() => import('../pages/Static/NotFound'));
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
@@ -127,8 +129,10 @@ const AppRouter = () => {
           </RequireAuth>
         }
       />
+      <Route path="/privacy" element={<TrustPage kind="privacy" />} />
+      <Route path="/terms" element={<TrustPage kind="terms" />} />
       <Route path="/404" element={<NotFound />} />
-      <Route path="*" element={<Navigate to="/404" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

@@ -24,7 +24,7 @@ public class SesEmailSender implements EmailSender {
     @Override
     public void sendOtpEmail(String toEmail, String subject, String body) {
         if (!emailProperties.isEnabled()) {
-            log.info("Email sending disabled; skipping SES send for {}", toEmail);
+            log.debug("Notification delivery processed");
             return;
         }
         try {
@@ -43,9 +43,9 @@ public class SesEmailSender implements EmailSender {
                             .build())
                     .build();
             sesClient.sendEmail(request);
-            log.info("OTP email sent to {}", toEmail);
+            log.debug("Notification delivery processed");
         } catch (SesException ex) {
-            log.error("Failed to send OTP email via SES: {}", ex.awsErrorDetails().errorMessage(), ex);
+            log.error("Notification delivery failed");
             throw new EmailSendException("Failed to send email via AWS SES", ex);
         } catch (Exception ex) {
             log.error("Unexpected error sending OTP email", ex);

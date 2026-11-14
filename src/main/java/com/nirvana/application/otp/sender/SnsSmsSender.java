@@ -20,7 +20,7 @@ public class SnsSmsSender implements SmsSender {
     @Override
     public void sendOtpSms(String phoneNumber, String message) {
         if (!smsProperties.isEnabled()) {
-            log.info("SMS sending disabled; skipping SNS publish for {}", phoneNumber);
+            log.debug("Notification delivery processed");
             return;
         }
         try {
@@ -29,9 +29,9 @@ public class SnsSmsSender implements SmsSender {
                     .message(message)
                     .build();
             snsClient.publish(request);
-            log.info("OTP SMS published to {}", phoneNumber);
+            log.debug("Notification delivery processed");
         } catch (SnsException ex) {
-            log.error("Failed to send OTP SMS via SNS: {}", ex.awsErrorDetails().errorMessage(), ex);
+            log.error("Notification delivery failed");
             throw new SmsSendException("Failed to send SMS via AWS SNS", ex);
         } catch (Exception ex) {
             log.error("Unexpected error sending OTP SMS", ex);

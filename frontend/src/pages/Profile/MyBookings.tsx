@@ -37,12 +37,14 @@ export default function MyBookings() {
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-5">
       <h1 className="text-3xl font-bold">My appointments</h1>
-      {bookings.isLoading && <p>Loading appointments…</p>}
+      {bookings.isLoading && <p role="status">Loading appointments…</p>}
       {(bookings.isError || action.isError) && (
         <p role="alert" className="text-rose-700">
           {errorMessage(bookings.error || action.error)}
         </p>
       )}
+      {bookings.isError && <Button onClick={() => void bookings.refetch()}>Retry appointments</Button>}
+      {bookings.data?.items.length === 0 && <p>No appointments yet. <a href="/spas" className="underline">Explore spas</a></p>}
       {bookings.data?.items.map((b) => (
         <article className="card p-5 space-y-3" key={b.id}>
           <p>
@@ -132,9 +134,6 @@ export default function MyBookings() {
           )}
         </article>
       ))}
-      {bookings.data?.items.length === 0 && (
-        <p>No appointments yet. Browse spas to find your next treatment.</p>
-      )}
       <div className="flex gap-3">
         <Button disabled={page === 0} onClick={() => setPage(page - 1)}>
           Previous

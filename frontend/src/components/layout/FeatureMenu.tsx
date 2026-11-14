@@ -11,7 +11,7 @@ export default function FeatureMenu() {
         const items = features.filter((f) => f.access === access && canOpen(access, user.roles));
         if (!items.length) return null;
         return (
-          <details key={access} className="relative">
+          <details key={access} name="nirvana-navigation" className="relative">
             <summary className="cursor-pointer px-2 py-1">
               {access === 'customer'
                 ? 'My account'

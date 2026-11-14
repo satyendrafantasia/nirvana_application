@@ -74,7 +74,6 @@ public class OtpService {
 
         otpVerificationRepository.save(verification);
 
-        log.info("OTP {} generated for verification {}", otp, verification.getVerificationId());
 
         boolean smsEnabled = phone != null && smsProperties.isEnabled();
         boolean emailEnabled = email != null && emailProperties.isEnabled();

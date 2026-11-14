@@ -17,12 +17,12 @@ const SpaCard = ({ spa }: SpaCardProps) => {
             spa.coverImage ||
             'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
           }
-          alt={spa.name}
+          loading="lazy" decoding="async" width={800} height={480} alt={spa.coverImage ? spa.name : ''}
           className="h-full w-full object-cover"
         />
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-slate-800">{spa.name}</h3>
             <p className="text-sm text-slate-500">{spa.address}</p>
@@ -37,7 +37,7 @@ const SpaCard = ({ spa }: SpaCardProps) => {
           ))}
           {spa.distanceKm && <LocationChip distanceKm={spa.distanceKm} city={spa.city} />}
         </div>
-        <div className="mt-auto flex items-center justify-between">
+        <div className="mt-auto flex flex-wrap gap-2 items-center justify-between">
           <p className="text-sm text-slate-500">Explore treatments & availability</p>
           <Button as={Link} to={`/spas/${spa.id}`} size="sm">
             View details

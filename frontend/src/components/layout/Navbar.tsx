@@ -1,13 +1,17 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { isStaff, isAdmin } from '../../auth/roles';
-import FeatureMenu from './FeatureMenu';
+const FeatureMenu = lazy(() => import('./FeatureMenu'));
 import Button from '../common/Button';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const [open,setOpen] = useState(false);
+  const {pathname} = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
   return (
     <header className="site-header sticky top-0 z-30">
       <div className="nav-shell mx-auto flex max-w-6xl items-center justify-between flex-wrap gap-3 px-4 py-3">
@@ -20,7 +24,8 @@ const Navbar = () => {
           </span>
           Nirvana Wellness
         </Link>
-        <nav className="main-nav flex flex-wrap items-center gap-3 text-sm font-medium text-slate-700">
+        <button className="nav-toggle rounded-xl border px-4 py-2" type="button" aria-controls="site-navigation" aria-expanded={open} onClick={() => setOpen(!open)}>Menu</button>
+        <nav id="site-navigation" data-expanded={open} onClick={e => { if ((e.target as Element).closest("a")) setOpen(false); }} className="main-nav flex flex-wrap items-center gap-3 text-sm font-medium text-slate-700">
           <NavLink to="/" className={({ isActive }) => (isActive ? 'text-primary-600' : '')}>
             Home
           </NavLink>
@@ -52,7 +57,7 @@ const Navbar = () => {
             {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
           </NavLink>
           <NavLink to="/discover">Discover nearby</NavLink>
-          <FeatureMenu />
+          {user && <Suspense fallback={null}><FeatureMenu /></Suspense>}
           {isAdmin(user?.roles) && <NavLink to="/admin/city-discovery">Import cities</NavLink>}
         </nav>
         <div className="flex items-center gap-3">

@@ -1,3 +1,4 @@
+import { track } from '../../telemetry';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { getSlots } from '../../api/bookingApi';
@@ -16,16 +17,17 @@ interface SelectSlotProps {
 
 const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
   const { state, setSlot, setGuests, setHold } = useBookingFlow();
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
 
   const {
     data: slots,
     isLoading,
-    isError
+    isError, refetch
   } = useQuery({
     queryKey: ['slots', state.spaId, state.service?.id, date, state.guests],
     queryFn: () => getSlots(state.spaId || '', state.service?.id || '', date, state.guests),
-    enabled: Boolean(state.spaId)
+    staleTime: 0,
+    enabled: Boolean(state.spaId && state.service && date)
   });
 
   const { user } = useAuth();
@@ -49,6 +51,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       onNext();
     }
   });
+  const activeHold = Boolean(state.holdToken && state.holdExpiresAt && new Date(state.holdExpiresAt) > new Date());
   const wait = useMutation({
     mutationFn: async (slotId: string) =>
       client.post('/api/waitlist', {
@@ -61,7 +64,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
   });
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Select a time</h2>
           <p className="text-sm text-slate-600">
@@ -70,11 +73,11 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onBack} size="sm">
+          <Button variant="secondary" disabled={hold.isPending} onClick={onBack} size="sm">
             Back
           </Button>
-          <Button onClick={() => hold.mutate()} disabled={!state.slot || hold.isPending} size="sm">
-            Continue
+          <Button onClick={() => hold.mutate()} disabled={!state.slot || hold.isPending || !activeHold && !slots?.some(s => s.available && s.id === state.selectedSlot?.id)} size="sm">
+            {hold.isPending ? 'Reserving…' : 'Continue'}
           </Button>
         </div>
       </div>
@@ -93,7 +96,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       </Link>
       <div className="grid gap-4 md:grid-cols-3">
         <Input
-          type="date"
+          type="date" disabled={hold.isPending}
           label="Date"
           value={date}
           min={new Date().toLocaleDateString('en-CA')}
@@ -105,22 +108,22 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       </div>
 
       <Input
-        type="number"
+        type="number" disabled={hold.isPending}
         label="Guests"
         min={state.service?.minPersons || 1}
         max={state.service?.maxPersons || 1}
         value={state.guests}
-        onChange={(e) => setGuests(Math.max(1, Number(e.target.value)))}
+        onChange={(e) => setGuests(Math.min(state.service?.maxPersons || 1, Math.max(state.service?.minPersons || 1, Math.floor(Number(e.target.value)))))}
       />
       <div>
         {isError && (
-          <p role="alert">Unable to load availability. Please try another date or retry.</p>
+          <p role="alert">Availability could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p>
         )}
-        {isLoading && <p className="text-sm text-slate-500">Loading slots...</p>}
+        {isLoading && <p role="status" className="text-sm text-slate-500">Loading slots...</p>}
         {slots && slots.length > 0 ? (
-          <SlotGrid slots={slots} selectedSlot={state.selectedSlot?.id} onSelect={setSlot} />
-        ) : (
-          <p className="text-sm text-slate-500">No slots available for the selected date.</p>
+          <SlotGrid slots={slots} selectedSlot={state.selectedSlot?.id} onSelect={(slot) => { if (hold.isPending) return; setSlot(slot); track('select_appointment_slot'); }} />
+        ) : !isError && !isLoading && (
+          <p role="status" className="text-sm text-slate-500">No slots available for the selected date.</p>
         )}
       </div>
       {slots

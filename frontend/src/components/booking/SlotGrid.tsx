@@ -15,6 +15,7 @@ const SlotGrid = ({ slots, selectedSlot, onSelect }: SlotGridProps) => {
         return (
           <button
             key={slot.id}
+            aria-pressed={isSelected}
             disabled={!slot.available}
             onClick={() => onSelect(slot)}
             className={clsx(

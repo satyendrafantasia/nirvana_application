@@ -62,6 +62,27 @@ class CityPlacesClientTest {
   var request = new com.fasterxml.jackson.databind.ObjectMapper().readValue("{\"mode\":\"TEXT\",\"city\":\"Bengaluru\",\"locality\":\"Indiranagar\",\"countryCode\":\"IN\",\"pageToken\":\"next\",\"bounds\":{\"low\":{\"latitude\":12.9,\"longitude\":77.5},\"high\":{\"latitude\":13.0,\"longitude\":77.7}}}",com.nirvana.application.model.dto.PlaceDiscoveryRequest.class);
   client.discover(request); customizer.getServer().verify();
  }
+ @org.junit.jupiter.params.ParameterizedTest
+ @org.junit.jupiter.params.provider.CsvSource({
+   "'  Tattva Spa  ',,Tattva Spa",
+   ",Gurgaon,'spas in Gurgaon, IN'",
+   "Tattva Spa,Gurgaon,'Tattva Spa in Gurgaon, IN'"
+ })
+ void sendsTextSearchByNameOrCity(String name, String city, String expected) {
+  var mock = new MockServerRestTemplateCustomizer();
+  var client = new CityPlacesClient(new RestTemplateBuilder(template -> {
+   mock.customize(template);
+   mock.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchText"))
+    .andExpect(jsonPath("$.textQuery").value(expected))
+    .andRespond(withSuccess("{}",MediaType.APPLICATION_JSON));
+  }));
+  ReflectionTestUtils.setField(client,"apiKey","test-only");
+  ReflectionTestUtils.setField(client,"baseUrl","https://places.googleapis.com/v1");
+  client.discover(new com.nirvana.application.model.dto.PlaceDiscoveryRequest(
+    com.nirvana.application.model.dto.PlaceDiscoveryRequest.Mode.TEXT, city, name, null, "IN",
+    null,null,null,null,null,null));
+  mock.getServer().verify();
+ }
  @Test void configuredBudgetStopsProviderCalls() {
   var client=new CityPlacesClient(new RestTemplateBuilder());
   ReflectionTestUtils.setField(client,"apiKey","test-only");

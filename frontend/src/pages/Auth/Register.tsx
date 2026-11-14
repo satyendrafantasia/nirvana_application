@@ -97,8 +97,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
         )}
         {registration && (
           <label className="block text-sm">
-            <input name="privacy" type="checkbox" required /> I accept the spa platform privacy
-            policy.
+            <input name="privacy" type="checkbox" required /> I accept the <Link to="/privacy" className="underline" target="_blank">privacy policy</Link>.
           </label>
         )}
         <Button disabled={action.isPending} type="submit">

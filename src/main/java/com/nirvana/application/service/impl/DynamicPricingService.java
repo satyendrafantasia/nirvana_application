@@ -50,8 +50,6 @@ public class DynamicPricingService implements PricingService {
 
         discountCents = clampDiscount(basePriceCents, discountCents);
 
-        log.debug("Pricing evaluated for user {} with coupon {}: discount {} cents (loyalty {})",
-                user.getId(), appliedCoupon, discountCents, loyaltyRedeemed);
 
         return new PricingResult(discountCents, appliedCoupon, loyaltyRedeemed);
     }
@@ -59,7 +57,8 @@ public class DynamicPricingService implements PricingService {
     private int evaluateCouponDiscount(String couponCode, int basePriceCents) {
         Integer percent = COUPON_DISCOUNTS.get(couponCode);
         if (percent == null || percent <= 0) {
-            return 0;
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Coupon code is not valid. Check it or remove it to continue.");
         }
         int calculated = (int) Math.round(basePriceCents * (percent / 100.0));
         return Math.min(calculated, MAX_COUPON_DISCOUNT_CENTS);

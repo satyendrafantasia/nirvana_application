@@ -7,6 +7,12 @@ import Input from '../../components/common/Input';
 type Point = { latitude: number; longitude: number };
 type Bounds = { low: Point; high: Point };
 type Attribution = { provider: string; providerUri?: string };
+type Author = { displayName?: string; uri?: string; photoUri?: string };
+type Photo = { name: string; googleMapsUri?: string; authorAttributions?: Author[] };
+type Review = {
+  name: string; rating?: number; text?: { text: string }; originalText?: { text: string };
+  relativePublishTimeDescription?: string; authorAttribution?: Author; googleMapsUri?: string;
+};
 export type GooglePlace = {
   id: string;
   displayName?: { text: string };
@@ -16,6 +22,8 @@ export type GooglePlace = {
   businessStatus?: string;
   googleMapsUri?: string;
   websiteUri?: string;
+  photos?: Photo[];
+  reviews?: Review[];
   internationalPhoneNumber?: string;
   attributions?: Attribution[];
   nirvanaSpaId?: number;
@@ -25,6 +33,7 @@ export type GooglePlace = {
 type Search = {
   mode: 'TEXT' | 'NEARBY';
   city?: string;
+  spaName?: string;
   locality?: string;
   countryCode: string;
   bounds?: Bounds;
@@ -58,15 +67,111 @@ function Attribution({ place }: { place: GooglePlace }) {
     </div>
   );
 }
-export function DiscoveryCard({
-  place,
-  onDetails,
-  busy
-}: {
-  place: GooglePlace;
-  onDetails: () => void;
-  busy: boolean;
-}) {
+function AuthorCredit({ author }: { author: Author }) {
+  const label = author.displayName || 'Google Maps contributor';
+  return safeUrl(author.uri)
+    ? <a className="underline" href={safeUrl(author.uri)} target="_blank" rel="noreferrer">{label}</a>
+    : <span>{label}</span>;
+}
+
+function SpaPhoto({ photo, place }: { photo: Photo; place: GooglePlace }) {
+  const [url, setUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const photoId = photo.name.split('/').pop() || '';
+    let objectUrl: string | undefined;
+    setFailed(false);
+    setUrl('');
+    client.get<Blob>(
+      `/api/discovery/places/${encodeURIComponent(place.id)}/photos/${encodeURIComponent(photoId)}/image`,
+      { signal: controller.signal, responseType: 'blob' }
+    ).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      objectUrl = URL.createObjectURL(data);
+      setUrl(objectUrl);
+    }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photo.name, place.id, attempt]);
+  return (
+    <figure className="space-y-1">
+      {failed ? <p role="status">Photo unavailable. <button type="button" className="underline" onClick={() => setAttempt(attempt + 1)}>Retry photo</button></p> : url ? (
+        <a href={safeUrl(photo.googleMapsUri) || mapsUrl(place)} target="_blank" rel="noreferrer">
+          <img className="w-full rounded-lg object-contain max-h-72" src={url}
+            alt={`Photo of ${place.displayName?.text || 'this spa'}`} onError={() => setFailed(true)} />
+        </a>
+      ) : <p role="status">Loading photo…</p>}
+      <figcaption className="text-xs">{photo.authorAttributions?.map((author, index) =>
+        <span className="mr-2" key={index}><AuthorCredit author={author} /></span>)}</figcaption>
+    </figure>
+  );
+}
+
+function PlaceDetails({ place }: { place: GooglePlace }) {
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [details, setDetails] = useState<GooglePlace>();
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    client.get<GooglePlace>(`/api/discovery/places/${encodeURIComponent(place.id)}`, { signal: controller.signal })
+      .then(({ data }) => {
+        if (!controller.signal.aborted) setDetails(data);
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(errorMessage(e));
+      });
+    return () => controller.abort();
+  }, [place.id]);
+  if (error) return <p role="alert">{error}</p>;
+  if (!details) return <p role="status">Loading spa details…</p>;
+  return (
+    <section aria-label="Live spa details" className="space-y-2 rounded-xl bg-primary-50 p-4">
+      <p>{details.internationalPhoneNumber || 'No phone number listed.'}</p>
+      {safeUrl(details.websiteUri) ? (
+        <a className="underline block" href={safeUrl(details.websiteUri)} target="_blank" rel="noreferrer">Business website</a>
+      ) : <p>No website listed.</p>}
+      <h4 className="font-semibold">Spa photos</h4>
+      {details.photos?.length ? (
+        <div className="space-y-2">
+          <SpaPhoto key={details.photos[photoIndex].name} photo={details.photos[photoIndex]} place={details} />
+          {details.photos.length > 1 && <div className="flex items-center justify-between gap-2">
+            <Button type="button" variant="secondary" disabled={photoIndex === 0}
+              onClick={() => setPhotoIndex(photoIndex - 1)}>Previous photo</Button>
+            <span>{photoIndex + 1} / {details.photos.length}</span>
+            <Button type="button" variant="secondary" disabled={photoIndex === details.photos.length - 1}
+              onClick={() => setPhotoIndex(photoIndex + 1)}>Next photo</Button>
+          </div>}
+        </div>
+      ) : <p>No Google photos available.</p>}
+      <h4 className="font-semibold">Google reviews</h4>
+      {details.reviews?.length ? <>
+        <p className="text-xs">Sorted by relevance</p>
+        {details.reviews.map((review) => (
+          <article className="space-y-1 border-t py-3 text-sm" key={review.name}>
+            <div className="flex flex-wrap items-center gap-2">
+              {safeUrl(review.authorAttribution?.photoUri) && <img loading="lazy" alt=""
+                className="h-6 w-6 rounded-full" src={review.authorAttribution?.photoUri} />}
+              {review.authorAttribution && <AuthorCredit author={review.authorAttribution} />}
+              {review.rating != null && <span>{review.rating} / 5</span>}
+              <span>{review.relativePublishTimeDescription}</span>
+            </div>
+            <p className="whitespace-pre-line">{review.originalText?.text || review.text?.text}</p>
+            {safeUrl(review.googleMapsUri) && <a className="underline" href={safeUrl(review.googleMapsUri)}
+              target="_blank" rel="noreferrer">View review on Google Maps</a>}
+          </article>
+        ))}
+      </> : <p>No Google reviews available.</p>}
+      <Attribution place={details} />
+    </section>
+  );
+}
+
+export function DiscoveryCard({ place, busy }: { place: GooglePlace; busy: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   return (
     <article className="card p-5 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -94,10 +199,11 @@ export function DiscoveryCard({
             View on Google Maps
           </a>
         )}
-        <Button variant="secondary" disabled={busy} onClick={onDetails}>
-          View details
+        <Button variant="secondary" type="button" disabled={busy} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Close details' : 'View details'}
         </Button>
       </div>
+      {expanded && <PlaceDetails place={place} />}
       {!place.nirvanaSpaId && (
         <p className="text-xs text-slate-500">Not currently bookable on Nirvana.</p>
       )}
@@ -108,13 +214,22 @@ export function DiscoveryCard({
 
 export default function Discovery({
   admin = false,
+  embedded = false,
+  initialCity = '',
+  initialSpaName = '',
+  startNearby = false,
   onSaved
 }: {
   admin?: boolean;
+  embedded?: boolean;
+  initialCity?: string;
+  initialSpaName?: string;
+  startNearby?: boolean;
   onSaved?: () => void;
 }) {
-  const [mode, setMode] = useState<'TEXT' | 'NEARBY'>('TEXT');
-  const [city, setCity] = useState('');
+  const [mode, setMode] = useState<'TEXT' | 'NEARBY'>(startNearby ? 'NEARBY' : 'TEXT');
+  const [spaName, setSpaName] = useState(initialSpaName);
+  const [city, setCity] = useState(initialCity);
   const [locality, setLocality] = useState('');
   const [country, setCountry] = useState('IN');
   const [address, setAddress] = useState('');
@@ -123,7 +238,6 @@ export default function Discovery({
   const [selected, setSelected] = useState<GooglePlace>();
   const [locations, setLocations] = useState<GooglePlace[]>([]);
   const [results, setResults] = useState<GooglePlace[]>();
-  const [details, setDetails] = useState<GooglePlace>();
   const [cursor, setCursor] = useState<{ request: Search; page: number }>();
   const [searched, setSearched] = useState<Search>();
   const [configured, setConfigured] = useState<boolean>();
@@ -150,7 +264,6 @@ export default function Discovery({
   // Provider content and coordinates live only in component memory, never localStorage/query cache.
   const clear = () => {
     setResults(undefined);
-    setDetails(undefined);
     setCursor(undefined);
     setSearched(undefined);
     setMessage('');
@@ -176,10 +289,8 @@ export default function Discovery({
       if (mounted.current) setBusy(false);
     }
   };
-  const search = async (request: Search, page = 1) =>
-    run(async (signal) => {
+  const fetchResults = async (request: Search, page: number, signal: AbortSignal) => {
       setResults(undefined);
-      setDetails(undefined);
       setCursor(undefined);
       const { data } = await client.post<{ places: GooglePlace[]; nextPageToken: string }>(
         '/api/discovery/search',
@@ -198,7 +309,8 @@ export default function Discovery({
           ? `Google results · page ${page} of up to 3. Results are ranked, not a complete directory.`
           : 'Up to 20 nearby results. Change the radius or ranking to refine your search.'
       );
-    });
+    };
+  const search = (request: Search, page = 1) => run((signal) => fetchResults(request, page, signal));
   const resolve = () =>
     run(async (signal) => {
       setSelected(undefined);
@@ -241,13 +353,22 @@ export default function Discovery({
         displayName: { text: 'Your current location' },
         location: { latitude: position.coords.latitude, longitude: position.coords.longitude }
       });
-      setMessage('Location selected. Choose a radius, then search nearby.');
+      await fetchResults({ mode: 'NEARBY', countryCode: country, latitude: position.coords.latitude,
+        longitude: position.coords.longitude, radiusMeters: radius, rank }, 1, signal);
     });
+  const pendingNearby = useRef(startNearby);
+  useEffect(() => {
+    if (configured && pendingNearby.current) {
+      pendingNearby.current = false;
+      void nearMe();
+    }
+  }, [configured, nearMe]);
   const submit = () => {
     if (mode === 'TEXT')
       void search({
         mode,
-        city: city.trim(),
+        spaName: spaName.trim() || undefined,
+        city: city.trim() || undefined,
         locality: locality.trim(),
         countryCode: country,
         bounds: selected?.viewport
@@ -267,16 +388,16 @@ export default function Discovery({
     });
   return (
     <section
-      className={admin ? 'space-y-5 card p-5' : 'mx-auto max-w-6xl p-6 space-y-6'}
+      className={embedded ? 'space-y-5' : admin ? 'space-y-5 card p-5' : 'mx-auto max-w-6xl p-6 space-y-6'}
       aria-label="Google spa discovery"
     >
-      <div>
+      {!embedded && <div>
         <p className="eyebrow">EXPLORE YOUR NEXT RESET</p>
         <h1 className="text-3xl font-semibold mt-3">Discover spas around you</h1>
         <p className="mt-3 text-slate-600">
           Explore live Google Maps listings. Book directly when a spa is available on Nirvana.
         </p>
-      </div>
+      </div>}
       {configured === false && (
         <p role="status" className="rounded-xl bg-amber-50 p-4">
           {admin
@@ -295,7 +416,7 @@ export default function Discovery({
       >
         <fieldset
           disabled={busy || configured !== true}
-          className="card p-5 space-y-5 disabled:opacity-70"
+          className={embedded ? "min-w-0 space-y-4 disabled:opacity-70" : "card p-5 space-y-5 disabled:opacity-70"}
         >
           <legend className="sr-only">Discovery search</legend>
           <div className="flex flex-wrap gap-3">
@@ -310,27 +431,15 @@ export default function Discovery({
                   resetLocation();
                 }}
               >
-                {m === 'TEXT' ? 'City & locality' : 'Near a location'}
+                {m === 'TEXT' ? 'City or spa name' : 'Near a location'}
               </Button>
             ))}
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <Input
-              label="Country code"
-              value={country}
-              required
-              pattern="[A-Za-z]{2}"
-              maxLength={2}
-              onChange={(e) => {
-                setCountry(e.target.value.toUpperCase());
-                resetLocation();
-              }}
-            />
             {(mode === 'TEXT' || admin) && (
               <Input
                 label={mode === 'TEXT' ? 'City' : 'Save references under city (optional)'}
                 value={city}
-                required={mode === 'TEXT'}
                 maxLength={100}
                 placeholder="Bengaluru, Karnataka"
                 onChange={(e) => {
@@ -338,6 +447,10 @@ export default function Discovery({
                   resetLocation();
                 }}
               />
+            )}
+            {mode === 'TEXT' && (
+              <Input label="Spa name" value={spaName} maxLength={200} placeholder="Tattva Spa"
+                onChange={(e) => { setSpaName(e.target.value); clear(); }} />
             )}
             {mode === 'TEXT' ? (
               <Input
@@ -362,6 +475,17 @@ export default function Discovery({
                 }}
               />
             )}
+            <Input
+              label="Country code"
+              value={country}
+              required
+              pattern="[A-Za-z]{2}"
+              maxLength={2}
+              onChange={(e) => {
+                setCountry(e.target.value.toUpperCase());
+                resetLocation();
+              }}
+            />
           </div>
           {(mode === 'NEARBY' || locality.trim()) && (
             <div className="space-y-3">
@@ -407,13 +531,11 @@ export default function Discovery({
           {mode === 'NEARBY' && (
             <>
               <p className="text-xs text-slate-600">
-                Use my location asks for browser permission. Searching nearby sends your selected
+                Search near me asks for browser permission and sends your selected
                 coordinates to Nirvana and Google to find spas; they are not saved by this discovery
                 feature.
               </p>
-              <Button type="button" variant="secondary" onClick={() => void nearMe()}>
-                Use my location
-              </Button>
+
               <div className="grid sm:grid-cols-2 gap-4">
                 <label className="grid gap-2 text-sm">
                   Radius
@@ -453,11 +575,14 @@ export default function Discovery({
             type="submit"
             disabled={
               mode === 'TEXT'
-                ? !city.trim() || (!!locality.trim() && !selected?.viewport)
+                ? (!city.trim() && !spaName.trim()) || (!!locality.trim() && (!city.trim() || !selected?.viewport))
                 : !selected?.location
             }
           >
-            {mode === 'TEXT' ? 'Search city / locality' : 'Search nearby'}
+            {mode === 'TEXT' ? 'Search Google Places' : 'Search nearby'}
+          </Button>
+          <Button type="button" variant="secondary" className="ml-2" onClick={() => { setMode('NEARBY'); void nearMe(); }}>
+            Near me
           </Button>
         </fieldset>
       </form>
@@ -479,25 +604,11 @@ export default function Discovery({
             spas.
           </p>
           {results.length === 0 && (
-            <p>No spas found. Try another city, locality, address or radius.</p>
+            <p>No spas found. Try another spa name, city, locality, address or radius.</p>
           )}
           <div className="grid md:grid-cols-2 gap-4">
             {results.map((place) => (
-              <DiscoveryCard
-                key={place.id}
-                place={place}
-                busy={busy}
-                onDetails={() =>
-                  void run(async (signal) => {
-                    setDetails(undefined);
-                    const { data } = await client.get<GooglePlace>(
-                      `/api/discovery/places/${encodeURIComponent(place.id)}`,
-                      { signal }
-                    );
-                    setDetails({ ...data, id: place.id });
-                  })
-                }
-              />
+              <DiscoveryCard key={place.id} place={place} busy={busy} />
             ))}
           </div>
           <div className="flex flex-wrap gap-3">
@@ -516,30 +627,6 @@ export default function Discovery({
               </Button>
             )}
           </div>
-        </section>
-      )}
-      {details && (
-        <section aria-label="Live spa details" className="card p-5 space-y-3">
-          <div className="flex justify-between gap-4">
-            <h2 className="text-2xl">{details.displayName?.text || 'Spa details'}</h2>
-            <button onClick={() => setDetails(undefined)}>Close details</button>
-          </div>
-          <p>{details.formattedAddress}</p>
-          <p>{details.internationalPhoneNumber}</p>
-          {safeUrl(details.websiteUri) && (
-            <a
-              className="underline block"
-              href={safeUrl(details.websiteUri)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Business website
-            </a>
-          )}
-          <a className="underline block" href={mapsUrl(details)} target="_blank" rel="noreferrer">
-            View on Google Maps
-          </a>
-          <Attribution place={details} />
         </section>
       )}
       <p className="text-xs text-slate-500">

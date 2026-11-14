@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import Discovery, { DiscoveryCard, mapsUrl } from './Discovery';
@@ -10,7 +10,6 @@ describe('Google discovery', () => {
     const unmatched = render(
       <DiscoveryCard
         place={{ id: 'abc', displayName: { text: 'A spa' } }}
-        onDetails={vi.fn()}
         busy={false}
       />
     );
@@ -18,7 +17,7 @@ describe('Google discovery', () => {
     expect(unmatched).not.toContain('Book on Nirvana');
     expect(unmatched).toContain('Google Maps');
     const matched = render(
-      <DiscoveryCard place={{ id: 'abc', nirvanaSpaId: 42 }} onDetails={vi.fn()} busy={false} />
+      <DiscoveryCard place={{ id: 'abc', nirvanaSpaId: 42 }} busy={false} />
     );
     expect(matched).toContain('Book on Nirvana');
     expect(matched).toContain('/spas/42');
@@ -34,7 +33,6 @@ describe('Google discovery', () => {
           displayName: { text: '<script>alert(1)</script>' },
           attributions: [{ provider: 'Source', providerUri: 'javascript:alert(1)' }]
         }}
-        onDetails={vi.fn()}
         busy={false}
       />
     );
@@ -44,7 +42,10 @@ describe('Google discovery', () => {
   });
   it('offers city and location modes without loading provider data on render', () => {
     const html = render(<Discovery />);
-    expect(html).toContain('City &amp; locality');
+    expect(html).toContain('City or spa name');
+    expect(html).toContain('>Spa name</label>');
+    expect(html.indexOf('>City</label>')).toBeLessThan(html.indexOf('>Spa name</label>'));
+    expect(html).toContain('Near me');
     expect(html).toContain('Near a location');
     expect(html).toContain('Locality (optional)');
     expect(html).not.toContain('Save these Place ID references');

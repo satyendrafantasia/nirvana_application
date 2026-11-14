@@ -26,6 +26,7 @@ public class SpaRecommendationService {
                 null, // countryCode
                 null, // localityLike
                 null, // freeText
+                null, // spaName
                 null, // minLat
                 null, // maxLat
                 null, // minLon

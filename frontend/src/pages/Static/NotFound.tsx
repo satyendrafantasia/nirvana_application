@@ -11,6 +11,7 @@ const NotFound = () => {
       <Button as={Link} to="/">
         Go home
       </Button>
+      <Button as={Link} to="/spas" variant="secondary">Explore services</Button>
     </div>
   );
 };

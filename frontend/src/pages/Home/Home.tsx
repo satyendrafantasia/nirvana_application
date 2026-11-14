@@ -1,6 +1,8 @@
+import { useState } from 'react';
+import Discovery from '../Discovery/Discovery';
+import SearchSource, { type SpaSource } from '../../components/spa/SearchSource';
 import { Link, useNavigate } from 'react-router-dom';
-import Input from '../../components/common/Input';
-import Button from '../../components/common/Button';
+import CatalogueSearch from '../../components/spa/CatalogueSearch';
 import SpaCard from '../../components/spa/SpaCard';
 import { useQuery } from '@tanstack/react-query';
 import { searchSpas } from '../../api/spaApi';
@@ -8,6 +10,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { Spa } from '../../types/spa';
 
 const Home = () => {
+  const [source, setSource] = useState<SpaSource>('nirvana');
+  const [nearby, setNearby] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const {
@@ -21,14 +25,6 @@ const Home = () => {
     staleTime: 1000 * 60 * 5
   });
 
-  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const q = formData.get('q');
-    const city = formData.get('city');
-    navigate(`/spas?${new URLSearchParams({ q: String(q || ''), city: String(city || '') })}`);
-  };
-
   return (
     <div className="home-shell mx-auto max-w-6xl px-4 py-10">
       <section className="wellness-hero">
@@ -36,7 +32,7 @@ const Home = () => {
           <p className="eyebrow"><span /> YOUR EVERYDAY ESCAPE</p>
           <h1>A little pause.<br /><span>A better you.</span></h1>
           <p className="hero-description">Make room for feeling good. Discover spa experiences, find your moment, and leave the everyday behind.</p>
-          <a href="#find-your-spa" className="hero-discover">Find your kind of calm <span aria-hidden="true">↗</span></a>
+          <Link to="/spas" className="hero-discover">Book an appointment <span aria-hidden="true">↗</span></Link>
           <div className="hero-footnote"><span className="tiny-spark" aria-hidden="true">✳</span> A little time for yourself changes everything.</div>
         </div>
         <div className="hero-art" role="img" aria-label="Sculptural green arches and a lime sun, an abstract moment of calm">
@@ -47,17 +43,20 @@ const Home = () => {
         </div>
       </section>
       <section id="find-your-spa" className="search-panel" aria-label="Find a spa">
-        <div className="search-heading"><span className="eyebrow">YOUR NEXT RESET</span><h2>Where will you unwind?</h2></div>
-        <form className="home-search" onSubmit={handleSearch}>
-          <Input name="q" label="Treatment or experience" placeholder="Massage, facial, sauna" />
-          <Input name="city" label="City" placeholder="Bengaluru" />
-          <Button type="submit" className="search-submit">Search spas <span aria-hidden="true">↗</span></Button>
-        </form>
+        <div className="search-heading"><h2>Where will you unwind?</h2><SearchSource value={source} onChange={(next) => { setNearby(false); setSource(next); }} /></div>
+        {source === 'google' ? (user ? <Discovery embedded startNearby={nearby} /> : (
+          <Link className="font-semibold underline" to="/spas?source=google">Sign in to search Google Places</Link>
+        )) : <CatalogueSearch onSearch={(filters) => navigate(`/spas?${filters}`)}
+          onNearby={() => {
+            if (!user) { navigate('/spas?source=google'); return; }
+            setNearby(true);
+            setSource('google');
+          }} />}
       </section>
       <div className="wellness-strip"><span>TIME WELL SPENT</span><p>Discover your space</p><span aria-hidden="true">✳</span><p>Choose your ritual</p><span aria-hidden="true">✳</span><p>Make it your moment</p></div>
       <section className="ritual-grid" aria-label="Explore wellness">
-        <Link to="/spas?q=Massage" className="ritual-card"><span className="ritual-index">01 / RESTORE</span><span className="ritual-symbol" aria-hidden="true">◌</span><h3>Release the day.</h3><p>Explore massages & body treatments</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
-        <Link to="/spas?q=Facial" className="ritual-card"><span className="ritual-index">02 / RENEW</span><span className="ritual-symbol" aria-hidden="true">✳</span><h3>Find your glow.</h3><p>Discover facials & skin rituals</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
+        <Link to="/spas?serviceName=Massage" className="ritual-card"><span className="ritual-index">01 / RESTORE</span><span className="ritual-symbol" aria-hidden="true">◌</span><h3>Release the day.</h3><p>Explore massages & body treatments</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
+        <Link to="/spas?serviceName=Facial" className="ritual-card"><span className="ritual-index">02 / RENEW</span><span className="ritual-symbol" aria-hidden="true">✳</span><h3>Find your glow.</h3><p>Discover facials & skin rituals</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
         <Link to="/packages" className="ritual-card"><span className="ritual-index">03 / REPEAT</span><span className="ritual-symbol" aria-hidden="true">∞</span><h3>Make it a ritual.</h3><p>Explore wellness packages</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
       </section>
 

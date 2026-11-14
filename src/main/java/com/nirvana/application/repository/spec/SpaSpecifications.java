@@ -38,7 +38,9 @@ public final class SpaSpecifications {
 
         return (root, query, cb) -> {
             Join<Object, Object> join = root.join("services", JoinType.LEFT);
-            return cb.like(cb.lower(join.get("name")), "%" + name.toLowerCase() + "%");
+            query.distinct(true);
+            return cb.and(cb.isTrue(join.get("isActive")), cb.isTrue(join.get("isVisibleOnMarketplace")),
+                    cb.gt(cb.locate(cb.lower(join.get("name")), name.strip().toLowerCase(java.util.Locale.ROOT)), 0));
         };
     }
 

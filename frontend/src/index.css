@@ -105,3 +105,30 @@ footer { background:#eef2e8 !important; border-color:#dfe5d8 !important; }
  .ritual-card { padding:22px; } .ritual-symbol { margin:18px 0; font-size:40px; }
 }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { transition:none !important; } }
+
+.search-panel .search-heading { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+.search-panel .search-heading h2 { margin:0; }
+.browse-search-panel { margin-top:0; }
+.spa-source { display:inline-flex; flex-wrap:wrap; gap:4px; padding:4px; border-radius:14px; background:#eff3ea; }
+.spa-source button { flex:auto; padding:8px 14px; border-radius:10px; font-weight:600; color:#375039; }
+.spa-source button[aria-pressed="true"] { background:#203523; color:white; }
+@media (max-width:640px) {
+  .spa-source { width:100%; }
+  .spa-source button { padding:8px; }
+}
+
+.nav-toggle { display: none; }
+@media (max-width: 767px) {
+  .site-header .nav-shell { display: flex; flex-wrap: wrap; justify-content: space-between; }
+  .nav-toggle { display: inline-flex; min-height: 44px; }
+  .site-header .main-nav { order: 3; width: 100%; max-height: 50vh; overflow-y: auto; }
+  .site-header .main-nav[data-expanded="false"], .nav-shell:has(.main-nav[data-expanded="false"]) > div:last-child { display: none; }
+  .site-header .main-nav a { padding-block: .65rem; }
+  .site-header .main-nav details > div { position: static; max-width: 100%; }
+}
+
+@media (max-width:767px) {
+  .nav-shell .ui-button { min-height:44px; }
+  .site-header .main-nav details { max-width:100%; }
+  .spa-card { overflow-wrap:anywhere; }
+}

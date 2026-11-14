@@ -1,7 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Spinner from '../common/Spinner';
-import { useEffect } from 'react';
 
 interface RequireAuthProps {
   children: React.ReactNode;
@@ -9,12 +8,9 @@ interface RequireAuthProps {
 }
 
 export const RequireAuth = ({ children, redirectTo = '/auth/login' }: RequireAuthProps) => {
-  const { user, isLoading, hydrateUser } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    hydrateUser();
-  }, [hydrateUser]);
 
   if (isLoading) {
     return (

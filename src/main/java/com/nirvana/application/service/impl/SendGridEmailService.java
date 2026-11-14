@@ -66,16 +66,16 @@ public class SendGridEmailService implements EmailService {
             if (statusCode >= 400) {
                 logEntry.setStatus(NotificationStatus.FAILED);
                 logEntry.setErrorMessage(response.getBody());
-                log.error("Failed to send invoice email {} to {} status {}", dto.invoiceNumber(), dto.toEmail(), statusCode);
+                log.error("Notification delivery failed");
             } else {
                 logEntry.setStatus(NotificationStatus.SENT);
                 logEntry.setProviderMessageId(String.valueOf(statusCode));
-                log.info("Invoice email {} sent to {} with status {}", dto.invoiceNumber(), dto.toEmail(), statusCode);
+                log.debug("Notification delivery processed");
             }
         } catch (IOException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
             logEntry.setErrorMessage(e.getMessage());
-            log.error("Error sending invoice email {} to {}", dto.invoiceNumber(), dto.toEmail(), e);
+            log.error("Notification delivery failed");
         } finally {
             notificationLogRepository.save(logEntry);
         }
@@ -83,12 +83,12 @@ public class SendGridEmailService implements EmailService {
 
     @Override
     public void sendCorporateEmployeeInvite(String employeeEmail, String username, String tempPassword) {
-        log.info("Sending corporate invite to {} with username {}", employeeEmail, username);
+        log.debug("Notification delivery processed");
     }
 
     @Override
     public void sendCorporateBenefitsActivated(String employeeEmail, String dealName) {
-        log.info("Sending corporate benefits activation email to {} for deal {}", employeeEmail, dealName);
+        log.debug("Notification delivery processed");
     }
 
     private String buildInvoiceBody(InvoiceEmailDto dto) {

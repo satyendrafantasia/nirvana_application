@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { track } from '../../telemetry';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import StepIndicator from '../../components/booking/StepIndicator';
 import SelectService from './SelectService';
 import SelectSlot from './SelectSlot';
@@ -12,10 +14,17 @@ import { BookingSummary } from '../../types/booking';
 const steps = ['Service', 'Slot', 'Therapist', 'Review', 'Payment', 'Done'];
 
 const Booking = () => {
-  const [currentStep, setCurrentStep] = useState(1);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { state } = useBookingFlow();
+  const [currentStep, setCurrentStep] = useState(state.service && state.spaId ? 2 : 1);
   const [summary, setSummary] = useState<BookingSummary | null>(null);
 
+  const entered = useRef(false);
+  useEffect(() => {
+    if (!entered.current && pathname !== '/booking/receipt') track('begin_booking');
+    entered.current = true;
+  }, [pathname]);
   const canProceed = useMemo(() => {
     switch (currentStep) {
       case 1:
@@ -33,6 +42,7 @@ const Booking = () => {
     }
   }, [currentStep, state.paymentMode, state.service, state.slot, state.spaId]);
 
+  if (pathname === '/booking/receipt' && !summary) return <Navigate replace to="/me/bookings" />;
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <StepIndicator currentStep={currentStep} steps={steps} />
@@ -51,11 +61,11 @@ const Booking = () => {
           <Payment
             onNext={() => setCurrentStep(6)}
             onBack={() => setCurrentStep(4)}
-            onConfirm={(booking) => setSummary(booking)}
+            onConfirm={(booking) => { setSummary(booking); navigate("/booking/receipt", { replace: true }); }}
           />
         )}
         {currentStep === 6 && (
-          <BookingConfirmation summary={summary} onRestart={() => setCurrentStep(1)} />
+          <BookingConfirmation summary={summary} onRestart={() => { setSummary(null); setCurrentStep(1); navigate("/booking", {replace:true}); }} />
         )}
       </div>
       {!canProceed && (

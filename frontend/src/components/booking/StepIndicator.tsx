@@ -13,7 +13,7 @@ const StepIndicator = ({ currentStep, steps }: StepIndicatorProps) => {
         const isActive = stepNumber === currentStep;
         const isCompleted = stepNumber < currentStep;
         return (
-          <div key={step} className="flex items-center gap-2">
+          <div key={step} aria-current={isActive ? "step" : undefined} className={clsx("items-center gap-2", isActive ? "flex" : "hidden md:flex")}>
             <span
               className={clsx(
                 'flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold',
@@ -30,7 +30,7 @@ const StepIndicator = ({ currentStep, steps }: StepIndicatorProps) => {
                 isActive ? 'text-primary-700' : 'text-slate-500'
               )}
             >
-              {step}
+              {step}<span className="md:hidden"> · Step {stepNumber} of {steps.length}</span>
             </span>
             {index < steps.length - 1 && <span className="text-slate-200">—</span>}
           </div>

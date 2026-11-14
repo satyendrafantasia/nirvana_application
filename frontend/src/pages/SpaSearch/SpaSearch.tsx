@@ -1,69 +1,50 @@
+import { useState } from 'react';
+import CatalogueSearch from '../../components/spa/CatalogueSearch';
+import Discovery from '../Discovery/Discovery';
+import SearchSource, { type SpaSource } from '../../components/spa/SearchSource';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { searchSpas } from '../../api/spaApi';
 import SpaCard from '../../components/spa/SpaCard';
-import Input from '../../components/common/Input';
-import Select from '../../components/common/Select';
-import Button from '../../components/common/Button';
 import { Spa } from '../../types/spa';
 
 const SpaSearch = () => {
   const [params, setParams] = useSearchParams();
-  const queryParams = Object.fromEntries(params.entries());
+  const [nearby, setNearby] = useState(false);
+  const source = params.get('source') === 'google' ? 'google' : 'nirvana';
+  const switchSource = (next: SpaSource) => {
+    const filters = new URLSearchParams(params);
+    if (next === 'google') filters.set('source', next);
+    else filters.delete('source');
+    setParams(filters);
+  };
+  const filters = new URLSearchParams(params);
+  filters.delete('source');
+  const queryParams = Object.fromEntries(filters);
 
   const {
     data: spas,
     isLoading,
     isError
   } = useQuery({
+    enabled: source === 'nirvana',
     queryKey: ['spas', queryParams],
     queryFn: () => searchSpas(queryParams)
   });
 
-  const handleFilter = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const nextParams = new URLSearchParams();
-    formData.forEach((value, key) => {
-      if (value) nextParams.set(key, String(value));
-    });
-    setParams(nextParams);
-  };
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-3xl font-bold text-slate-900">Find your next spa</h1>
-      <p className="text-slate-600">Search by service, city, or rating.</p>
-
-      <form
-        className="mt-6 grid gap-4 rounded-2xl bg-white p-4 shadow-card md:grid-cols-4"
-        onSubmit={handleFilter}
-      >
-        <Input
-          name="q"
-          placeholder="Massage"
-          defaultValue={params.get('q') || ''}
-          label="Service"
-        />
-        <Input
-          name="city"
-          placeholder="Bengaluru"
-          defaultValue={params.get('city') || ''}
-          label="City"
-        />
-        <Select name="sort" defaultValue={params.get('sort') || ''} label="Sort by">
-          <option value="">Recommended</option>
-          <option value="rating_desc">Highest rated</option>
-          <option value="name_asc">Name</option>
-        </Select>
-        <div className="flex items-end">
-          <Button type="submit" className="w-full">
-            Search
-          </Button>
+      <div className="search-panel browse-search-panel">
+        <div className="search-heading">
+          <h1 className="text-3xl font-bold">Find your next spa</h1>
+          <SearchSource value={source} onChange={(next) => { setNearby(false); switchSource(next); }} />
         </div>
-      </form>
+        {source === 'google' ? <Discovery embedded startNearby={nearby} initialCity={params.get('city') || ''} initialSpaName={params.get('spaName') || ''} /> :
+          <CatalogueSearch key={params.toString()} params={params} onSearch={setParams}
+            onNearby={() => { setNearby(true); switchSource('google'); }} />}
+      </div>
 
-      <div className="mt-8 grid gap-6 md:grid-cols-3">
+      {source === 'nirvana' && <div className="mt-8 grid gap-6 md:grid-cols-3">
         {isError && <p role="alert">Unable to load spas. Check the connection and retry.</p>}
         {isLoading && <p className="text-sm text-slate-500">Loading spas...</p>}
         {!isLoading && spas?.length === 0 && (
@@ -72,7 +53,7 @@ const SpaSearch = () => {
         {spas?.map((spa: Spa) => (
           <SpaCard spa={spa} key={spa.id} />
         ))}
-      </div>
+      </div>}
     </div>
   );
 };

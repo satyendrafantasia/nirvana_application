@@ -67,8 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const profile = await getMe();
       setUserState(profile as User);
-    } catch (error) {
-      console.error('Failed to hydrate user', error);
+    } catch {
       logout();
     } finally {
       setIsLoading(false);

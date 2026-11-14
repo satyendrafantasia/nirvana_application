@@ -50,11 +50,11 @@ public class NoOpEmailService implements EmailService {
             MimeMessage message = buildMimeMessage(dto.toEmail(), dto.toName(), subject, buildInvoiceBody(dto));
             mailSender.send(message);
             logEntry.setStatus(NotificationStatus.SENT);
-            log.info("Invoice email {} sent to {} (smtp fallback)", dto.invoiceNumber(), dto.toEmail());
+            log.debug("Notification delivery processed");
         } catch (MessagingException | MailException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
             logEntry.setErrorMessage(e.getMessage());
-            log.error("Failed to send invoice email {} to {}", dto.invoiceNumber(), dto.toEmail(), e);
+            log.error("Notification delivery failed");
         } finally {
             notificationLogRepository.save(logEntry);
         }
@@ -92,9 +92,9 @@ public class NoOpEmailService implements EmailService {
         try {
             MimeMessage message = buildMimeMessage(toEmail, null, subject, html);
             mailSender.send(message);
-            log.info("Sent email to {} with subject {} (smtp fallback)", toEmail, subject);
+            log.debug("Notification delivery processed");
         } catch (MessagingException | MailException e) {
-            log.error("Failed to send email to {} with subject {}", toEmail, subject, e);
+            log.error("Notification delivery failed");
         }
     }
 

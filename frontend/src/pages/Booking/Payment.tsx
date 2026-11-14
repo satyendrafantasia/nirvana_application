@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { track } from '../../telemetry';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
@@ -17,6 +18,7 @@ export default function Payment({
 }) {
   const { state, setPaymentMode, setNotes } = useBookingFlow();
   const [created, setCreated] = useState<CreatedBooking>();
+  const submitting = useRef(false);
   const [coupon, setCoupon] = useState('');
   const [loyalty, setLoyalty] = useState(false);
   const [usePackage, setUsePackage] = useState(false);
@@ -36,6 +38,7 @@ export default function Payment({
     mutationFn: async () => {
       if (!state.spaId || !state.service || !state.selectedSlot || !state.paymentMode)
         throw new Error('Select a service and available appointment time.');
+      if (!created) track('booking_submitted');
       const booking =
         created ||
         (await createBooking({
@@ -49,12 +52,13 @@ export default function Payment({
           paymentMode: state.paymentMode,
           paymentMethod: 'RAZORPAY',
           specialRequest: state.notes,
-          couponCode: coupon || undefined,
+          couponCode: coupon.trim() || undefined,
           redeemLoyaltyPoints: loyalty,
           payWithPackage: usePackage,
           payWithSpaPackage: useSpaPackage,
           bookingSource: 'WEB'
         }));
+      if (!created && coupon.trim() && !usePackage && !useSpaPackage) track('coupon_applied');
       setCreated(booking);
       let status = booking.status;
       if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
@@ -73,7 +77,9 @@ export default function Payment({
         status
       };
     },
+    onError: () => track('booking_failed'),
     onSuccess: (b) => {
+      if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);
       onNext();
     }
@@ -163,7 +169,7 @@ export default function Payment({
           {errorMessage(mutation.error)}
         </p>
       )}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button variant="secondary" disabled={!!created || mutation.isPending} onClick={onBack}>
           Back
         </Button>
@@ -172,7 +178,11 @@ export default function Payment({
             mutation.isPending ||
             (!created && (usePackage || useSpaPackage) && eligibility.data?.canUse !== true)
           }
-          onClick={() => mutation.mutate()}
+          onClick={() => {
+            if (submitting.current) return;
+            submitting.current = true;
+            mutation.mutate(undefined, { onSettled: () => { submitting.current = false; } });
+          }}
         >
           {mutation.isPending ? 'Processing…' : created ? 'Retry payment' : 'Book appointment'}
         </Button>

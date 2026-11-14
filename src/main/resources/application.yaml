@@ -5,9 +5,9 @@ spring:
     active: local
 
   datasource:
-    url: jdbc:mysql://localhost:3306/nirvana_v1?useSSL=false&serverTimezone=UTC
-    username: root
-    password: root
+    url: ${SPA_DB_URL}
+    username: ${SPA_DB_USER}
+    password: ${SPA_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 2
@@ -16,7 +16,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -91,12 +91,12 @@ aws:
   # Prefer using IAM roles or environment-based credentials in production instead of static keys.
   region: ap-south-1
   credentials:
-    accessKeyId: YOUR_AWS_ACCESS_KEY_ID
-    secretAccessKey: YOUR_AWS_SECRET_ACCESS_KEY
+    accessKeyId: ${AWS_ACCESS_KEY_ID:}
+    secretAccessKey: ${AWS_SECRET_ACCESS_KEY:}
   s3:
     bucket-name: your-bucket-name
-  access-key-id: YOUR_ACCESS_KEY_ID
-  secret-key: YOUR_SECRET_KEY
+  access-key-id: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
 
 flyway:
   enabled: true
@@ -119,10 +119,10 @@ email:
 
 payments:
   razorpay:
-    enabled: true
-    key-id: rzp_test_xxxxxxxx      # <-- PUBLIC key (goes to FE)
-    key-secret: your_secret_key    # <-- aka SALT, NEVER send to FE
-    webhook-secret: your_webhook_secret # for webhooks
+    enabled: ${RAZORPAY_ENABLED:false}
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
     currency: INR
     auto-capture: true             # payment_capture = 1
     description-prefix: "Nirvana Spa Booking"
@@ -142,7 +142,7 @@ notifications:
 
 security:
   jwt:
-    secret: ${JWT_SECRET:change-me-to-a-strong-secret}
+    secret: ${JWT_SECRET}
     expiration-minutes: 1440
     refresh-expiration-days: 30
     device-fingerprint-header: X-Device-Fingerprint

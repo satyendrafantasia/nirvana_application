@@ -119,7 +119,7 @@ public class SlotAvailabilityService {
         Map<Long, Integer> holdMap = buildHoldMap(slots);
 
         boolean therapistSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistSelection());
-        boolean therapistTypeSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistSelection());
+        boolean therapistTypeSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection());
         List<Therapist> therapistsForService = therapistRepository.findActiveAvailableForSpaAndService(spaId, serviceId);
         Map<Long, List<TherapistBookingWindow>> therapistBookings = buildTherapistBookings(therapistsForService, from, to);
 

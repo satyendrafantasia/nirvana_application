@@ -138,7 +138,8 @@ Google Maps Platform. This discovery interface is restricted to administrators.
 ## Live city, locality and nearby discovery
 
 `/discover` is the authenticated customer discovery view. The admin city-discovery
-screen embeds the same live search with a separate explicit save-references action.
+screen embeds the same live search. Every successful search page automatically saves
+Place IDs; admins can also associate results with a chosen city.
 City Text Search supports up to three pages. For locality search, enter city and
 locality, click Find locality boundary, and select the correct Google candidate;
 the subsequent spa search uses its viewport as a geographic restriction. Review
@@ -151,7 +152,12 @@ Summary fields include name, address, Google rating, status and attribution.
 Phone and website details are fetched only on explicit request. Provider content,
 resolved areas and coordinates are held in page memory only; API responses use
 Cache-Control: no-store. No Google content is written to localStorage or a query
-cache. Admins can save up to 20 Place IDs under a city they enter. No names,
+cache. V39 adds `place_discovery_reference`, keyed by Place ID, with first/last seen
+timestamps, search count, and the latest submitted city/locality/country/mode.
+Duplicates within a page count once; repeated searches update the same row.
+Nearby searches need no city and do not persist coordinates. City references also
+populate the existing admin city list. Persistence errors fail the request.
+Admins can save up to 20 Place IDs under a city they enter. No names,
 addresses, ratings, details or coordinates are saved by discovery. Existing
 owner onboarding remains the source of Nirvana catalogue data.
 

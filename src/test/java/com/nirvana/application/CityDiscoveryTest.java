@@ -61,13 +61,13 @@ class CityDiscoveryTest {
             mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(body)).andExpect(status().isBadRequest());
         verifyNoInteractions(places);
     }
-    @Test void liveResultsDeduplicateWithoutSavingAndDetailsAreNoStore() throws Exception {
+    @Test void liveResultsPersistReferencesAndDetailsAreNoStore() throws Exception {
         long before=jdbc.queryForObject("SELECT COUNT(*) FROM city_place_discovery",Long.class);
         when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_live_only\",\"displayName\":{\"text\":\"Live spa\"}},{\"id\":\"discovery_live_only\"}],\"nextPageToken\":\"next\"}"));
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content("{\"mode\":\"TEXT\",\"city\":\"Delhi\",\"countryCode\":\"IN\"}"))
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
             .andExpect(jsonPath("$.places.length()").value(1)).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist()).andExpect(jsonPath("$.nextPageToken").value("next"));
-        assertEquals(before,jdbc.queryForObject("SELECT COUNT(*) FROM city_place_discovery",Long.class));
+        assertEquals(before+1,jdbc.queryForObject("SELECT COUNT(*) FROM city_place_discovery",Long.class));
         when(places.details("discovery_live_only")).thenReturn(json.readTree("{\"id\":\"discovery_live_only\"}"));
         mvc.perform(get("/api/discovery/places/discovery_live_only").with(authentication(auth("ROLE_USER")))).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
     }
@@ -91,5 +91,17 @@ class CityDiscoveryTest {
         jdbc.update("UPDATE spa SET is_verified=true WHERE id=?",id);
         when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"CLOSED_TEMPORARILY\"}]}"));
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist());
+    }
+
+    @Test void nearbyResultsDeduplicateAndTrackRepeatSearchesWithoutCity() throws Exception {
+        when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"nearby_saved_test\",\"displayName\":{\"text\":\"Live only\"}},{\"id\":\"nearby_saved_test\"},{\"id\":\"invalid/id\"}]}"));
+        String request = "{\"mode\":\"NEARBY\",\"countryCode\":\"in\",\"latitude\":12,\"longitude\":77,\"radiusMeters\":3000}";
+        for (int i=0;i<2;i++) mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk());
+        var row=jdbc.queryForMap("SELECT * FROM place_discovery_reference WHERE place_id='nearby_saved_test'");
+        assertEquals(2L, ((Number)row.get("search_count")).longValue());
+        assertEquals("NEARBY", row.get("search_mode"));
+        assertEquals("IN", row.get("country_code"));
+        assertNull(row.get("search_city"));
+        assertEquals(0L,jdbc.queryForObject("SELECT COUNT(*) FROM place_discovery_reference WHERE place_id='invalid/id'",Long.class));
     }
 }

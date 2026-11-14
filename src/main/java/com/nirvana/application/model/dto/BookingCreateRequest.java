@@ -33,6 +33,7 @@ public class BookingCreateRequest {
     private String therapistType;
 
     @NotNull
+    @jakarta.validation.constraints.Pattern(regexp = "(?i)ONLINE|OFFLINE", message = "Choose online or offline payment")
     @Schema(description = "Payment mode for the booking", example = "ONLINE")
     private String paymentMode; // ONLINE | OFFLINE
 

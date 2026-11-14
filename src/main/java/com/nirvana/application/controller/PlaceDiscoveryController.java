@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nirvana.application.model.dto.PlaceDiscoveryRequest;
 import com.nirvana.application.service.CityPlacesClient;
+import com.nirvana.application.service.PlaceReferenceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.*;
 public class PlaceDiscoveryController {
     private final CityPlacesClient places;
     private final JdbcTemplate jdbc;
+    private final PlaceReferenceService references;
     public record LocationRequest(@NotBlank @Size(max=250) String query,
                                   @NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode) {}
     @GetMapping("/status")
@@ -37,6 +39,7 @@ public class PlaceDiscoveryController {
             String id = place.path("id").asText();
             if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")) unique.putIfAbsent(id, object.deepCopy());
         });
+        references.record(unique.keySet(), request.mode().name(), request.city(), request.locality(), request.countryCode());
         if (!unique.isEmpty()) {
             String slots = String.join(",", Collections.nCopies(unique.size(), "?"));
             // Return only approved, active catalogue matches. Never expose drafts or owner data.
@@ -52,6 +55,14 @@ public class PlaceDiscoveryController {
     }
     @GetMapping("/places/{placeId}")
     public ResponseEntity<JsonNode> details(@PathVariable String placeId) { return live(places.details(placeId)); }
+    @GetMapping("/places/{placeId}/photos/{photoId}")
+    public ResponseEntity<JsonNode> photo(@PathVariable String placeId, @PathVariable String photoId) {
+        return live(places.photo(placeId, photoId));
+    }
+    @GetMapping("/places/{placeId}/photos/{photoId}/image")
+    public ResponseEntity<byte[]> photoImage(@PathVariable String placeId, @PathVariable String photoId) {
+        return places.photoImage(placeId, photoId);
+    }
     private ResponseEntity<JsonNode> live(JsonNode body) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }

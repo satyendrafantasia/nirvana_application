@@ -2,6 +2,7 @@ package com.nirvana.application.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nirvana.application.service.CityPlacesClient;
+import com.nirvana.application.service.PlaceReferenceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.*;
 public class CityDiscoveryController {
     private final CityPlacesClient places;
     private final JdbcTemplate jdbc;
+    private final PlaceReferenceService references;
     private final TransactionTemplate transactions;
     public record SearchRequest(@NotBlank @Size(max=100) String city,
                                 @NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode,
@@ -58,9 +60,7 @@ public class CityDiscoveryController {
             String id = place.path("id").asText();
             if (id.matches("[A-Za-z0-9_-]{1,255}")) ids.add(id);
         });
-        transactions.executeWithoutResult(tx -> {
-            for (String id : ids) jdbc.update("INSERT INTO city_place_discovery (city,country_code,place_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id", city, country, id);
-        });
+        references.record(ids, "TEXT", city, null, country);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of(
                 "city",city,"countryCode",country,"found",ids.size(),
                 "nextPageToken",response.path("nextPageToken").asText("")));

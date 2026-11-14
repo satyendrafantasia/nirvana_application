@@ -21,6 +21,9 @@ public class AmazonS3Config {
 
     @Bean
     public AmazonS3 amazonS3() {
+        if (accessKeyId.isBlank() || System.getenv("AWS_SESSION_TOKEN") != null) {
+            return AmazonS3ClientBuilder.standard().withRegion(region).build();
+        }
         BasicAWSCredentials creds = new BasicAWSCredentials(accessKeyId, secretKey);
         return AmazonS3ClientBuilder.standard()
                 .withRegion(region)

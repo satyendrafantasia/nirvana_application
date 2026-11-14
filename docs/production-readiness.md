@@ -1,0 +1,52 @@
+# Nirvana production readiness review
+
+## Scope and architecture
+
+The frontend uses React 18, Vite, React Router, Tailwind and TanStack Query. The backend uses Spring Boot 3.5, Java 17, Spring Security, JPA and Flyway with MySQL/MariaDB. The local preview uses MariaDB. A visitor can see the homepage, account entry points and legal drafts. Spa profiles, the catalogue, customer discovery, booking, account history and staff screens require sign-in.
+
+| Area | Finding before the changes | Delivered |
+| --- | --- | --- |
+| Booking | Spa profiles passed the selected service into a six-step flow that asked for it again. Slot holds and server pricing already existed. | Start at time selection for a preselected service. Refresh availability, enforce valid guest bounds, respect the customer's own active hold and provide retry states. |
+| Checkout | Rapid clicks could enter the submission path more than once. Unknown coupons silently produced no coupon discount. | Synchronous submit guard, disabled pending controls, server rejection for an unknown coupon, preserved inputs on retry. Payment retry uses the booking already created. |
+| Receipt | Limited appointment information and no durable destination after refresh. | Server status, reference, spa, treatment, appointment time, currency and total. Refresh opens the signed-in customer's booking history. No booking details are stored in the URL or browser storage for this feature. |
+| Navigation and accessibility | Crowded small-screen navigation, an overflowing booking card, limited field feedback and no recovery screen. | Collapsible mobile navigation, keyboard skip link, accessible field errors and password toggle, visible progress, recoverable errors, themed 404 and a contextual mobile treatment link. |
+| Visibility | Client-only homepage, shared metadata and no provider-independent static discovery files. | Build-time homepage introduction with working navigation, canonical/social tags, Organization JSON-LD, sized social image, icons, robots and sitemap. |
+| Trust and measurement | No routed legal drafts or optional booking funnel. | Linked legal drafts and existing signed-in support route. Event-only opt-in analytics, disabled without a collector. |
+| API security | Shared configuration held signing and provider defaults. Management routes bypassed security. Some application logs included verification codes, resume tokens or notification recipients. | Required signing secret, environment-configured DB/payment/AWS credentials, IAM credential chain support, restricted management routes, safer OTP/draft/delivery logging and payment-mode validation. |
+
+## Booking and privacy decisions
+
+The existing backend owns price, tax, discounts, capacity and eligibility. It locks the slot and checks the hold, guest count, member and requested treatment before committing the booking. Rescheduling and cancellation use ownership-scoped lookups. JWT parsing validates the signature and expiration. Capacity protection and an in-flight button guard address different failure modes. Clients using the API without a hold still need a durable idempotency key for unconditional replay protection across devices or ambiguous network failures.
+
+The existing single-page app, service catalogue, role checks, payment retry, opening hours, booking history, design tokens, typography and Google Places integration are reused. Full SSR, a new payment provider, a global sticky CTA, a cookie banner and public service pages were omitted. Only the homepage is approved for indexing. Publishing spa or service pages requires an approved public read model and a decision about which listings, descriptions and prices may be published. The site publishes Organization markup. LocalBusiness, price, rating and review markup need verified public records.
+
+The contextual mobile action is displayed on a spa profile while its bookable treatments are below the viewport. The checkout uses the existing authenticated user details. A completed booking event requires a confirmed server status. A pending payment remains pending. Analytics sends only the event name to a configured same-origin collector with no credentials or referrer. It sends no booking identifiers, notes, coupon strings, coordinates, values or contact details. The browser holds completion IDs in memory for deduplication. The Privacy page lets a user opt in or withdraw. Authentication storage continues to operate independently.
+
+## Production configuration and hosting
+
+- Set **VITE_PUBLIC_SITE_URL** to the single approved HTTPS origin when building for production. Omit it for previews. An unconfigured build emits no canonical URLs or sitemap entries and blocks crawling. The configured social image is 1200 × 630 pixels.
+- **VITE_ANALYTICS_PATH** is optional. Set it only after a same-origin event collector is deployed, its retention is approved and POST requests are routed to it. Service views, selection, booking entry, slot selection, submission, coupon application, failures and confirmed checkout are instrumented. Payment completion outside this checkout, such as a later gateway webhook, is outside the browser funnel.
+- Set **SPA_DB_URL**, **SPA_DB_USER**, **SPA_DB_PASSWORD** and **JWT_SECRET** through the deployment secret store. Set a persistent, randomly generated signing secret of at least 32 characters. Changing it invalidates active access tokens. Use the existing local-spa profile for the local MariaDB preview.
+- Set **RAZORPAY_ENABLED**, **RAZORPAY_KEY_ID**, **RAZORPAY_KEY_SECRET** and **RAZORPAY_WEBHOOK_SECRET** for a verified gateway integration. Configure existing Google Places, mail, OAuth and media integrations as required. Prefer an AWS workload role or short-lived credentials. Keep secrets on the server. Rotate any historical credential that was real, including the Google key previously shared in chat. Editing configuration does not revoke issued credentials or erase Git history.
+- Use HTTPS and route browser API requests through the same origin. Keep API, OAuth and callback routes on the backend. Serve the frontend homepage at the root, static assets directly, client routes listed in **frontend/src/seo/routes.ts** from **app.html** with status 200 and unknown URLs from **404.html** with status 404. Keep **robots.txt** and **sitemap.xml** publicly readable. The Vite preview implements these HTML status codes. A static host needs equivalent routing. Serve fingerprinted assets with a long immutable lifetime and revalidate HTML. Keep personalized API, checkout and slot responses out of shared caches.
+- Keep the local sample database separate from production. Restrict internal monitoring to trusted infrastructure and admin credentials. Configure the proxy to replace incoming forwarding headers and block direct public access to the app port. Check deployed CORS and rate-limit behavior, especially with multiple instances. The browser token storage and third-party script policy warrant a separate session hardening review.
+- Approve operator identity, a public contact for people without an account, retention/deletion practices, cancellation/refund terms and vendor disclosures. The current support link opens authenticated booking messaging. No verified public phone or email was supplied.
+
+## Verification
+
+The seven widths were 320, 375, 390, 428, 768, 1024 and 1440 CSS pixels. Headless Chrome checked horizontal overflow on Home, Browse spas, Booking, My appointments and Privacy using a local authenticated preview. It found a 69-pixel booking overflow at 320 pixels. The repeated checks passed after the card fix. Separate browser checks exercised the guest login guard, invalid login form and unknown-page recovery. At 320 pixels a controlled checkout tested slot selection, holding the slot, an invalid coupon, duplicate clicks, retry, confirmation and receipt refresh. Booking writes were intercepted so the test created no customer appointment or charge.
+
+The production-origin smoke build used an isolated fixture origin. It served an indexable homepage, a private noindex shell, a 404 response, robots and sitemap. Chrome with JavaScript disabled could read the homepage heading. The standard build stays in preview mode for indexing until an approved origin is supplied. The entry chunk measured about 91 kB gzip. Maps, features and checkout are split from the initial entry.
+
+ESLint and the TypeScript/Vite production build passed. All 44 frontend tests and all 76 backend tests passed. The production preview returned HTTP 200 for the homepage, booking shell, robots and sitemap, and HTTP 404 for a missing page.
+
+Run frontend ESLint, Vitest and the TypeScript/Vite build from the frontend directory. Run the Maven wrapper package phase with Java 17, an isolated migrated MariaDB database and the local-spa profile. The Maven suite exercises payment, package, staff authorization, onboarding, webhook, Places and coupon behavior. No real payment, provider delivery, production deployment, field Core Web Vitals measurement, screen-reader certification or multi-instance load test was performed. Obtain those results in the intended hosting environment before launch.
+
+## Files in this readiness change
+
+- Frontend entry and routing — index.html, vite.config.ts, .env.example, src/App.tsx, src/main.tsx, src/index.css, src/routes/AppRouter.tsx, src/seo/{site.ts,site.test.ts,routes.ts,PageHead.tsx}.
+- Public assets — frontend/public/{nirvana.svg,apple-touch-icon.png,nirvana-social.png,site.webmanifest}.
+- Navigation and shared UI — components/common/{Input,RecoveryBoundary}, components/layout/{Navbar,Footer,RequireAuth}, components/booking/{SlotGrid,StepIndicator}, components/spa/{SpaCard,ServiceCard}, contexts/AuthContext.
+- Screens — pages/Home/Home, SpaDetails/SpaDetails, Auth/{Login,Register}, Booking/{Booking,SelectService,SelectSlot,SelectTherapist,ReviewBooking,Payment,BookingConfirmation,BookingConfirmation.test}, Profile/MyBookings, Static/{TrustPage,NotFound}. UI paths are relative to frontend/src and use .tsx.
+- Measurement — frontend/src/telemetry.tsx and telemetry.test.ts.
+- Backend — application.yaml, config/{SecurityConfig,AmazonS3Config,AwsConfig}, security/{JwtProperties,RateLimitingFilter}, auth/service/OtpService, model/dto/BookingCreateRequest, otp/sender/{SesEmailSender,SnsSmsSender}, service/impl/{DynamicPricingService,OnboardingDraftServiceImpl,NoOpEmailService,NoOpNotificationService,SendGridEmailService,SendGridNotificationService}, and CouponValidationTest.

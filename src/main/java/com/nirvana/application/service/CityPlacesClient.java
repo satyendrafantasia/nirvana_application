@@ -38,7 +38,7 @@ public class CityPlacesClient {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-Goog-Api-Key", apiKey);
-        headers.set("X-Goog-FieldMask", fields);
+        if (fields != null) headers.set("X-Goog-FieldMask", fields);
         try {
             var response = builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(20)).build()
                     .exchange(baseUrl + path, method, new HttpEntity<>(body, headers), JsonNode.class).getBody();
@@ -65,8 +65,39 @@ public class CityPlacesClient {
     public JsonNode details(String placeId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
         return call("/places/" + placeId, HttpMethod.GET, null,
-                "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions");
+                "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions,photos,reviews");
     }
+    public JsonNode photo(String placeId, String photoId) {
+        if (!placeId.matches("[A-Za-z0-9_-]{1,255}") || !photoId.matches("[A-Za-z0-9_-]{1,4096}"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid photo reference.");
+        return call("/places/" + placeId + "/photos/" + photoId
+                + "/media?maxWidthPx=800&skipHttpRedirect=true", HttpMethod.GET, null, null);
+    }
+
+    public ResponseEntity<byte[]> photoImage(String placeId, String photoId) {
+        String url = photo(placeId, photoId).path("photoUri").asText("");
+        java.net.URI uri = java.net.URI.create(url);
+        if (!"https".equals(uri.getScheme()) || uri.getHost() == null
+                || !uri.getHost().endsWith(".googleusercontent.com") || uri.getRawUserInfo() != null
+                || (uri.getPort() != -1 && uri.getPort() != 443)) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Google returned an unexpected photo address.");
+        }
+        try {
+            var image = builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(15))
+                    .redirects(org.springframework.boot.http.client.ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
+                    .build().getForEntity(uri, byte[].class);
+            MediaType type = image.getHeaders().getContentType();
+            if (image.getStatusCode() != HttpStatus.OK || image.getBody() == null || type == null
+                    || !Set.of("jpeg", "png", "webp", "gif", "avif").contains(type.getSubtype())
+                    || !"image".equals(type.getType())) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
+            }
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(type).body(image.getBody());
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
+        }
+    }
+
     // Summary fields only. Phone/website are requested only when details are opened.
     private static final String SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
 
@@ -83,7 +114,11 @@ public class CityPlacesClient {
             return call("/places:searchNearby", HttpMethod.POST, body, SUMMARY);
         }
         String area = request.locality() == null || request.locality().isBlank() ? "" : request.locality().strip() + ", ";
-        body.put("textQuery", "spas in " + area + request.city().strip() + ", " + request.countryCode().toUpperCase(Locale.ROOT));
+        String query = request.spaName() == null || request.spaName().isBlank() ? "spas" : request.spaName().strip();
+        if (request.city() != null && !request.city().isBlank()) {
+            query += " in " + area + request.city().strip() + ", " + request.countryCode().toUpperCase(Locale.ROOT);
+        }
+        body.put("textQuery", query);
         body.put("includedType", "spa");
         body.put("strictTypeFiltering", true);
         body.put("pageSize", 20);

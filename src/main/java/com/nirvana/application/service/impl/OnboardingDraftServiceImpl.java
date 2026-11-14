@@ -51,8 +51,7 @@ public class OnboardingDraftServiceImpl implements OnboardingDraftService {
 
         OnboardingDraft saved = repository.saveAndFlush(draft);
 
-        log.info("Saved onboarding draft token={} owner={} step={} spaId={} clientRequestId={} version={}"
-                , saved.getResumeToken(), ownerUserId, saved.getStepKey(), saved.getSpaId(), saved.getClientRequestId(), saved.getVersion());
+
 
         return toResponse(saved);
     }
@@ -73,7 +72,7 @@ public class OnboardingDraftServiceImpl implements OnboardingDraftService {
 
         draft.setExpiresAt(OffsetDateTime.now().plus(HOLD_DURATION));
         OnboardingDraft saved = repository.saveAndFlush(draft);
-        log.info("Heartbeat extended draft token={} owner={} until {}", saved.getResumeToken(), ownerUserId, saved.getExpiresAt());
+
         return toResponse(saved);
     }
 
@@ -82,7 +81,7 @@ public class OnboardingDraftServiceImpl implements OnboardingDraftService {
     public void deleteDraft(Long ownerUserId, String resumeToken) {
         OnboardingDraft draft = loadDraft(ownerUserId, resumeToken);
         repository.delete(draft);
-        log.info("Deleted onboarding draft token={} owner={} step={} spaId={}", resumeToken, ownerUserId, draft.getStepKey(), draft.getSpaId());
+
     }
 
     @Override

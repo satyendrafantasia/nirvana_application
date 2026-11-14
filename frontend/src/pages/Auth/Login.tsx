@@ -27,8 +27,7 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
     onSuccess: () => {
       showToast('Logged in successfully', 'success');
       navigate(redirect);
-    },
-    onError: (e) => showToast(errorMessage(e), 'error')
+    }
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -44,8 +43,9 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
           {owner ? 'Spa owner sign in' : 'Welcome back'}
         </h1>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <Input name="email" type="email" label="Email" placeholder="you@example.com" required />
-          <Input name="password" type="password" label="Password" placeholder="••••••••" required />
+          <Input autoComplete="username" name="email" type="email" label="Email" placeholder="you@example.com" required />
+          <Input autoComplete="current-password" name="password" type="password" label="Password" placeholder="••••••••" required />
+          {mutation.isError && <p role="alert">{errorMessage(mutation.error)}</p>}
           <Button type="submit" disabled={mutation.isPending} className="w-full">
             {mutation.isPending ? 'Signing in...' : 'Login'}
           </Button>

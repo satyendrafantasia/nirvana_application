@@ -1,4 +1,5 @@
 import React from 'react';
+import RecoveryBoundary from './components/common/RecoveryBoundary';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
@@ -11,7 +12,7 @@ const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <RecoveryBoundary><QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
           <BookingProvider>
@@ -19,6 +20,6 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
           </BookingProvider>
         </AuthProvider>
       </BrowserRouter>
-    </QueryClientProvider>
+    </QueryClientProvider></RecoveryBoundary>
   </React.StrictMode>
 );

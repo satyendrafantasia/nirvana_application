@@ -25,6 +25,9 @@ public class AwsConfig {
 
     @Bean
     public AwsCredentialsProvider awsCredentialsProvider() {
+        if (awsProperties.getCredentials().getAccessKeyId().isBlank() || System.getenv("AWS_SESSION_TOKEN") != null) {
+            return software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider.create();
+        }
         AwsBasicCredentials credentials = AwsBasicCredentials.create(
                 awsProperties.getCredentials().getAccessKeyId(),
                 awsProperties.getCredentials().getSecretAccessKey());

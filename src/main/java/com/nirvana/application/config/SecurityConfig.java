@@ -72,10 +72,11 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
-                                "/management/**",
+                                "/management/health",
                                 "/oauth2/**",
                                 "/login/oauth2/**"
                         ).permitAll()
+                        .requestMatchers("/management/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -100,8 +101,7 @@ public class SecurityConfig {
                         "/swagger-ui.html",
                         "/swagger-ui/**",
                         "/swagger-resources/**",
-                        "/webjars/**",
-                        "/management/**"
+                        "/webjars/**"
                 );
     }
 

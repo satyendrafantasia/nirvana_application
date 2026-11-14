@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { track } from '../../telemetry';
 import Button from '../common/Button';
 import { Service } from '../../types/spa';
 
@@ -7,8 +9,17 @@ interface ServiceCardProps {
 }
 
 const ServiceCard = ({ service, onBook }: ServiceCardProps) => {
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!card.current || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { track('view_service'); observer.disconnect(); }
+    });
+    observer.observe(card.current);
+    return () => observer.disconnect();
+  }, [service.id]);
   return (
-    <div className="card flex items-center justify-between gap-4 p-4">
+    <div ref={card} className="card flex flex-wrap items-center justify-between gap-4 p-4">
       <div>
         <h4 className="text-base font-semibold text-slate-800">{service.name}</h4>
         {service.description && <p className="text-sm text-slate-500">{service.description}</p>}
@@ -22,7 +33,7 @@ const ServiceCard = ({ service, onBook }: ServiceCardProps) => {
         </p>
         {onBook && (
           <Button size="sm" onClick={() => onBook(service)}>
-            Book
+            Book this service
           </Button>
         )}
       </div>

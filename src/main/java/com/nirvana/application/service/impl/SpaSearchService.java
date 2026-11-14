@@ -80,6 +80,7 @@ public class SpaSearchService {
             String countryCode,
             String localityLike,
             String freeText,
+            String spaName,
             Double minLat,
             Double maxLat,
             Double minLon,
@@ -114,6 +115,11 @@ public class SpaSearchService {
         }
         if (StringUtils.hasText(freeText)) {
             spec = spec.and(freeText(freeText.trim()));
+        }
+
+        if (StringUtils.hasText(spaName)) {
+            String needle = spaName.strip().toLowerCase(java.util.Locale.ROOT);
+            spec = spec.and((root, query, cb) -> cb.gt(cb.locate(cb.lower(root.get("name")), needle), 0));
         }
 
         // manual bounding box filters (if provided explicitly)
