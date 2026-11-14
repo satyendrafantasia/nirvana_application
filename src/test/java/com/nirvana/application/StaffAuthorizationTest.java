@@ -80,7 +80,7 @@ class StaffAuthorizationTest {
  @Test void spaScopeAllowsOnlyAssignedOwner(){
   var repo=mock(SpaRepository.class);var access=new StaffAccess(repo);
   SecurityContextHolder.getContext().setAuthentication(auth("ROLE_SPA_OWNER"));
-  when(repo.findByIdAndSpaManager_User_Id(10L,999999L)).thenReturn(Optional.of(new Spa()));
+  when(repo.existsByIdAndSpaManager_User_Id(10L,999999L)).thenReturn(true);
   try{assertTrue(access.spa(10L));assertFalse(access.spa(11L));assertFalse(access.admin());}finally{SecurityContextHolder.clearContext();}
  }
 }

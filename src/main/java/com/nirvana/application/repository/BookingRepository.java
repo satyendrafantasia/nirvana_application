@@ -24,6 +24,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("select b from Booking b where b.id = :id and b.user.id = :userId")
     Optional<Booking> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
 
+    @Query("""
+        select count(b)>0 from Booking b where b.therapist.id=:id and (:exclude is null or b.id<>:exclude)
+        and b.status not in (com.nirvana.application.model.enums.BookingStatus.CANCELLED,com.nirvana.application.model.enums.BookingStatus.NO_SHOW)
+        and b.startTs < :end and b.endTs > :start
+        """)
+    boolean hasOtherAssignment(@Param("id") Long id,@Param("start") OffsetDateTime start,
+                               @Param("end") OffsetDateTime end,@Param("exclude") Long exclude);
+
+    @Query("select b.slot.id, b.id from Booking b where b.slot.id in :slots and b.status in :statuses order by b.id")
+    List<Object[]> commitmentIds(@Param("slots") List<Long> slots, @Param("statuses") List<BookingStatus> statuses);
+
+    List<Booking> findBySlot_IdAndStatusIn(Long slotId, List<BookingStatus> statuses);
+
+    @Query("select distinct b.service.id from Booking b where b.therapist.id=:therapist and b.endTs>:now and b.status in :statuses")
+    List<Long> committedServices(@Param("therapist") Long therapist, @Param("now") OffsetDateTime now,
+                                 @Param("statuses") List<BookingStatus> statuses);
+
     boolean existsByBookingReference(String bookingReference);
 
     @EntityGraph(attributePaths = {"spa", "service"})

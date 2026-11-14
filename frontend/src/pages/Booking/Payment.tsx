@@ -1,6 +1,6 @@
 import { track } from '../../telemetry';
 import { useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { createBooking, CreatedBooking } from '../../api/bookingApi';
@@ -8,15 +8,16 @@ import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
 export default function Payment({
-  onNext,
+  onTimeConflict,onNext,
   onBack,
   onConfirm
 }: {
-  onNext: () => void;
+  onTimeConflict:()=>void;onNext: () => void;
   onBack: () => void;
   onConfirm: (b: BookingSummary) => void;
 }) {
-  const { state, setPaymentMode, setNotes } = useBookingFlow();
+  const { state,setSlot, setPaymentMode, setNotes } = useBookingFlow();
+  const qc=useQueryClient();
   const [created, setCreated] = useState<CreatedBooking>();
   const submitting = useRef(false);
   const [coupon, setCoupon] = useState('');
@@ -77,7 +78,7 @@ export default function Payment({
         status
       };
     },
-    onError: () => track('booking_failed'),
+    onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && errorMessage(err).includes('This time is no longer available')){setSlot(undefined);onTimeConflict();}},
     onSuccess: (b) => {
       if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);

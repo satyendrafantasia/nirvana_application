@@ -16,6 +16,10 @@ import java.util.Optional;
 
 @Repository
 public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificationExecutor<Spa> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select s from Spa s where s.id=:id")
+    java.util.Optional<Spa> lockSchedule(@org.springframework.data.repository.query.Param("id") Long id);
+
 
     @Query(value = """
             SELECT
@@ -125,6 +129,8 @@ public interface SpaRepository extends JpaRepository<Spa, Long>, JpaSpecificatio
     );
 
     // Only spas belonging to the logged-in spa owner (via SpaManager -> AppUser.id)
+    boolean existsByIdAndSpaManager_User_Id(Long id, Long userId);
+
     Optional<Spa> findByIdAndSpaManager_User_Id(Long id, Long userId);
 
     List<Spa> findBySpaManager_User_Id(Long userId);

@@ -20,6 +20,7 @@ public class AuditTrailService {
 
     private final AdminActionLogRepository adminActionLogRepository;
     private final ObjectMapper objectMapper;
+    private final jakarta.persistence.EntityManager entityManager;
 
     public AdminActionLog record(AdminActionType actionType,
                                  String entityType,
@@ -34,9 +35,7 @@ public class AuditTrailService {
         logEntry.setEntityId(entityId);
         logEntry.setReason(reason);
         if (actorUserId != null) {
-            User actor = new User();
-            actor.setId(actorUserId);
-            logEntry.setActor(actor);
+            logEntry.setActor(entityManager.getReference(User.class, actorUserId));
         }
 
         logEntry.setBeforeStateJson(toJsonSafely(beforeState));

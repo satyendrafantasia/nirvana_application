@@ -15,6 +15,6 @@ public class StaffAccess {
  public boolean spa(Long id){
   if(admin())return true;
   if(!staff() || id==null)return false;
-  return spas.findByIdAndSpaManager_User_Id(id,SecurityUtils.getCurrentUserId()).isPresent();
+  return spas.existsByIdAndSpaManager_User_Id(id,SecurityUtils.getCurrentUserId());
  }
 }

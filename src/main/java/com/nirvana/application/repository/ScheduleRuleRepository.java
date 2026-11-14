@@ -10,6 +10,13 @@ import java.util.List;
 
 public interface ScheduleRuleRepository extends JpaRepository<ScheduleRule, Long> {
 
+    @Query("""
+        select count(r)>0 from ScheduleRule r where r.spa.id=:spaId
+        and (r.appliesFrom is null or r.appliesFrom<=:date)
+        and (r.appliesTo is null or r.appliesTo>=:date)
+        """)
+    boolean hasScheduleOn(@Param("spaId") long spaId,@Param("date") LocalDate date);
+
     /**
      * Find rules that apply to a spa on a given calendar date + weekday.
      *

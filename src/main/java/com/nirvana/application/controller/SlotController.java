@@ -73,7 +73,6 @@ public class SlotController {
             @PathVariable Long slotId,
             @Valid @RequestBody ProviderAvailabilitySyncRequest request
     ) {
-        // serviceId is kept in the path for parity with other routes; SlotAvailabilityService will validate spa
-        return slotAvailabilityService.syncFromProvider(spaId, slotId, request);
+        return slotAvailabilityService.syncFromProvider(spaId, serviceId, slotId, request);
     }
 }

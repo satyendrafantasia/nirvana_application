@@ -14,6 +14,13 @@ public class SlotHoldRequest {
 
     @NotNull
     private Long slotId;
+    @jakarta.validation.constraints.Size(max=128)
+    private String therapistType;
+    public String getTherapistType(){return therapistType;}
+    public void setTherapistType(String type){therapistType=type;}
+    private Long therapistId;
+    public Long getTherapistId(){return therapistId;}
+    public void setTherapistId(Long id){therapistId=id;}
 
     @NotNull
     @Min(1)

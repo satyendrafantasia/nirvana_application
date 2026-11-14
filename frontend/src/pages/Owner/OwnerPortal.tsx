@@ -8,6 +8,7 @@ import { Workspace } from '../../features/FeaturePage';
 import Results from '../../features/Results';
 import Drafts from '../Staff/Drafts';
 import SpaSettings from '../Staff/SpaSettings';
+import Schedule from './Schedule';
 import OwnerCatalog from './OwnerCatalog';
 type Spa = {
   id: number;
@@ -70,7 +71,7 @@ function Portal() {
               `px-4 py-2 rounded-xl border ${isActive ? 'bg-primary-700 text-white' : 'bg-white'}`
             }
           >
-            {t}
+            {t==='Availability'?'Schedule':t}
           </NavLink>
         ))}
       </nav>
@@ -113,7 +114,15 @@ function Portal() {
           {section === 'overview' && <Overview key={id} id={id} />}
           {section === 'bookings' && <Bookings key={id} id={id} />}
           {section === 'availability' && (
-            <Workspace key={id} id="calendar" spaId={id} section="availability" />
+            <div className="space-y-6" key={id}>
+              <Schedule spaId={id} />
+              <details className="card p-4">
+                <summary className="cursor-pointer font-semibold">
+                  Additional availability tools
+                </summary>
+                <Workspace id="calendar" spaId={id} section="availability" />
+              </details>
+            </div>
           )}
           {['therapists', 'services', 'packages'].includes(section) && (
             <OwnerCatalog

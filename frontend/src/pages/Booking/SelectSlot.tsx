@@ -1,3 +1,4 @@
+import { uniqueAvailableTimes } from './availableTimes';
 import { track } from '../../telemetry';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -16,16 +17,22 @@ interface SelectSlotProps {
 }
 
 const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
-  const { state, setSlot, setGuests, setHold } = useBookingFlow();
+  const { state, setSlot, setGuests, setHold, setTherapist } = useBookingFlow();
+  const [preferred, setPreferred] = useState(
+    state.therapistType ? 'type:' + state.therapistType : state.therapistId || ''
+  );
   const [date, setDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
 
   const {
     data: slots,
     isLoading,
-    isError, refetch
+    isError,
+    refetch
   } = useQuery({
     queryKey: ['slots', state.spaId, state.service?.id, date, state.guests],
     queryFn: () => getSlots(state.spaId || '', state.service?.id || '', date, state.guests),
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
     staleTime: 0,
     enabled: Boolean(state.spaId && state.service && date)
   });
@@ -44,14 +51,42 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           serviceId: state.service?.id,
           slotId: state.selectedSlot?.id,
           guests: state.guests,
+          therapistId: preferred && !preferred.startsWith('type:') ? Number(preferred) : undefined,
+          therapistType: preferred.startsWith('type:') ? preferred.slice(5) : undefined,
           holdMinutes: 10
         }
       );
+      setTherapist(
+        preferred.startsWith('type:') ? undefined : preferred || undefined,
+        preferred.startsWith('type:') ? preferred.slice(5) : undefined
+      );
       setHold(data.holdToken, data.expiresAt);
       onNext();
+    },
+    onError: () => {
+      setSlot(undefined);
+      void refetch();
     }
   });
-  const activeHold = Boolean(state.holdToken && state.holdExpiresAt && new Date(state.holdExpiresAt) > new Date());
+  const options = [
+    ...new Map(
+      (slots || [])
+        .filter((s) => s.therapistSelectionEnabled)
+        .flatMap((s) => s.therapists)
+        .map((t) => [t.id, t])
+    ).values()
+  ];
+  const types = [
+    ...new Set(
+      (slots || [])
+        .filter((s) => s.therapistTypeSelectionEnabled)
+        .flatMap((s) => s.therapistTypes.filter((t) => t.availableCount > 0).map((t) => t.type))
+    )
+  ];
+  const times = uniqueAvailableTimes(slots || [], preferred);
+  const activeHold = Boolean(
+    state.holdToken && state.holdExpiresAt && new Date(state.holdExpiresAt) > new Date()
+  );
   const wait = useMutation({
     mutationFn: async (slotId: string) =>
       client.post('/api/waitlist', {
@@ -76,7 +111,15 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           <Button variant="secondary" disabled={hold.isPending} onClick={onBack} size="sm">
             Back
           </Button>
-          <Button onClick={() => hold.mutate()} disabled={!state.slot || hold.isPending || !activeHold && !slots?.some(s => s.available && s.id === state.selectedSlot?.id)} size="sm">
+          <Button
+            onClick={() => hold.mutate()}
+            disabled={
+              !state.slot ||
+              hold.isPending ||
+              (!activeHold && !slots?.some((s) => s.available && s.id === state.selectedSlot?.id))
+            }
+            size="sm"
+          >
             {hold.isPending ? 'Reserving…' : 'Continue'}
           </Button>
         </div>
@@ -95,8 +138,35 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
         View a full week of availability
       </Link>
       <div className="grid gap-4 md:grid-cols-3">
+        {(!!options.length || !!types.length || !!preferred) && (
+          <label>
+            Therapist
+            <select
+              className="block rounded-xl border p-2"
+              value={preferred}
+              onChange={(e) => {
+                setPreferred(e.target.value);
+                setSlot(undefined);
+              }}
+            >
+              <option value="">Any available therapist</option>
+              {types.map((type) => (
+                <option key={type} value={'type:' + type}>
+                  {type}
+                </option>
+              ))}
+              {options.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.type ? ' · ' + t.type : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <Input
-          type="date" disabled={hold.isPending}
+          type="date"
+          disabled={hold.isPending}
           label="Date"
           value={date}
           min={new Date().toLocaleDateString('en-CA')}
@@ -108,22 +178,52 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       </div>
 
       <Input
-        type="number" disabled={hold.isPending}
+        type="number"
+        disabled={hold.isPending}
         label="Guests"
         min={state.service?.minPersons || 1}
         max={state.service?.maxPersons || 1}
         value={state.guests}
-        onChange={(e) => setGuests(Math.min(state.service?.maxPersons || 1, Math.max(state.service?.minPersons || 1, Math.floor(Number(e.target.value)))))}
+        onChange={(e) =>
+          setGuests(
+            Math.min(
+              state.service?.maxPersons || 1,
+              Math.max(state.service?.minPersons || 1, Math.floor(Number(e.target.value)))
+            )
+          )
+        }
       />
       <div>
         {isError && (
-          <p role="alert">Availability could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p>
+          <p role="alert">
+            Availability could not be loaded.{' '}
+            <button className="underline" onClick={() => void refetch()}>
+              Retry
+            </button>
+          </p>
         )}
-        {isLoading && <p role="status" className="text-sm text-slate-500">Loading slots...</p>}
-        {slots && slots.length > 0 ? (
-          <SlotGrid slots={slots} selectedSlot={state.selectedSlot?.id} onSelect={(slot) => { if (hold.isPending) return; setSlot(slot); track('select_appointment_slot'); }} />
-        ) : !isError && !isLoading && (
-          <p role="status" className="text-sm text-slate-500">No slots available for the selected date.</p>
+        {isLoading && (
+          <p role="status" className="text-sm text-slate-500">
+            Loading slots...
+          </p>
+        )}
+        {times.length > 0 ? (
+          <SlotGrid
+            slots={times}
+            selectedSlot={state.selectedSlot?.id}
+            onSelect={(slot) => {
+              if (hold.isPending) return;
+              setSlot(slot);
+              track('select_appointment_slot');
+            }}
+          />
+        ) : (
+          !isError &&
+          !isLoading && (
+            <p role="status" className="text-sm text-slate-500">
+              No slots available for the selected date.
+            </p>
+          )
         )}
       </div>
       {slots

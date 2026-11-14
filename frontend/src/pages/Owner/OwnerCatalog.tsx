@@ -65,6 +65,7 @@ export default function OwnerCatalog({
     enabled: kind === 'therapists',
     queryFn: async () => (await client.get<RecordValue[]>(`/api/owner/spas/${spaId}/services`)).data
   });
+  const retire=useMutation({mutationFn:(id:string)=>client.delete(path+'/'+id),onSuccess:()=>qc.invalidateQueries({queryKey:key})});
   const action = useMutation({
     mutationFn: async () => {
       const body = { ...value };
@@ -99,6 +100,7 @@ export default function OwnerCatalog({
             sale status.
           </p>
         )}
+        {retire.isError && <p role="alert">{errorMessage(retire.error)}</p>}
         {records.isPending && <p>Loading…</p>}
         {records.isError && <p role="alert">{errorMessage(records.error)}</p>}
         {records.data?.length === 0 && <p>No {kind} yet. Add your first one.</p>}
@@ -112,6 +114,7 @@ export default function OwnerCatalog({
                   ? `${row.durationMin} minutes · ${Number(row.basePriceCents) / 100} ${row.currency} · ${row.active ? 'Active' : 'Inactive'}`
                   : `${row.type || 'Therapist'} · ${row.active ? 'Active' : 'Inactive'} · ${row.available ? 'Available' : 'Unavailable'}`}
             </p>
+            {kind==='therapists' && Boolean(row.active) && <Button variant="ghost" onClick={()=>{if(window.confirm('Remove this therapist from active scheduling?'))retire.mutate(String(row.id));}}>Remove therapist</Button>}
             <Button
               variant="secondary"
               disabled={action.isPending}

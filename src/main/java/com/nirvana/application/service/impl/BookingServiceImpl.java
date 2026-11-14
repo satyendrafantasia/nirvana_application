@@ -77,11 +77,14 @@ public class BookingServiceImpl implements BookingService {
     private final BookingHoldRepository bookingHoldRepository;
     private final WaitlistService waitlistService;
     private final TherapistRepository therapistRepository;
+    private final TherapistRoster roster;
+    private final SessionAllocation allocation;
+    private final SlotAvailabilityService availability;
     private final PackageSubscriptionService packageSubscriptionService;
     private final com.nirvana.application.service.SpaPackageUsageService spaPackageUsageService;
 
     @Override
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BookingCreateResponse createBooking(Long userId, BookingCreateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request must not be null");
@@ -91,7 +94,7 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalArgumentException("guests must be > 0");
         }
 
-        Spa spa = spaRepository.findById(request.getSpaId())
+        Spa spa = spaRepository.lockSchedule(request.getSpaId())
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + request.getSpaId()));
         if (Boolean.FALSE.equals(spa.getIsActive())) {
             throw new IllegalStateException("Spa is inactive");
@@ -124,9 +127,9 @@ public class BookingServiceImpl implements BookingService {
         BookingHold hold = null;
         if (request.getHoldToken() != null && !request.getHoldToken().isBlank()) {
             hold = bookingHoldRepository.findByHoldToken(request.getHoldToken())
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid hold token"));
+                    .orElseThrow(() -> new IllegalStateException(SessionAllocation.TAKEN+"; your hold expired"));
             if (hold.getExpiresAt().isBefore(now)) {
-                throw new IllegalStateException("Hold has expired");
+                throw new IllegalStateException(SessionAllocation.TAKEN+"; your hold expired");
             }
             if (!hold.getSlot().getId().equals(slot.getId())) {
                 throw new IllegalArgumentException("Hold does not belong to slot");
@@ -134,6 +137,8 @@ public class BookingServiceImpl implements BookingService {
             if (hold.getUser() != null && !hold.getUser().getId().equals(userId)) {
                 throw new IllegalArgumentException("Hold belongs to a different user");
             }
+            if (hold.getHoldUnits()!=guests) throw new IllegalStateException("Guest count differs from the reservation");
+            if (hold.getRoom()!=null && (slot.getRoom()==null || !hold.getRoom().getId().equals(slot.getRoom().getId()))) throw new IllegalStateException(SessionAllocation.TAKEN);
             if (hold.isConvertedToBooking()) {
                 throw new IllegalStateException("Hold already used for booking");
             }
@@ -143,28 +148,14 @@ public class BookingServiceImpl implements BookingService {
         int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
         validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
-        boolean therapistSelectionEnabled = Boolean.TRUE.equals(spa.getAllowTherapistSelection());
-        String requestedTherapistType = request.getTherapistType();
-        Therapist therapist = null;
-        if (request.getTherapistId() != null) {
-            if (!therapistSelectionEnabled) {
-                throw new IllegalArgumentException("Spa does not allow therapist selection");
-            }
-            therapist = therapistRepository.findById(request.getTherapistId())
-                    .orElseThrow(() -> new EntityNotFoundException("Therapist not found: " + request.getTherapistId()));
-            validateTherapistSelection(spa, service, slot, therapist);
-            if (requestedTherapistType != null && therapist.getType() != null
-                    && !therapist.getType().equalsIgnoreCase(requestedTherapistType)) {
-                throw new IllegalArgumentException("Therapist does not match requested type");
-            }
-            requestedTherapistType = therapist.getType();
+        Long preferred = request.getTherapistId();
+        if(preferred!=null && !Boolean.TRUE.equals(spa.getAllowTherapistSelection())) throw new IllegalArgumentException("Named selection disabled");
+        if(hold!=null && hold.getTherapist()!=null){
+            if(preferred!=null && !preferred.equals(hold.getTherapist().getId())) throw new IllegalStateException("Choose the therapist reserved by this hold");
+            preferred=hold.getTherapist().getId();
         }
-
-        if (therapist == null && requestedTherapistType != null && !requestedTherapistType.isBlank()) {
-            therapist = pickAvailableTherapistForType(spa, service, slot, requestedTherapistType.trim());
-            validateTherapistSelection(spa, service, slot, therapist);
-            requestedTherapistType = therapist.getType();
-        }
+        Therapist therapist=allocation.choose(slot,preferred,request.getTherapistType(),hold==null?null:hold.getId(),null);
+        String requestedTherapistType=therapist.getType();
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
         boolean spaPackage = Boolean.TRUE.equals(request.getPayWithSpaPackage());
@@ -231,11 +222,12 @@ public class BookingServiceImpl implements BookingService {
                 ? service.getCancellationPolicyJson()
                 : "{\"defaultCutoffMinutes\":" + CANCELLATION_CUTOFF_MINUTES + ",\"defaultFeePercent\":0,\"defaultRoute\":\"ORIGINAL_METHOD\"}");
         booking.setStartTs(slot.getStartTs());
-        booking.setEndTs(slot.getEndTs());
+        booking.setEndTs(TherapistRoster.end(slot));
         booking.setScheduledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
         booking.setPaymentType(payWithPackage ? BookingPaymentType.PAID_BY_PACKAGE : BookingPaymentType.STANDARD);
+        booking.setRoom(slot.getRoom());
         booking.setTherapist(therapist);
         booking.setTherapistType(requestedTherapistType);
         booking.setBookingSource(bookingSource);
@@ -316,7 +308,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BookingRescheduleResponse rescheduleBooking(Long bookingId, Long userId, BookingRescheduleRequest request) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         Booking booking = bookingRepository.findOwnedForUpdate(bookingId, userId)
@@ -337,6 +329,7 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException("Same-day changes are locked within cutoff window");
         }
 
+        spaRepository.lockSchedule(booking.getSpa().getId()).orElseThrow();
         Slot targetSlot = slotRepository.findByIdForUpdate(request.getTargetSlotId())
                 .orElseThrow(() -> new EntityNotFoundException("Target slot not found"));
         Slot currentSlot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
@@ -348,6 +341,10 @@ public class BookingServiceImpl implements BookingService {
         int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(targetSlot.getId(), now)).orElse(0);
         validateSlot(spa, service, targetSlot, booking.getGuestCount(), activeHolds);
 
+        var replacement=allocation.choose(targetSlot,booking.getTherapist()==null?null:booking.getTherapist().getId(),null,null,booking.getId());
+        booking.setRoom(targetSlot.getRoom());
+        booking.setTherapist(replacement);
+        booking.setTherapistType(replacement.getType());
         releaseCapacity(currentSlot, booking.getGuestCount());
         short updatedUnits = (short) (targetSlot.getBookedUnits() + booking.getGuestCount());
         targetSlot.setBookedUnits(updatedUnits);
@@ -357,7 +354,7 @@ public class BookingServiceImpl implements BookingService {
 
         booking.setSlot(targetSlot);
         booking.setStartTs(targetSlot.getStartTs());
-        booking.setEndTs(targetSlot.getEndTs());
+        booking.setEndTs(TherapistRoster.end(targetSlot));
         booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
         booking.setLastStatusChangedAt(now);
         booking.setCancellationReasonText(request.getReason());
@@ -489,51 +486,7 @@ public class BookingServiceImpl implements BookingService {
         if (!slot.getService().getId().equals(service.getId())) {
             throw new IllegalArgumentException("Slot does not belong to Service");
         }
-        if (slot.getStartTs().isBefore(OffsetDateTime.now())) {
-            throw new IllegalStateException("Cannot book a slot in the past");
-        }
-        if (Boolean.TRUE.equals(slot.getIsBlocked())) {
-            throw new IllegalStateException("Slot is blocked");
-        }
-        if (slot.getStatus() != SlotStatus.OPEN) {
-            throw new IllegalStateException("Slot is not open for booking");
-        }
-        int remaining = slot.getCapacityUnit() - slot.getBookedUnits() - activeHolds;
-        if (remaining < guests) {
-            throw new IllegalStateException("Not enough capacity left in slot");
-        }
-    }
-
-    private void validateTherapistSelection(Spa spa, com.nirvana.application.model.Service service, Slot slot, Therapist therapist) {
-        if (!therapist.getSpa().getId().equals(spa.getId())) {
-            throw new IllegalArgumentException("Therapist does not belong to spa");
-        }
-        if (Boolean.FALSE.equals(therapist.getIsActive()) || Boolean.FALSE.equals(therapist.getIsAvailable())) {
-            throw new IllegalStateException("Therapist is not available for booking");
-        }
-        boolean supportsService = (therapist.getService() != null && therapist.getService().getId().equals(service.getId()))
-                || therapist.getServices().stream().anyMatch(s -> s.getId().equals(service.getId()));
-        if (!supportsService) {
-            throw new IllegalArgumentException("Therapist does not offer selected service");
-        }
-        boolean hasConflict = bookingRepository.existsActiveTherapistConflict(therapist.getId(), slot.getStartTs(), slot.getEndTs());
-        if (hasConflict) {
-            throw new IllegalStateException("Therapist is already booked for this time");
-        }
-    }
-
-    private Therapist pickAvailableTherapistForType(Spa spa, com.nirvana.application.model.Service service, Slot slot, String therapistType) {
-        List<Therapist> candidates = therapistRepository.findActiveAvailableForSpaServiceAndType(
-                spa.getId(),
-                service.getId(),
-                therapistType
-        );
-        OffsetDateTime start = slot.getStartTs();
-        OffsetDateTime end = slot.getEndTs();
-        return candidates.stream()
-                .filter(candidate -> !bookingRepository.existsActiveTherapistConflict(candidate.getId(), start, end))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No available therapist of requested type for this slot"));
+        availability.requireBookable(slot,guests,activeHolds);
     }
 
     private void releaseCapacity(Slot slot, int guests) {

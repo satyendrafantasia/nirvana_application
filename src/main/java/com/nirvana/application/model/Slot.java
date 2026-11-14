@@ -21,6 +21,14 @@ public class Slot extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "therapist_id")
+    private Therapist therapist;
+
+    public boolean allowsTherapist(Long id) {
+        return therapist == null || therapist.getId().equals(id);
+    }
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "spa_id", nullable = false)
     private Spa spa;
 

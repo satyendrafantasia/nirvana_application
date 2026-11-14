@@ -23,6 +23,10 @@ public class BookingHold extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="room_id")
+    private SpaRoom room;
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="therapist_id")
+    private Therapist therapist;
 
     // user who is holding the slot (nullable for guest flows if needed)
     @ManyToOne(fetch = FetchType.LAZY)

@@ -58,7 +58,7 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         WHERE s.spa.id = :spaId
           AND s.service.id = :serviceId
           AND s.startTs >= :startTs
-          AND s.endTs <= :endTs
+          AND s.startTs < :endTs
           AND s.isBlocked = false
           AND s.status = com.nirvana.application.model.enums.SlotStatus.OPEN
           AND s.bookedUnits < s.capacityUnit
@@ -74,6 +74,8 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
     /**
      * Pessimistic lock for booking confirmation / overbooking protection.
      */
+    List<Slot> findBySpa_IdAndStartTsLessThanAndEndTsGreaterThanOrderByStartTsAsc(Long spaId, OffsetDateTime end, OffsetDateTime start);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Slot s WHERE s.id = :id")
     Optional<Slot> findByIdForUpdate(@Param("id") Long id);

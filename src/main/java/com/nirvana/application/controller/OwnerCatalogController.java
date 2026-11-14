@@ -1,6 +1,7 @@
 package com.nirvana.application.controller;
 
 import com.nirvana.application.model.Therapist;
+import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.model.Service;
 import com.nirvana.application.repository.*;
 import jakarta.validation.Valid;
@@ -20,6 +21,22 @@ import java.util.*;
 @Transactional
 public class OwnerCatalogController {
     private final SpaRepository spas;
+    private final BookingRepository bookings;
+    private final jakarta.persistence.EntityManager em;
+    private void requireAvailableForRemoval(long id){
+        var appointments=em.createQuery("select b.id from Booking b where b.therapist.id=:id and b.endTs>:now and b.status in ('ARRIVED','CONFIRMED','PENDING_PAYMENT')",Long.class)
+            .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
+        if(!appointments.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"Resolve appointments "+appointments+" first");
+        if(em.createQuery("select count(h) from BookingHold h where h.therapist.id=:id and h.convertedToBooking=false and h.expiresAt>:now",Long.class)
+            .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getSingleResult()>0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Wait for the active therapist hold to expire");
+    }
+    @DeleteMapping("/therapists/{id}")
+    public void retire(@PathVariable Long spaId,@PathVariable Long id){
+        spas.lockSchedule(spaId).orElseThrow(this::missing);
+        var therapist=therapists.findByIdAndSpa_Id(id,spaId).orElseThrow(this::missing);
+        requireAvailableForRemoval(id);therapist.setIsActive(false);therapist.setIsAvailable(false);
+    }
     private final TherapistRepository therapists;
     private final ServiceRepository services;
     public record TherapistInput(@NotBlank @Size(max=255) String name, @Size(max=128) String type,
@@ -47,9 +64,20 @@ public class OwnerCatalogController {
         var t=new Therapist();t.setSpa(spas.findById(spaId).orElseThrow(this::missing));return save(t,input);
     }
     @PutMapping("/therapists/{id}")
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public TherapistView updateTherapist(@PathVariable Long spaId,@PathVariable Long id,@Valid @RequestBody TherapistInput input){
+        spas.lockSchedule(spaId).orElseThrow(this::missing);
         var t=therapists.findByIdAndSpa_Id(id,spaId).orElseThrow(this::missing);
         if(input.version()==null || !Objects.equals(input.version(),t.getVersion()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Therapist changed; reload before saving");
+        if(!input.active() || !input.available())requireAvailableForRemoval(id);
+        var required = bookings.committedServices(id, java.time.OffsetDateTime.now(), List.of(
+                BookingStatus.CONFIRMED, BookingStatus.PENDING_PAYMENT, BookingStatus.ARRIVED));
+        if (!input.serviceIds().containsAll(required)) {
+            var affected=em.createQuery("select b from Booking b where b.therapist.id=:id and b.endTs>:now and b.status in ('ARRIVED','CONFIRMED','PENDING_PAYMENT')",com.nirvana.application.model.Booking.class)
+                .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList().stream()
+                .filter(b->!input.serviceIds().contains(b.getService().getId())).map(b->b.getId()).toList();
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Resolve appointments "+affected+" before removing these services");
+        }
         return save(t,input);
     }
     private TherapistView save(Therapist t,TherapistInput in){
