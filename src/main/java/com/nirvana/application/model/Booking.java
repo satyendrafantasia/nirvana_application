@@ -130,6 +130,10 @@ public class Booking extends BaseEntity {
     @Column(name = "no_show_marked_at")
     private OffsetDateTime noShowMarkedAt;
 
+    /** When the appointment reminder was sent or deliberately skipped; null while one is still due. */
+    @Column(name = "reminder_processed_at")
+    private OffsetDateTime reminderProcessedAt;
+
     @Column(name = "last_status_changed_at")
     private OffsetDateTime lastStatusChangedAt;
 
@@ -202,6 +206,14 @@ public class Booking extends BaseEntity {
 
     @Column(name = "coupon_code", length = 64)
     private String couponCode;
+
+    /** Loyalty points spent on this booking; returned to the customer if it is cancelled. */
+    @Column(name = "loyalty_points_redeemed", nullable = false)
+    private Integer loyaltyPointsRedeemed = 0;
+
+    /** Loyalty points awarded when this booking was completed. */
+    @Column(name = "loyalty_points_earned", nullable = false)
+    private Integer loyaltyPointsEarned = 0;
 
     @Column(name = "tip_cents", nullable = false)
     private Integer tipCents = 0;

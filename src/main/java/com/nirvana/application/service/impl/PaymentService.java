@@ -362,8 +362,17 @@ public class PaymentService {
      */
     @Transactional
     public Refund refundBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
-        ensureRazorpayEnabled();
         ownedBooking(bookingId);
+        return refundAuthorizedBookingPayment(bookingId, refundAmountCents, reason);
+    }
+
+    /**
+     * Refund without the customer-ownership check. Only for callers that have already
+     * authorized the action themselves, such as a spa cancelling one of its own bookings.
+     */
+    @Transactional
+    public Refund refundAuthorizedBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
+        ensureRazorpayEnabled();
 
         Payment payment = paymentRepository
                 .findFirstByBookingIdAndPaymentStatusIn(

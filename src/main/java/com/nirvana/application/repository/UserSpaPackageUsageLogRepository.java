@@ -8,4 +8,6 @@ import java.util.List;
 public interface UserSpaPackageUsageLogRepository extends JpaRepository<UserSpaPackageUsageLog, Long> {
 
     List<UserSpaPackageUsageLog> findBySubscriptionIdOrderByUsageDateDesc(Long subscriptionId);
+
+    List<UserSpaPackageUsageLog> findByBooking_Id(Long bookingId);
 }

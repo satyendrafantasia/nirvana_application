@@ -43,12 +43,22 @@ public class AuthController {
     private final AuthService authService;
     private final OtpAuthService otpAuthService;
 
+    @org.springframework.beans.factory.annotation.Value("${security.registration.legacy-enabled:false}")
+    private boolean legacyRegistrationEnabled;
+
     @PostMapping("/register")
     @Operation(summary = "Register user", description = "Register a new user and return an authenticated session token.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User registered", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponse.class)))
     })
     public AuthResponse register(@Valid @RequestBody UserRegistrationDTO request) {
+        // This endpoint creates a signed-in account without proving the email address.
+        // It stays off unless explicitly enabled; use /register/request-otp, /verify-otp and /complete.
+        if (!legacyRegistrationEnabled) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.GONE,
+                    "Registration requires email verification. Use the verified registration flow.");
+        }
         return authService.register(request);
     }
 

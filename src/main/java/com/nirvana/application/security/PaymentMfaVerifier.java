@@ -23,8 +23,15 @@ public class PaymentMfaVerifier {
         if (request == null) {
             throw new IllegalStateException("Missing request context for MFA validation");
         }
+        String expected = properties.getBypassToken();
+        if (expected == null || expected.isBlank()) {
+            // Fail closed: enabling the check without a secret must not fall back to a known token.
+            throw new IllegalStateException("Payment verification is enabled but not configured");
+        }
         String provided = request.getHeader(properties.getHeader());
-        if (provided == null || !provided.equals(properties.getBypassToken())) {
+        if (provided == null || !java.security.MessageDigest.isEqual(
+                provided.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                expected.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             throw new IllegalArgumentException("Payment MFA challenge missing or invalid");
         }
     }
@@ -38,7 +45,7 @@ public class PaymentMfaVerifier {
     public static class MfaProperties {
         private boolean enabled = false;
         private String header = "X-MFA-Token";
-        private String bypassToken = "demo-mfa";
+        private String bypassToken = "";
 
         public boolean isEnabled() {
             return enabled;

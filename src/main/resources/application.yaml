@@ -1,8 +1,8 @@
 spring:
   application:
     name: application
-  profiles:
-    active: local
+  # No profile is active by default. Select one explicitly (for example
+  # SPRING_PROFILES_ACTIVE=local-spa for the local preview).
 
   datasource:
     url: ${SPA_DB_URL}
@@ -28,6 +28,9 @@ spring:
 
 server:
   port: 8080
+  # Client-supplied X-Forwarded-* headers are ignored unless this is set. Behind a
+  # trusted reverse proxy or load balancer, set FORWARD_HEADERS_STRATEGY=native.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
@@ -36,7 +39,6 @@ server:
 logging:
   level:
     root: INFO
-    com.yourcompany: DEBUG
 
 management:
   endpoints:
@@ -53,15 +55,18 @@ management:
       show-details: when-authorized
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
 
+# API documentation is off unless API_DOCS_ENABLED=true (the local-spa profile turns it on).
 springdoc:
   api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
     path: /v3/api-docs
   swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
     path: /swagger-ui/index.html
 
 cors:
@@ -149,7 +154,10 @@ security:
   mfa:
     enabled: false
     header: X-MFA-Token
-    bypass-token: ${MFA_BYPASS_TOKEN:demo-mfa}
+    bypass-token: ${MFA_BYPASS_TOKEN:}
+  registration:
+    # The unverified /api/auth/register endpoint. Keep false in production.
+    legacy-enabled: ${LEGACY_REGISTRATION_ENABLED:false}
 
   oauth2:
     client:
@@ -186,6 +194,20 @@ reliability:
   rate-limiting:
     enabled: true
     requests: 120
+    auth-requests: ${RATE_LIMIT_AUTH_REQUESTS:20}
+    captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:}
+  bookings:
+    # An unpaid online booking is cancelled and its slot released after this long.
+    pending-payment-expiry-minutes: ${BOOKING_PAYMENT_EXPIRY_MINUTES:30}
+    expiry-interval-ms: 60000
+    # The spa can check a guest in from this long before the start time.
+    arrival-window-minutes: 120
+    # Appointments the spa never closed out are marked completed this long after they end. 0 disables.
+    auto-complete-after-hours: ${BOOKING_AUTO_COMPLETE_HOURS:24}
+    auto-complete-interval-ms: 900000
+    # Customers get one reminder this long before a confirmed appointment. 0 disables.
+    reminder-lead-hours: ${BOOKING_REMINDER_LEAD_HOURS:24}
+    reminder-interval-ms: 300000
   payments:
     reconcile-threshold-minutes: 15
     reconcile-interval-ms: 300000
@@ -193,5 +215,16 @@ reliability:
     window-seconds: 60
     block-seconds: 120
 
+loyalty:
+  # Share of the amount paid that a customer earns back as points when an appointment is
+  # completed. One point is worth one minor currency unit at checkout. 0 disables earning.
+  earn-percent: ${LOYALTY_EARN_PERCENT:2}
+
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  scheduling:
+    # Background jobs: payment reconciliation, unpaid-booking expiry, auto-completion.
+    enabled: ${SCHEDULING_ENABLED:true}
+  flyway:
+    # Flyway repair rewrites migration history. Run it deliberately, never on every start.
+    repair-on-migrate: ${FLYWAY_REPAIR_ON_MIGRATE:false}

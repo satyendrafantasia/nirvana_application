@@ -72,6 +72,9 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
+    private final com.nirvana.application.service.NotificationSchedulingService notifications;
+    private final PackageSessionRestorer packageSessions;
+    private final LoyaltyService loyalty;
     private final RefundService refundService;
     private final PricingService pricingService;
     private final BookingHoldRepository bookingHoldRepository;
@@ -223,6 +226,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setPriceCents(priceCents);
         booking.setDiscountCents(discountCents);
         booking.setCouponCode(pricing.appliedCouponCode());
+        booking.setCoupon(pricing.coupon());
+        booking.setLoyaltyPointsRedeemed(pricing.loyaltyPointsRedeemed());
         booking.setTaxCents(taxCents);
         booking.setDepositCents(0);
         booking.setRemainderCents(payableCents);
@@ -288,6 +293,12 @@ public class BookingServiceImpl implements BookingService {
             else packageSubscriptionService.consumePackageSession(userId, consumeRequest);
             saved = bookingRepository.findById(saved.getId())
                     .orElse(saved);
+        }
+
+        // Pay-at-spa and package bookings are confirmed here; online bookings are confirmed
+        // (and announced) when the payment is captured.
+        if (saved.getStatus() == BookingStatus.CONFIRMED) {
+            notifications.scheduleBookingNotifications(saved);
         }
 
         BookingCreateResponse response = buildResponse(saved, payableCents);
@@ -375,11 +386,13 @@ public class BookingServiceImpl implements BookingService {
         booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
         booking.setLastStatusChangedAt(now);
         booking.setCancellationReasonText(request.getReason());
+        booking.setReminderProcessedAt(null); // the new time gets its own reminder
         bookingRepository.save(booking);
 
         slotRepository.save(currentSlot);
         slotRepository.save(targetSlot);
         waitlistService.tryNotifySlotAvailable(currentSlot);
+        notifications.bookingRescheduled(booking);
 
         return new BookingRescheduleResponse(booking.getId(), booking.getStatus(), booking.getStartTs(), booking.getEndTs(), booking.getRescheduleCount());
     }
@@ -421,6 +434,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setCancellationReasonText("User cancelled booking");
         booking.setCancelledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
+        packageSessions.restoreFor(booking);
+        loyalty.returnRedeemed(booking);
         bookingRepository.save(booking);
 
         Slot slot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
@@ -429,14 +444,81 @@ public class BookingServiceImpl implements BookingService {
         slotRepository.save(slot);
         waitlistService.tryNotifySlotAvailable(slot);
 
-        notificationService.notifyCustomerBookingCancelled(booking);
-        notificationService.notifySpaOwnerBookingCancelled(booking);
+        notifications.bookingCancelled(booking);
 
         return BookingCancelResponse.builder()
                 .bookingId(booking.getId())
                 .bookingReference(booking.getBookingReference())
                 .status(booking.getStatus())
                 .refundInitiated(refundInitiated)
+                .refundAmountCents(refundAmountCents)
+                .refundStatus(booking.getRefundStatus())
+                .refundRoute(booking.getRefundRoute())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BookingCancelResponse cancelBookingBySpa(Long spaId, Long bookingId, String reason, boolean byAdmin) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .filter(b -> b.getSpa().getId().equals(spaId))
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new IllegalStateException("A booking that is "
+                    + booking.getStatus().name().toLowerCase().replace('_', ' ') + " cannot be cancelled");
+        }
+        if (!now.isBefore(booking.getEndTs())) {
+            throw new IllegalStateException("This appointment has ended. Mark it completed or as a no-show instead.");
+        }
+
+        // The spa is the one backing out, so the customer is made whole: full refund, no fee.
+        Integer refundAmountCents = null;
+        var payments = paymentRepository.findByBookingId(bookingId);
+        for (var payment : payments) {
+            if (payment.getPaymentStatus() == PaymentStatus.CAPTURED || payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
+                int refundable = payment.getAmountCents() - Optional.ofNullable(payment.getRefundedCents()).orElse(0);
+                if (refundable > 0) {
+                    paymentService.refundAuthorizedBookingPayment(bookingId, refundable, "Cancelled by the spa");
+                    payment.setPaymentStatus(PaymentStatus.REFUNDED);
+                    payment.setRefundedCents(payment.getAmountCents());
+                    payment.setRefundedAt(now);
+                    booking.setRefundStatus(RefundStatus.COMPLETED);
+                    refundAmountCents = refundable;
+                }
+            } else if (payment.getPaymentStatus() == PaymentStatus.INIT || payment.getPaymentStatus() == PaymentStatus.PENDING) {
+                // A capture that still arrives is recorded and flagged for refund by the payment flow.
+                payment.setPaymentStatus(PaymentStatus.CANCELLED);
+            }
+            paymentRepository.save(payment);
+        }
+
+        booking.setRefundRoute(RefundRoute.ORIGINAL_METHOD);
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelledAt(now);
+        booking.setCancelledBy(byAdmin ? CancellationActor.ADMIN : CancellationActor.SPA);
+        booking.setCancellationReasonCode("SPA_CANCELLED");
+        booking.setCancellationReasonText(reason);
+        booking.setLastStatusChangedAt(now);
+        packageSessions.restoreFor(booking);
+        loyalty.returnRedeemed(booking);
+        bookingRepository.save(booking);
+
+        Slot slot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Slot not found for booking"));
+        releaseCapacity(slot, booking.getGuestCount());
+        slotRepository.save(slot);
+        if (slot.getStartTs().isAfter(now)) {
+            waitlistService.tryNotifySlotAvailable(slot);
+        }
+        notifications.bookingCancelled(booking);
+
+        return BookingCancelResponse.builder()
+                .bookingId(booking.getId())
+                .bookingReference(booking.getBookingReference())
+                .status(booking.getStatus())
+                .refundInitiated(refundAmountCents != null)
                 .refundAmountCents(refundAmountCents)
                 .refundStatus(booking.getRefundStatus())
                 .refundRoute(booking.getRefundRoute())

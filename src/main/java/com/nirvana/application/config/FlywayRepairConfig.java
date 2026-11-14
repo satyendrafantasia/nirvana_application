@@ -8,13 +8,19 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class FlywayRepairConfig {
 
+    @org.springframework.beans.factory.annotation.Value("${app.flyway.repair-on-migrate:false}")
+    private boolean repairOnMigrate;
+
     @Bean
     public FlywayMigrationStrategy repairAndMigrateStrategy() {
         return flyway -> repairAndMigrate(flyway);
     }
 
     private void repairAndMigrate(Flyway flyway) {
-        flyway.repair();
+        // Repair silently accepts edited or missing migrations, so it is opt-in.
+        if (repairOnMigrate) {
+            flyway.repair();
+        }
         flyway.migrate();
     }
 }

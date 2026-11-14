@@ -1930,9 +1930,124 @@
       "access": "customer",
       "description": "Explore nearby spas on the map and estimate travel time.",
       "actions": []
+    },
+    {
+      "id": "coupons",
+      "title": "Coupons",
+      "access": "admin",
+      "description": "Create discount codes, set their limits and see how often each has been used.",
+      "actions": [
+        {
+          "title": "View coupons",
+          "method": "GET",
+          "path": "/api/admin/coupons",
+          "parameters": [],
+          "body": null,
+          "multipart": false
+        },
+        {
+          "title": "Create coupon",
+          "method": "POST",
+          "path": "/api/admin/coupons",
+          "parameters": [],
+          "body": {
+            "$ref": "#/components/schemas/CouponInput"
+          },
+          "multipart": false
+        },
+        {
+          "title": "Change or retire coupon",
+          "method": "PUT",
+          "path": "/api/admin/coupons/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          ],
+          "body": {
+            "$ref": "#/components/schemas/CouponInput"
+          },
+          "multipart": false
+        }
+      ]
     }
   ],
   "schemas": {
+    "CouponInput": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "description": "Letters, digits, - or _ only. Cannot be changed later."
+        },
+        "discountType": {
+          "type": "string",
+          "enum": ["PERCENTAGE", "FLAT"]
+        },
+        "percentOff": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "For a percentage coupon."
+        },
+        "amountOffCents": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "description": "For a flat coupon."
+        },
+        "maxDiscountCents": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "description": "Largest discount one booking can get. Leave empty for no cap."
+        },
+        "minOrderCents": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 0
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validTo": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "maxUsesPerUser": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "description": "Leave empty for unlimited."
+        },
+        "maxUsesGlobal": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "description": "Leave empty for unlimited."
+        },
+        "spaId": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Leave empty for a coupon that works at every spa."
+        },
+        "active": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": ["code", "discountType", "validFrom", "validTo"]
+    },
     "AddressDTO": {
       "type": "object",
       "properties": {

@@ -20,8 +20,13 @@ public class RateLimitingProperties {
     private int windowSeconds = 60;
     /** Cool-off period after hitting the limit */
     private int blockSeconds = 120;
-    /** Optional static captcha token to allow testing without third-party integration */
-    private String captchaBypassToken = "demo-captcha";
+    /** Requests permitted per client address per window on sign-in, OTP, registration and password-reset paths */
+    private int authRequests = 20;
+    /**
+     * Optional shared secret that lets a trusted caller pass a rate-limit block.
+     * Empty (the default) disables the bypass entirely; there is no built-in token.
+     */
+    private String captchaBypassToken = "";
     /** Paths that should never be rate limited (health, actuator, etc.). */
     private List<String> whitelistPaths = new ArrayList<>();
 
@@ -63,6 +68,14 @@ public class RateLimitingProperties {
 
     public void setBlockSeconds(int blockSeconds) {
         this.blockSeconds = blockSeconds;
+    }
+
+    public int getAuthRequests() {
+        return authRequests;
+    }
+
+    public void setAuthRequests(int authRequests) {
+        this.authRequests = authRequests;
     }
 
     public String getCaptchaBypassToken() {

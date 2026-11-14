@@ -23,7 +23,6 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -107,7 +106,22 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        // Only bcrypt hashes are accepted. Plain-text ({noop}) and every other stored
+        // format never match, so a seeded or hand-inserted password cannot sign in.
+        var encoder = new org.springframework.security.crypto.password.DelegatingPasswordEncoder(
+                "bcrypt", Map.of("bcrypt", new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()));
+        encoder.setDefaultPasswordEncoderForMatches(new PasswordEncoder() {
+            @Override
+            public String encode(CharSequence rawPassword) {
+                throw new UnsupportedOperationException("Unsupported password format");
+            }
+
+            @Override
+            public boolean matches(CharSequence rawPassword, String encodedPassword) {
+                return false;
+            }
+        });
+        return encoder;
     }
 
     @Bean

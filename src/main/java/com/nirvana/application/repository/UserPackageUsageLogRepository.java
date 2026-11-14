@@ -8,4 +8,6 @@ import java.util.List;
 public interface UserPackageUsageLogRepository extends JpaRepository<UserPackageUsageLog, Long> {
 
     List<UserPackageUsageLog> findByUserIdOrderByUsedAtDesc(Long userId);
+
+    List<UserPackageUsageLog> findByBooking_Id(Long bookingId);
 }

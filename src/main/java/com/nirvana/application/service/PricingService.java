@@ -1,5 +1,6 @@
 package com.nirvana.application.service;
 
+import com.nirvana.application.model.Coupon;
 import com.nirvana.application.model.Slot;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.User;
@@ -18,6 +19,9 @@ public interface PricingService {
                                   String couponCode,
                                   boolean redeemLoyaltyPoints);
 
-    record PricingResult(int discountCents, String appliedCouponCode, int loyaltyPointsRedeemed) {
+    /**
+     * @param coupon the validated coupon that was applied, or null when no code was used
+     */
+    record PricingResult(int discountCents, String appliedCouponCode, int loyaltyPointsRedeemed, Coupon coupon) {
     }
 }

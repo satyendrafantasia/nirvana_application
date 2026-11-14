@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { isStaff } from '../../auth/roles';
 import client, { errorMessage } from '../../api/client';
 import { Workspace } from '../../features/FeaturePage';
-import Results from '../../features/Results';
 import Drafts from '../Staff/Drafts';
 import SpaSettings from '../Staff/SpaSettings';
 import Schedule from './Schedule';
@@ -190,9 +189,55 @@ function Overview({ id }: { id: string }) {
     </section>
   );
 }
+type OwnerBooking = {
+  bookingId: number;
+  bookingReference: string;
+  startTs: string;
+  endTs: string;
+  status: string;
+  paymentMode?: string;
+  serviceName?: string;
+  customerName?: string;
+  customerPhone?: string;
+  therapistName?: string;
+};
+const CHECK_IN_WINDOW_MS = 120 * 60 * 1000;
+/** Front-desk actions the server will accept for this appointment right now. */
+export const bookingActions = (b: Pick<OwnerBooking, 'status' | 'startTs'>, now = Date.now()) => {
+  const start = Date.parse(b.startTs);
+  const started = now >= start;
+  const actions: { path: string; label: string }[] = [];
+  if (b.status === 'CONFIRMED' && now >= start - CHECK_IN_WINDOW_MS)
+    actions.push({ path: 'arrive', label: 'Check in' });
+  if ((b.status === 'CONFIRMED' || b.status === 'ARRIVED') && started)
+    actions.push({ path: 'complete', label: 'Mark completed' });
+  if (b.status === 'CONFIRMED' && started) actions.push({ path: 'no-show', label: 'No-show' });
+  return actions;
+};
+/** The spa can cancel an open booking until the appointment has ended. */
+export const canSpaCancel = (b: Pick<OwnerBooking, 'status' | 'endTs'>, now = Date.now()) =>
+  (b.status === 'CONFIRMED' || b.status === 'PENDING_PAYMENT') && now < Date.parse(b.endTs);
 function Bookings({ id }: { id: string }) {
   const [window, setWindow] = useState('TODAY');
   const [page, setPage] = useState(0);
+  const [cancelling, setCancelling] = useState<number>();
+  const [reason, setReason] = useState('');
+  const qc = useQueryClient();
+  const action = useMutation({
+    mutationFn: async ({ bookingId, path, reason }: { bookingId: number; path: string; reason?: string }) =>
+      (
+        await client.post(
+          `/api/owner/spas/${id}/bookings/${bookingId}/${path}`,
+          reason ? { reason } : undefined
+        )
+      ).data,
+    onSuccess: () => {
+      setCancelling(undefined);
+      setReason('');
+      void qc.invalidateQueries({ queryKey: ['owner-bookings', id] });
+      void qc.invalidateQueries({ queryKey: ['owner-overview', id] });
+    }
+  });
   const data = useQuery({
     queryKey: ['owner-bookings', id, window, page],
     queryFn: async () =>
@@ -223,8 +268,94 @@ function Bookings({ id }: { id: string }) {
         <p>Loading appointments…</p>
       ) : data.isError ? (
         <p role="alert">{errorMessage(data.error)}</p>
+      ) : data.data.content.length === 0 ? (
+        <p className="text-slate-500">No appointments in this period.</p>
       ) : (
-        <Results data={data.data.content} />
+        <ul className="space-y-3">
+          {(data.data.content as OwnerBooking[]).map((b) => (
+            <li key={b.bookingId} className="rounded-xl border border-slate-100 bg-white p-4 space-y-2">
+              <p className="font-semibold">
+                {b.serviceName || 'Appointment'} · {new Date(b.startTs).toLocaleString()}
+              </p>
+              <p>
+                {b.customerName || 'Guest'}
+                {b.customerPhone ? ` · ${b.customerPhone}` : ''}
+                {b.therapistName ? ` · Therapist: ${b.therapistName}` : ''}
+              </p>
+              <p>
+                {b.bookingReference} · <strong>{b.status.replaceAll('_', ' ')}</strong> ·{' '}
+                {b.paymentMode === 'OFFLINE' ? 'Pay at spa' : 'Online payment'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {bookingActions(b).map((a) => (
+                  <button
+                    key={a.path}
+                    type="button"
+                    className="rounded-xl border px-4 py-2"
+                    disabled={action.isPending}
+                    onClick={() => action.mutate({ bookingId: b.bookingId, path: a.path })}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+                {canSpaCancel(b) && cancelling !== b.bookingId && (
+                  <button
+                    type="button"
+                    className="rounded-xl border px-4 py-2 text-rose-700"
+                    disabled={action.isPending}
+                    onClick={() => {
+                      setCancelling(b.bookingId);
+                      setReason('');
+                    }}
+                  >
+                    Cancel booking
+                  </button>
+                )}
+              </div>
+              {cancelling === b.bookingId && (
+                <div className="space-y-2 rounded-xl bg-rose-50 p-3">
+                  <p>
+                    The guest is told the spa cancelled, and gets a full refund of anything paid
+                    online or their package session back.
+                  </p>
+                  <label className="block">
+                    Reason shown to the guest
+                    <input
+                      className="block w-full rounded-xl border p-3"
+                      value={reason}
+                      maxLength={500}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-xl border bg-white px-4 py-2 text-rose-700"
+                      disabled={action.isPending || !reason.trim()}
+                      onClick={() =>
+                        action.mutate({ bookingId: b.bookingId, path: 'cancel', reason: reason.trim() })
+                      }
+                    >
+                      Confirm cancellation
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-xl border bg-white px-4 py-2"
+                      onClick={() => setCancelling(undefined)}
+                    >
+                      Keep booking
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {action.isError && (
+        <p role="alert" className="text-rose-700">
+          {errorMessage(action.error)}
+        </p>
       )}
       <div className="flex gap-4">
         <button disabled={page === 0 || data.isFetching} onClick={() => setPage((p) => p - 1)}>

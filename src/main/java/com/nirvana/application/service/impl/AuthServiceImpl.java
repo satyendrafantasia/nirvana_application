@@ -157,9 +157,15 @@ public class AuthServiceImpl implements AuthService {
 
         email = email.trim().toLowerCase();
 
+        boolean providerVerified = providerVerifiedEmail(user);
         User existing = userRepository.findByEmail(email).orElse(null);
         if (existing == null) {
-            existing = createSocialUser(provider, user, email);
+            existing = createSocialUser(provider, user, email, providerVerified);
+        } else if (!providerVerified && !(provider + "_oauth2").equals(existing.getConsentSource())) {
+            // Without proof that the provider verified this address, a social profile must not
+            // sign in to an account that was created another way.
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "This email already has an account. Sign in with your password or a one-time code.");
         }
 
         existing.setLastLoginAt(OffsetDateTime.now());
@@ -174,7 +180,12 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user, refreshToken.getToken(), fingerprint);
     }
 
-    private User createSocialUser(String provider, OAuth2User oauth2User, String email) {
+    private boolean providerVerifiedEmail(OAuth2User user) {
+        Object verified = user.getAttributes().get("email_verified");
+        return Boolean.TRUE.equals(verified) || "true".equalsIgnoreCase(String.valueOf(verified));
+    }
+
+    private User createSocialUser(String provider, OAuth2User oauth2User, String email, boolean emailVerified) {
         RoleType roleType = RoleType.CUSTOMER;
         Role role = Optional.ofNullable(roleRepository.findByRoleType(roleType))
                 .orElseThrow(() -> new EntityNotFoundException("Role not configured: " + roleType));
@@ -203,7 +214,7 @@ public class AuthServiceImpl implements AuthService {
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .active(true)
                 .isActive(true)
-                .emailVerified(true)
+                .emailVerified(emailVerified)
                 .timezone(Optional.ofNullable(stringAttribute(oauth2User, "zoneinfo")).orElse("UTC"))
                 .locale(stringAttribute(oauth2User, "locale"))
                 .marketingOptIn(true)

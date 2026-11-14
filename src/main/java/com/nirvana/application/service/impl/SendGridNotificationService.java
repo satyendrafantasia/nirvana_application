@@ -7,23 +7,20 @@ import com.nirvana.application.model.User;
 import com.nirvana.application.model.WaitlistEntry;
 import com.nirvana.application.model.Slot;
 import com.nirvana.application.service.NotificationService;
+import com.nirvana.application.service.impl.BookingEmailContent.Email;
 import com.sendgrid.Method;
 import com.sendgrid.Request;
 import com.sendgrid.Response;
 import com.sendgrid.SendGrid;
 import com.sendgrid.helpers.mail.Mail;
 import com.sendgrid.helpers.mail.objects.Content;
-import com.sendgrid.helpers.mail.objects.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -31,69 +28,91 @@ import java.util.Objects;
 @ConditionalOnProperty(prefix = "notifications.sendgrid", name = "enabled", havingValue = "true")
 public class SendGridNotificationService implements NotificationService {
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm z");
-
     private final SendGrid sendGrid;
     private final SendGridProperties properties;
 
     @Override
     public void notifySpaOwnerBookingConfirmed(Booking booking) {
-        String toEmail = resolveSpaOwnerEmail(booking);
-        if (toEmail == null) {
-            log.warn("Skipping spa owner notification: no email for booking ref {}", booking.getBookingReference());
-            return;
-        }
-
-        String subject = properties.getOwnerSubject() + " - " + booking.getBookingReference();
-        String body = buildOwnerBody(booking);
-        sendEmail(toEmail, subject, body);
+        toSpa(booking, BookingEmailContent.ownerConfirmed(booking, properties.getOwnerSubject()));
     }
 
     @Override
     public void notifyCustomerBookingConfirmed(Booking booking) {
-        User user = booking.getUser();
-        if (user == null || user.getEmail() == null) {
-            log.warn("Skipping customer notification: user email missing for booking ref {}", booking.getBookingReference());
-            return;
-        }
+        toCustomer(booking, BookingEmailContent.customerConfirmed(booking, properties.getCustomerSubject()));
+    }
 
-        String subject = properties.getCustomerSubject() + " - " + booking.getBookingReference();
-        String body = buildCustomerBody(booking);
-        sendEmail(user.getEmail(), subject, body);
+    @Override
+    public void notifyCustomerBookingCancelled(Booking booking) {
+        toCustomer(booking, BookingEmailContent.customerCancelled(booking));
+    }
+
+    @Override
+    public void notifySpaOwnerBookingCancelled(Booking booking) {
+        toSpa(booking, BookingEmailContent.ownerCancelled(booking));
+    }
+
+    @Override
+    public void notifyCustomerBookingRescheduled(Booking booking) {
+        toCustomer(booking, BookingEmailContent.customerRescheduled(booking));
+    }
+
+    @Override
+    public void notifySpaOwnerBookingRescheduled(Booking booking) {
+        toSpa(booking, BookingEmailContent.ownerRescheduled(booking));
+    }
+
+    @Override
+    public void notifyCustomerBookingReminder(Booking booking) {
+        toCustomer(booking, BookingEmailContent.customerReminder(booking));
     }
 
     @Override
     public void notifyWaitlistUserSlotAvailable(WaitlistEntry entry, Slot slot) {
         String email = entry.getContactEmail();
-        if (email == null && entry.getUser() != null) {
+        if ((email == null || email.isBlank()) && entry.getUser() != null) {
             email = entry.getUser().getEmail();
         }
         if (email == null || email.isBlank()) {
             log.warn("Skipping waitlist notification for entry {} due to missing email", entry.getId());
             return;
         }
-
-        String subject = "A slot just opened up!";
-        String body = "<p>Your waitlisted slot is now available.</p>"
-                + "<ul>"
-                + "<li><strong>Spa:</strong> " + safe(slot.getSpa() != null ? slot.getSpa().getName() : null) + "</li>"
-                + "<li><strong>Starts at:</strong> " + formatStartTime(slot.getStartTs(), slot.getSpa()) + "</li>"
-                + "</ul>"
-                + "<p>Return to the app to confirm your booking.</p>";
-        sendEmail(email, subject, body);
+        String spaName = slot.getSpa() != null && slot.getSpa().getName() != null ? slot.getSpa().getName() : "the spa";
+        String body = "<p>A time you were waiting for is available again.</p><ul>"
+                + "<li><strong>Spa:</strong> " + HtmlUtils.htmlEscape(spaName) + "</li>"
+                + "<li><strong>When:</strong> " + BookingEmailContent.formatStart(slot.getStartTs(), slot.getSpa()) + "</li>"
+                + "</ul><p>It is not held for you. Book it soon if you still want it.</p>";
+        sendEmail(email, "A time just opened up", body, "WAITLIST_SLOT_AVAILABLE");
     }
 
-    private void sendEmail(String toEmail, String subject, String htmlContent) {
+    private void toCustomer(Booking booking, Email email) {
+        User user = booking.getUser();
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Skipping {} notification: customer email missing for booking ref {}", email.templateCode(), booking.getBookingReference());
+            return;
+        }
+        sendEmail(user.getEmail(), email.subject(), email.html(), email.templateCode());
+    }
+
+    private void toSpa(Booking booking, Email email) {
+        Spa spa = booking.getSpa();
+        String to = spa != null && spa.getEmail() != null && !spa.getEmail().isBlank()
+                ? spa.getEmail() : properties.getOwnerFallbackEmail();
+        if (to == null || to.isBlank()) {
+            log.warn("Skipping {} notification: no spa email for booking ref {}", email.templateCode(), booking.getBookingReference());
+            return;
+        }
+        sendEmail(to, email.subject(), email.html(), email.templateCode());
+    }
+
+    private void sendEmail(String toEmail, String subject, String htmlContent, String templateCode) {
         if (properties.getFromEmail() == null || properties.getFromEmail().isBlank()) {
             log.warn("Cannot send email: fromEmail not configured");
             return;
         }
 
-        Email from = new Email(properties.getFromEmail(), properties.getFromName());
-        Email to = new Email(toEmail);
-        Content content = new Content("text/html", htmlContent);
-
-        Mail mail = new Mail(from, subject, to, content);
+        var from = new com.sendgrid.helpers.mail.objects.Email(properties.getFromEmail(), properties.getFromName());
+        var to = new com.sendgrid.helpers.mail.objects.Email(toEmail);
+        Mail mail = new Mail(from, subject, to, new Content("text/html", htmlContent));
         Request request = new Request();
         try {
             request.setMethod(Method.POST);
@@ -101,84 +120,13 @@ public class SendGridNotificationService implements NotificationService {
             request.setBody(mail.build());
 
             Response response = sendGrid.api(request);
-            int statusCode = response.getStatusCode();
-            if (statusCode >= 400) {
-                log.error("Notification delivery failed");
+            if (response.getStatusCode() >= 400) {
+                log.error("{} notification delivery failed with status {}", templateCode, response.getStatusCode());
             } else {
-                log.debug("Notification delivery processed");
+                log.debug("{} notification delivery processed", templateCode);
             }
         } catch (IOException e) {
-            log.error("Notification delivery failed");
+            log.error("{} notification delivery failed", templateCode);
         }
-    }
-
-    private String resolveSpaOwnerEmail(Booking booking) {
-        Spa spa = booking.getSpa();
-        if (spa != null && spa.getEmail() != null && !spa.getEmail().isBlank()) {
-            return spa.getEmail();
-        }
-        return properties.getOwnerFallbackEmail();
-    }
-
-    private String buildOwnerBody(Booking booking) {
-        User user = booking.getUser();
-        Spa spa = booking.getSpa();
-        return "<p>Hello " + safe(spa != null ? spa.getOwnerName() : null) + ",</p>"
-                + "<p>A new booking has been confirmed.</p>"
-                + "<ul>"
-                + "<li><strong>Reference:</strong> " + booking.getBookingReference() + "</li>"
-                + "<li><strong>Guest:</strong> " + safe(user != null ? user.getName() : null) + " (" + safe(user != null ? user.getEmail() : null) + ")" + "</li>"
-                + "<li><strong>Service:</strong> " + safe(booking.getService() != null ? booking.getService().getName() : null) + "</li>"
-                + "<li><strong>Scheduled:</strong> " + formatStartTime(booking) + "</li>"
-                + "</ul>"
-                + "<p>Please prepare to welcome the guest.</p>";
-    }
-
-    private String buildCustomerBody(Booking booking) {
-        Spa spa = booking.getSpa();
-        return "<p>Hello " + safe(booking.getUser() != null ? booking.getUser().getName() : null) + ",</p>"
-                + "<p>Your booking is confirmed.</p>"
-                + "<ul>"
-                + "<li><strong>Reference:</strong> " + booking.getBookingReference() + "</li>"
-                + "<li><strong>Spa:</strong> " + safe(spa != null ? spa.getName() : null) + "</li>"
-                + "<li><strong>Service:</strong> " + safe(booking.getService() != null ? booking.getService().getName() : null) + "</li>"
-                + "<li><strong>Scheduled:</strong> " + formatStartTime(booking) + "</li>"
-                + "</ul>"
-                + "<p>We look forward to seeing you!</p>";
-    }
-
-    private String formatStartTime(Booking booking) {
-        OffsetDateTime start = booking.getStartTs();
-        if (start == null) {
-            return "N/A";
-        }
-
-        Spa spa = booking.getSpa();
-        if (spa != null && spa.getTimezone() != null) {
-            try {
-                return start.atZoneSameInstant(ZoneId.of(spa.getTimezone())).format(DATE_TIME_FORMATTER);
-            } catch (Exception e) {
-                log.warn("Unable to format start time with timezone {}: {}", spa.getTimezone(), e.getMessage());
-            }
-        }
-        return start.format(DATE_TIME_FORMATTER);
-    }
-
-    private String formatStartTime(OffsetDateTime start, Spa spa) {
-        if (start == null) {
-            return "N/A";
-        }
-        if (spa != null && spa.getTimezone() != null) {
-            try {
-                return start.atZoneSameInstant(ZoneId.of(spa.getTimezone())).format(DATE_TIME_FORMATTER);
-            } catch (Exception e) {
-                log.warn("Unable to format start time with timezone {}: {}", spa.getTimezone(), e.getMessage());
-            }
-        }
-        return start.format(DATE_TIME_FORMATTER);
-    }
-
-    private String safe(String value) {
-        return Objects.toString(value, "N/A");
     }
 }

@@ -21,4 +21,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     long countByDataErasureRequestedAtIsNotNull();
+
+    /** Atomic balance change, so concurrent bookings for one customer cannot lose points. */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query(
+            "update User u set u.loyaltyPoints = coalesce(u.loyaltyPoints, 0) + :points where u.id = :userId")
+    int addLoyaltyPoints(@org.springframework.data.repository.query.Param("userId") Long userId,
+                         @org.springframework.data.repository.query.Param("points") int points);
 }

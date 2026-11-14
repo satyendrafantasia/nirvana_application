@@ -17,5 +17,11 @@ public interface BookingService {
 
     BookingCancelResponse cancelBooking(Long bookingId, Long userId);
 
+    /**
+     * Cancellation by the spa (or an administrator). The customer is refunded in full and gets
+     * back any package session, whatever the customer cancellation policy says.
+     */
+    BookingCancelResponse cancelBookingBySpa(Long spaId, Long bookingId, String reason, boolean byAdmin);
+
     BookingRescheduleResponse rescheduleBooking(Long bookingId, Long userId, BookingRescheduleRequest request);
 }

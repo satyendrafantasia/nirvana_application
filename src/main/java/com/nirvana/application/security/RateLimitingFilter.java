@@ -15,6 +15,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.nirvana.application.security.UserPrincipal;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 
@@ -44,7 +46,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         String key = resolveKey(request);
         Instant now = clock.instant();
         String userKey = resolveUserKey(request);
-        boolean allowed = rateLimitService.isAllowed(key);
+        boolean allowed = isAuthPath(request.getRequestURI())
+                ? rateLimitService.isAllowed(key, Math.min(properties.getAuthRequests(), properties.getRequests()))
+                : rateLimitService.isAllowed(key);
         boolean userAllowed = true;
         if (userKey != null && properties.getPerUserRequests() != null) {
             userAllowed = rateLimitService.isAllowed(userKey, properties.getPerUserRequests());
@@ -52,11 +56,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         if (!allowed || !userAllowed) {
             String captchaToken = request.getHeader(CAPTCHA_HEADER);
-            boolean captchaProvided = captchaToken != null && captchaToken.equals(properties.getCaptchaBypassToken());
+            String configured = properties.getCaptchaBypassToken();
+            boolean captchaProvided = configured != null && !configured.isBlank() && captchaToken != null
+                    && MessageDigest.isEqual(captchaToken.getBytes(StandardCharsets.UTF_8),
+                            configured.getBytes(StandardCharsets.UTF_8));
             if (!captchaProvided) {
                 Instant blockedUntil = now.plusSeconds(properties.getBlockSeconds());
                 log.warn("Request rate limit reached");
-                reject(response, "Too many requests. Provide CAPTCHA token or wait.", blockedUntil);
+                reject(response, "Too many requests. Please wait and try again.", blockedUntil);
                 return;
             }
         }
@@ -65,9 +72,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private String resolveKey(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        String ip = forwarded != null ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
-        return ip + "|" + request.getRequestURI();
+        // Never read X-Forwarded-For here: any client can set it. Behind a trusted proxy,
+        // set server.forward-headers-strategy=native so the container resolves the address.
+        return request.getRemoteAddr() + "|" + request.getRequestURI();
+    }
+
+    private boolean isAuthPath(String path) {
+        if (!path.startsWith("/api/auth/") && !path.startsWith("/auth/")) {
+            return false;
+        }
+        // Credential-guessing targets only; session reads and token refresh keep the general limit.
+        return path.contains("/login") || path.contains("/register") || path.contains("/password") || path.contains("/otp");
     }
 
     private String resolveUserKey(HttpServletRequest request) {
@@ -85,7 +100,6 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader("Retry-After", String.valueOf(properties.getBlockSeconds()));
-        response.setHeader("X-Captcha-Required", "true");
         response.getWriter().write("{\"error\":\"" + message + "\",\"blockedUntil\":\"" + blockedUntil + "\"}");
     }
 

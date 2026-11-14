@@ -41,6 +41,51 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Long> committedServices(@Param("therapist") Long therapist, @Param("now") OffsetDateTime now,
                                  @Param("statuses") List<BookingStatus> statuses);
 
+    /** Unpaid online bookings that are past the payment window, or whose appointment has already started. */
+    @Query("""
+            select b.id from Booking b
+            where b.status = com.nirvana.application.model.enums.BookingStatus.PENDING_PAYMENT
+              and (b.createdAt < :createdBefore or b.startTs < :now)
+            order by b.id
+            """)
+    List<Long> findExpirablePendingPaymentIds(@Param("createdBefore") OffsetDateTime createdBefore,
+                                              @Param("now") OffsetDateTime now);
+
+    /** Appointments that ended before the cutoff and were never closed out by the spa. */
+    @Query("""
+            select b.id from Booking b
+            where b.status in (com.nirvana.application.model.enums.BookingStatus.CONFIRMED,
+                               com.nirvana.application.model.enums.BookingStatus.ARRIVED)
+              and b.endTs < :endedBefore
+            order by b.id
+            """)
+    List<Long> findAutoCompletableIds(@Param("endedBefore") OffsetDateTime endedBefore);
+
+    /** Confirmed, not yet started appointments inside the reminder window that have no reminder yet. */
+    @Query("""
+            select b.id from Booking b
+            where b.status = com.nirvana.application.model.enums.BookingStatus.CONFIRMED
+              and b.reminderProcessedAt is null
+              and b.startTs > :now and b.startTs <= :until
+            order by b.startTs
+            """)
+    List<Long> findReminderDueIds(@Param("now") OffsetDateTime now, @Param("until") OffsetDateTime until);
+
+    /** Bookings holding a use of the coupon. Cancelled bookings give their use back. */
+    @Query("""
+            select count(b) from Booking b
+            where b.coupon.id = :couponId
+              and b.status <> com.nirvana.application.model.enums.BookingStatus.CANCELLED
+            """)
+    long countCouponUses(@Param("couponId") Long couponId);
+
+    @Query("""
+            select count(b) from Booking b
+            where b.coupon.id = :couponId and b.user.id = :userId
+              and b.status <> com.nirvana.application.model.enums.BookingStatus.CANCELLED
+            """)
+    long countCouponUsesByUser(@Param("couponId") Long couponId, @Param("userId") Long userId);
+
     boolean existsByBookingReference(String bookingReference);
 
     @EntityGraph(attributePaths = {"spa", "service"})

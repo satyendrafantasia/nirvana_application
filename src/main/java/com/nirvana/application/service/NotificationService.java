@@ -13,5 +13,11 @@ public interface NotificationService {
 
     default void notifySpaOwnerBookingCancelled(Booking booking) {}
 
+    default void notifyCustomerBookingRescheduled(Booking booking) {}
+
+    default void notifySpaOwnerBookingRescheduled(Booking booking) {}
+
+    default void notifyCustomerBookingReminder(Booking booking) {}
+
     default void notifyWaitlistUserSlotAvailable(WaitlistEntry entry, Slot slot) {}
 }

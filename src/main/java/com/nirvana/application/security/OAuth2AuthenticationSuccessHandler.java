@@ -37,7 +37,13 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         OAuth2User oauth2User = token.getPrincipal();
         String provider = token.getAuthorizedClientRegistrationId();
-        AuthResponse authResponse = authService.socialLogin(provider, oauth2User);
+        AuthResponse authResponse;
+        try {
+            authResponse = authService.socialLogin(provider, oauth2User);
+        } catch (org.springframework.security.access.AccessDeniedException | IllegalArgumentException refused) {
+            response.sendRedirect(frontendUrl + "/auth/social/callback?error=oauth_failed");
+            return;
+        }
 
         request.getSession(true);
         request.changeSessionId();
