@@ -12,6 +12,9 @@ public class BookingRescheduleRequest {
 
     @Schema(description = "Reason for reschedule", example = "Client requested earlier slot")
     private String reason;
+    @lombok.Getter @lombok.Setter private Boolean changeTherapistPreference;
+    @lombok.Getter @lombok.Setter private Long therapistId;
+    @lombok.Getter @lombok.Setter private String therapistType;
 
     @Schema(description = "Allow rescheduling within same day even if cut-off applies", example = "false")
     private Boolean allowSameDayChange;

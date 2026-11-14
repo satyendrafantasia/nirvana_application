@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 @Value
 @Builder
 public class BookingSummaryResponse {
+    String therapistName;
     Long bookingId;
     String bookingReference;
     Long spaId;

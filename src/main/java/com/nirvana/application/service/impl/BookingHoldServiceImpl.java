@@ -50,7 +50,9 @@ public class BookingHoldServiceImpl implements BookingHoldService {
 
         OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Optional.ofNullable(request.getHoldMinutes()).orElse(10));
         BookingHold hold = new BookingHold();
-        if(request.getTherapistId()!=null && !Boolean.TRUE.equals(spa.getAllowTherapistSelection())) throw new IllegalArgumentException("Named selection disabled");
+        allocation.validatePreference(spa,request.getTherapistId(),request.getTherapistType());
+        hold.setTherapistPreference(SessionAllocation.preference(request.getTherapistId(),request.getTherapistType()));
+        hold.setRequestedLabel(request.getTherapistType());
         hold.setRoom(slot.getRoom());
         hold.setTherapist(allocation.choose(slot,request.getTherapistId(),request.getTherapistType(),null,null));
         hold.setSpa(spa);
@@ -62,7 +64,9 @@ public class BookingHoldServiceImpl implements BookingHoldService {
         hold.setHoldUnits(request.getGuests());
         bookingHoldRepository.save(hold);
 
-        return new SlotHoldResponse(hold.getHoldToken(), expiresAt, slot.getId());
+        var response=new SlotHoldResponse(hold.getHoldToken(), expiresAt, slot.getId());
+        response.setTherapistName(SessionAllocation.customerDisplay(spa,hold.getTherapist()));
+        return response;
     }
 
     private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests) {

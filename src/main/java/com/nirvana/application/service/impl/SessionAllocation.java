@@ -51,6 +51,23 @@ public class SessionAllocation {
             zone,roster.load(spa.getId(),from.atZoneSameInstant(zone).toLocalDate(),until.atZoneSameInstant(zone).toLocalDate()),
             rows.stream().map(r->new Occupied((Long)r[0],(Long)r[1],(java.time.OffsetDateTime)r[2],(java.time.OffsetDateTime)r[3])).toList());
     }
+    public static String preference(Long id,String label){
+        return id!=null?"NAMED":label!=null && !label.isBlank()?"LABEL":"ANY";
+    }
+    public static String customerDisplay(Spa spa,Therapist t){
+        if(t==null)return null;
+        String name=Boolean.TRUE.equals(spa.getAllowTherapistSelection())?t.getPublicName():null;
+        String label=Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection())?t.getType():null;
+        if(name==null || name.isBlank())return label;
+        return label==null || label.isBlank()?name:name+" · "+label;
+    }
+    public void validatePreference(Spa spa,Long id,String label){
+        if(label!=null && !label.isBlank() && !Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection()))
+            throw new IllegalStateException(TAKEN+"; label selection is disabled");
+        if(id!=null && (!Boolean.TRUE.equals(spa.getAllowTherapistSelection()) ||
+                therapists.findByIdAndSpa_Id(id,spa.getId()).filter(t->t.getPublicName()!=null && !t.getPublicName().isBlank()).isEmpty()))
+            throw new IllegalStateException(TAKEN+"; choose a published therapist");
+    }
     public Therapist choose(Slot slot,Long therapist,String type,Long hold,Long booking){
         return eligible(slot,hold,booking).stream().filter(t->therapist==null || therapist.equals(t.getId()))
                 .filter(t->type==null || type.isBlank() || type.equalsIgnoreCase(t.getType()))

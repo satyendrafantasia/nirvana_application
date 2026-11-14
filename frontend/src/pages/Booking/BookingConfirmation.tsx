@@ -35,6 +35,7 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
           <p className="text-lg font-semibold text-slate-900">{summary.service.name}</p>
           <p className="text-sm text-slate-500">Date and time</p>
           <time dateTime={summary.slot}>{new Date(summary.slot).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</time>
+          {summary.therapistName && <p>Therapist: {summary.therapistName}</p>}
           {summary.totalCents != null && summary.currency && <p className="mt-3">Booking total · {new Intl.NumberFormat(undefined, { style: 'currency', currency: summary.currency }).format(summary.totalCents / 100)}</p>}
         </div>
       ) : (

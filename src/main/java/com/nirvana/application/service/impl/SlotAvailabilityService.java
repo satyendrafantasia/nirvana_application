@@ -155,7 +155,7 @@ public class SlotAvailabilityService {
                         holdMap.getOrDefault(entry.getKey().getId(), 0),
                         therapistSelectionEnabled,
                         therapistTypeSelectionEnabled,
-                        therapistSelectionEnabled ? buildTherapistAvailability(eligible.get(entry.getKey().getId())) : List.of(),
+                        therapistSelectionEnabled ? buildTherapistAvailability(eligible.get(entry.getKey().getId()),forceTherapistVisibility,therapistTypeSelectionEnabled) : List.of(),
                         therapistTypeSelectionEnabled ? buildTherapistTypeAvailability(eligible.get(entry.getKey().getId())) : List.of()
                 )))
                 .collect(Collectors.groupingBy(
@@ -275,14 +275,14 @@ public class SlotAvailabilityService {
         return result;
     }
 
-    private List<TherapistAvailabilityResponse> buildTherapistAvailability(List<Therapist> therapists){
-        return therapists.stream()
+    private List<TherapistAvailabilityResponse> buildTherapistAvailability(List<Therapist> therapists,boolean staff,boolean labels){
+        return therapists.stream().filter(t->staff || t.getPublicName()!=null && !t.getPublicName().isBlank())
                 .map(therapist -> new TherapistAvailabilityResponse(
                         therapist.getId(),
-                        therapist.getName(),
-                        therapist.getDisplayName(),
+                        staff?therapist.getName():therapist.getPublicName(),
+                        staff?therapist.getDisplayName():therapist.getPublicName(),
                         therapist.getProfileImageUrl(),
-                        therapist.getType(),
+                        labels?therapist.getType():null,
                         true
                 ))
                 .toList();

@@ -1,4 +1,3 @@
-import { therapistLabel } from './therapistLabel';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 
@@ -58,8 +57,7 @@ const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
             <p className="text-sm text-slate-500">Therapist</p>
             <p className="text-lg font-semibold text-slate-900">
-              {state.selectedSlot.therapists.find(t => t.id === state.therapistId)?.name ||
-                (state.therapistType ? therapistLabel(state.therapistType) : 'Any available therapist')}
+              {state.heldTherapistName || 'Any available therapist'}
             </p>
           </div>
         )}

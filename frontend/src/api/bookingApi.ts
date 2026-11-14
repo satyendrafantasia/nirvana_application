@@ -40,7 +40,14 @@ export const getSlots = async (
     therapistTypes: s.therapistTypes || []
   }));
 };
+export interface TherapistDirectory {
+  named: { id: number; name: string; type?: string }[];
+  labels: string[];
+}
+export const getTherapistDirectory = async (spa: string, service: string) =>
+  (await client.get<TherapistDirectory>(`/api/spas/${spa}/services/${service}/therapists`)).data;
 export interface CreatedBooking {
+  therapistName?: string;
   bookingId: number;
   bookingReference: string;
   status: string;
@@ -52,6 +59,7 @@ export interface CreatedBooking {
 export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> =>
   (await client.post('/api/bookings', payload)).data;
 interface BookingWire {
+  therapistName?: string;
   bookingId: number;
   bookingReference: string;
   spaId: number;
@@ -78,6 +86,7 @@ export const getUserBookings = async (
     items: data.page.content.map((b) => ({
       id: String(b.bookingId),
       reference: b.bookingReference,
+      therapistName: b.therapistName,
       spaId: String(b.spaId),
       spaName: b.spaName,
       service: {
@@ -97,5 +106,8 @@ export const getUserBookings = async (
 };
 export const cancelBooking = async (id: string) =>
   (await client.post(`/api/bookings/${id}/cancel`)).data;
-export const rescheduleBooking = async (id: string, targetSlotId: string) =>
-  (await client.post(`/api/bookings/${id}/reschedule`, { targetSlotId })).data;
+export const rescheduleBooking = async (id: string, targetSlotId: string, choice?: string) =>
+  (await client.post(`/api/bookings/${id}/reschedule`, { targetSlotId,
+    changeTherapistPreference: choice !== undefined,
+    therapistId: choice && !choice.startsWith('type:') ? Number(choice) : undefined,
+    therapistType: choice?.startsWith('type:') ? choice.slice(5) : undefined })).data;

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { track } from '../../telemetry';
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,7 +79,7 @@ export default function Payment({
         status
       };
     },
-    onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && errorMessage(err).includes('This time is no longer available')){setSlot(undefined);onTimeConflict();}},
+    onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && axios.isAxiosError(err) && err.response?.status === 409){setSlot(undefined);onTimeConflict();}},
     onSuccess: (b) => {
       if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);

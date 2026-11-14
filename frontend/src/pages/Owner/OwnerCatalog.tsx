@@ -23,6 +23,7 @@ const therapistSchema: Schema = {
   required: ['name'],
   properties: {
     name: { type: 'string', maxLength: 255 },
+    publicName: { type: 'string', maxLength: 128 },
     type: { type: 'string', maxLength: 128 },
     bio: { type: 'string', maxLength: 2000 },
     active: { type: 'boolean' },
@@ -31,7 +32,7 @@ const therapistSchema: Schema = {
 };
 const defaults = (kind: string): RecordValue =>
   kind === 'therapists'
-    ? { name: '', type: '', bio: '', active: true, available: true, serviceIds: [] }
+    ? { name: '', publicName: '', type: '', bio: '', active: true, available: true, serviceIds: [] }
     : kind === 'services'
       ? {
           name: '',
@@ -65,6 +66,20 @@ export default function OwnerCatalog({
     enabled: kind === 'therapists',
     queryFn: async () => (await client.get<RecordValue[]>(`/api/owner/spas/${spaId}/services`)).data
   });
+  const visibilityPath = `/api/owner/spas/${spaId}/therapist-visibility`;
+  const visibility = useQuery({
+    queryKey: [visibilityPath],
+    enabled: kind === 'therapists',
+    queryFn: async () => (await client.get<{names: boolean; labels: boolean}>(visibilityPath)).data
+  });
+  const refreshAvailability = () => {
+    for (const queryKey of [['therapist-directory'], ['slots'], ['reschedule'], ['my-bookings']])
+      void qc.invalidateQueries({queryKey});
+  };
+  const publish = useMutation({
+    mutationFn: (mode: string) => client.put(visibilityPath, {names: mode.includes('n'), labels: mode.includes('l')}),
+    onSuccess: () => { void qc.invalidateQueries({queryKey: [visibilityPath]}); refreshAvailability(); }
+  });
   const retire=useMutation({mutationFn:(id:string)=>client.delete(path+'/'+id),onSuccess:()=>qc.invalidateQueries({queryKey:key})});
   const action = useMutation({
     mutationFn: async () => {
@@ -80,6 +95,7 @@ export default function OwnerCatalog({
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: key });
+      refreshAvailability();
       setValue(defaults(kind));
       setEditing(undefined);
     }
@@ -100,6 +116,17 @@ export default function OwnerCatalog({
             sale status.
           </p>
         )}
+        {kind === 'therapists' && visibility.data && <label className="block">
+          Customer therapist choices
+          <select className="block border rounded-xl p-2" disabled={publish.isPending}
+            value={(visibility.data.names ? 'n' : '') + (visibility.data.labels ? 'l' : '')}
+            onChange={e => publish.mutate(e.target.value)}>
+            <option value="">Any available therapist only</option>
+            <option value="n">Names and Any</option><option value="l">Profile labels and Any</option>
+            <option value="nl">Names, profile labels and Any</option>
+          </select>
+        </label>}
+        {(publish.isError || visibility.isError) && <p role="alert">{errorMessage(publish.error || visibility.error)}</p>}
         {retire.isError && <p role="alert">{errorMessage(retire.error)}</p>}
         {records.isPending && <p>Loading…</p>}
         {records.isError && <p role="alert">{errorMessage(records.error)}</p>}
@@ -140,6 +167,7 @@ export default function OwnerCatalog({
           {editing ? 'Edit' : 'Add'}{' '}
           {kind === 'therapists' ? 'therapist' : kind === 'services' ? 'service' : 'package'}
         </h2>
+        {kind === 'therapists' && <p className="text-sm">Name identifies staff in your schedule. Enter a public name to offer individual selection. Type is the optional customer-facing profile label.</p>}
         <Fields schema={schema} value={value} onChange={(v) => setValue(v as RecordValue)} />
         {kind === 'services' && (
           <p className="text-sm">

@@ -1,6 +1,7 @@
 package com.nirvana.application.model.dto;
 
 public class BookingCreateResponse {
+    @lombok.Getter @lombok.Setter private String therapistName;
     private Long bookingId;
     private String bookingReference;
     private String status;

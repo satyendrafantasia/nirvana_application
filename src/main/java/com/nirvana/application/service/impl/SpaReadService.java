@@ -73,8 +73,8 @@ public class SpaReadService {
         List<String> amenities = arrayToList(spa.getAmenities());
         List<String> tags = arrayToList(spa.getTags());
 
-        List<Long> therapistIds = spa.getTherapists() != null
-                ? spa.getTherapists().stream().map(Therapist::getId).toList()
+        List<Long> therapistIds = Boolean.TRUE.equals(spa.getAllowTherapistSelection()) && spa.getTherapists() != null
+                ? spa.getTherapists().stream().filter(t->t.getPublicName()!=null && !t.getPublicName().isBlank()).map(Therapist::getId).toList()
                 : List.of();
 
         List<Long> serviceIds = spa.getServices() != null
@@ -138,7 +138,7 @@ public class SpaReadService {
 
                 spa.getAllowTherapistSelection(),
                 spa.getAllowTherapistTypeSelection(),
-                safeSet(spa.getTherapistTypesAvailable()),
+                Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection()) ? safeSet(spa.getTherapistTypesAvailable()) : java.util.Set.of(),
                 therapistIds,
 
                 serviceIds,

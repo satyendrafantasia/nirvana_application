@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 @SpringBootTest @AutoConfigureMockMvc
 class OwnerScheduleTest {
+    @org.junit.jupiter.api.BeforeEach void publishFixtureName(){jdbc.update("update therapist set public_name='Maya' where id=1");}
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     static final String BASE="/api/owner/spas/1/schedule";
@@ -72,6 +73,42 @@ class OwnerScheduleTest {
         assertEquals(0,matches(earlier));
         assertEquals(409,book(earlier,true).status());
     }
+    @Test @Transactional void namedAndLabelHoldsRespectVisibilityAndKeepTheirAssignment() throws Exception {
+        String directory="/api/spas/1/services/1/therapists";
+        jdbc.update("update spa set allow_therapist_selection=1,allow_therapist_type_selection=1 where id=1");
+        jdbc.update("update therapist set is_available=0 where spa_id=1 and id<>1");
+        jdbc.update("update therapist set type='Thai' where id=1");
+        var anonymous=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("name","Private employee",
+            "type","Thai","active",true,"available",true,"serviceIds",List.of(1)))).get("id").asLong();
+        var team=ok(call(get(directory),3,"ROLE_USER",null));
+        assertEquals(1,team.get("named").size());
+        assertEquals("Maya",team.at("/named/0/name").asText());
+        long a=slot(11,0,1), b=slot(11,0,1);
+        var input=new HashMap<String,Object>(Map.of("spaId",1,"serviceId",1,"slotId",a,"guests",1,"therapistId",1));
+        var held=call(post("/api/spas/1/services/1/slots/"+a+"/hold"),3,"ROLE_USER",input);
+        assertEquals(2,held.status()/100,()->held.body().toString());
+        assertEquals("Maya · Thai",held.body().get("therapistName").asText());
+        assertEquals(409,book(b,true).status());
+        input.put("holdToken",held.body().get("holdToken").asText());input.put("paymentMode","OFFLINE");
+        var named=call(post("/api/bookings"),3,"ROLE_USER",input);
+        assertEquals(2,named.status()/100,()->named.body().toString());
+        assertEquals("Maya · Thai",named.body().get("therapistName").asText());
+        ok(owner(put("/api/owner/spas/1/therapist-visibility"),Map.of("names",false,"labels",true)));
+        assertTrue(ok(call(get(directory),3,"ROLE_USER",null)).get("named").isEmpty());
+        var slots=ok(call(get(directory+"/availability").param("date",day.toString()),3,"ROLE_USER",null));
+        assertTrue(slots.findValues("therapistId").isEmpty());
+        assertEquals(409,book(b,true).status());
+        input.remove("holdToken");input.remove("therapistId");input.put("therapistType","Thai");input.put("slotId",b);
+        var label=call(post("/api/bookings"),3,"ROLE_USER",input);
+        assertEquals(2,label.status()/100,()->label.body().toString());
+        assertEquals("Thai",label.body().get("therapistName").asText());
+        assertEquals(anonymous,jdbc.queryForObject("select therapist_id from booking where id=? and therapist_preference='LABEL'",
+            Long.class,label.body().get("bookingId").asLong()));
+        var history=ok(call(get("/api/me/bookings"),3,"ROLE_USER",null));
+        assertFalse(history.toString().contains("Maya"));
+        assertFalse(history.toString().contains("Private employee"));
+    }
+
     @Test @Transactional void bookedRoomRejectsClosureAndSecondBooking() throws Exception {
         long id=slot(12,0,3);
         assertEquals(2,book(id,false).status()/100);
@@ -187,7 +224,7 @@ class OwnerScheduleTest {
             var at=day.plusWeeks(sameRoom?3:4).atTime(11,0).atZone(ZONE).toOffsetDateTime();
             long[] slots=new long[2],staff=new long[2];
             for(int i=0;i<2;i++){
-                staff[i]=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("name","Concurrent therapist","available",true,"active",true,"serviceIds",List.of(1)))).get("id").asLong();
+                staff[i]=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("publicName","Concurrent","name","Concurrent therapist","available",true,"active",true,"serviceIds",List.of(1)))).get("id").asLong();
                 slots[i]=ok(owner(post(BASE+"/slots"),Map.of("serviceId",1,"roomId",room(),"start",at,"end",at.plusHours(1),"capacity",2))).get("id").asLong();
             }
             var gate=new CountDownLatch(1);var pool=Executors.newFixedThreadPool(2);
@@ -207,7 +244,7 @@ class OwnerScheduleTest {
         var start=raceDay.atTime(16,0).atZone(ZONE).toOffsetDateTime();
         // Independent reruns use an unassigned therapist and a new spa-local date.
         var serviceIds=List.of(1);
-        var therapist=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("name","Race therapist",
+        var therapist=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("publicName","Race","name","Race therapist",
                 "available",true,"active",true,"serviceIds",serviceIds)));
         long tid=therapist.get("id").asLong();
         String path=BASE+"/therapists/"+tid+"/days/"+raceDay;

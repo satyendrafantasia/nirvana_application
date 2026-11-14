@@ -27,9 +27,9 @@ public class OwnerCatalogController {
         var appointments=em.createQuery("select b.id from Booking b where b.therapist.id=:id and b.endTs>:now and b.status in ('ARRIVED','CONFIRMED','PENDING_PAYMENT')",Long.class)
             .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
         if(!appointments.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"Resolve appointments "+appointments+" first");
-        if(em.createQuery("select count(h) from BookingHold h where h.therapist.id=:id and h.convertedToBooking=false and h.expiresAt>:now",Long.class)
-            .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getSingleResult()>0)
-            throw new ResponseStatusException(HttpStatus.CONFLICT,"Wait for the active therapist hold to expire");
+        var holds=em.createQuery("select h.id from BookingHold h where h.therapist.id=:id and h.convertedToBooking=false and h.expiresAt>:now",Long.class)
+            .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
+        if(!holds.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"Wait for reservations "+holds+" to expire");
     }
     @DeleteMapping("/therapists/{id}")
     public void retire(@PathVariable Long spaId,@PathVariable Long id){
@@ -41,9 +41,9 @@ public class OwnerCatalogController {
     private final ServiceRepository services;
     public record TherapistInput(@NotBlank @Size(max=255) String name, @Size(max=128) String type,
         @Size(max=2000) String bio, @NotNull Boolean active, @NotNull Boolean available,
-        @NotNull Set<@NotNull Long> serviceIds, Long version) {}
+        @NotNull Set<@NotNull Long> serviceIds, Long version, @Size(max=128) String publicName) {}
     public record TherapistView(Long id, String name, String type, String bio, Boolean active,
-        Boolean available, Set<Long> serviceIds, Long version) {}
+        Boolean available, Set<Long> serviceIds, Long version, @Size(max=128) String publicName) {}
     public record ServiceInput(@NotBlank @Size(max=255) String name, @Size(max=2000) String description,
         @NotNull @Min(1) @Max(1440) Integer durationMin, @NotNull @Min(0) @Max(1440) Integer bufferMin,
         @NotNull @Min(0) Integer basePriceCents, @NotBlank @Pattern(regexp="[A-Z]{3}") String currency,
@@ -54,9 +54,25 @@ public class OwnerCatalogController {
     private TherapistView view(Therapist t){
         Set<Long> ids=new HashSet<>();t.getServices().forEach(s->ids.add(s.getId()));
         if(t.getService()!=null)ids.add(t.getService().getId());
-        return new TherapistView(t.getId(),t.getName(),t.getType(),t.getBio(),t.getIsActive(),t.getIsAvailable(),ids,t.getVersion());
+        return new TherapistView(t.getId(),t.getName(),t.getType(),t.getBio(),t.getIsActive(),t.getIsAvailable(),ids,t.getVersion(),t.getPublicName());
     }
     private ServiceView view(Service s){return new ServiceView(s.getId(),s.getName(),s.getDescription(),s.getDurationMin(),s.getBufferMin(),s.getBasePriceCents(),s.getCurrency(),s.getIsActive());}
+    private String clean(String value){return value==null || value.isBlank()?null:value.trim();}
+    public record Visibility(@NotNull Boolean names,@NotNull Boolean labels){}
+    @GetMapping("/therapist-visibility")
+    public Visibility visibility(@PathVariable Long spaId){
+        var spa=spas.findById(spaId).orElseThrow(this::missing);
+        return new Visibility(spa.getAllowTherapistSelection(),spa.getAllowTherapistTypeSelection());
+    }
+    @PutMapping("/therapist-visibility")
+    public Visibility visibility(@PathVariable Long spaId,@Valid @RequestBody Visibility input){
+        var spa=spas.lockSchedule(spaId).orElseThrow(this::missing);
+        var holds=em.createQuery("select h from BookingHold h where h.spa.id=:id and h.expiresAt>:now and h.convertedToBooking=false",com.nirvana.application.model.BookingHold.class)
+            .setParameter("id",spaId).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
+        for(var h:holds)if((!input.names() && "NAMED".equals(h.getTherapistPreference())) || (!input.labels() && h.getRequestedLabel()!=null))
+            throw new IllegalStateException("Wait for reservation #"+h.getId()+" to expire");
+        spa.setAllowTherapistSelection(input.names());spa.setAllowTherapistTypeSelection(input.labels());return input;
+    }
     @GetMapping("/therapists")
     public List<TherapistView> therapists(@PathVariable Long spaId){return therapists.findBySpa_IdOrderByNameAsc(spaId).stream().map(this::view).toList();}
     @PostMapping("/therapists")
@@ -70,6 +86,17 @@ public class OwnerCatalogController {
         var t=therapists.findByIdAndSpa_Id(id,spaId).orElseThrow(this::missing);
         if(input.version()==null || !Objects.equals(input.version(),t.getVersion()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Therapist changed; reload before saving");
         if(!input.active() || !input.available())requireAvailableForRemoval(id);
+        var held=em.createQuery("select h from BookingHold h where h.therapist.id=:id and h.expiresAt>:now and h.convertedToBooking=false",com.nirvana.application.model.BookingHold.class)
+            .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
+        for(var h:held)if(!input.serviceIds().contains(h.getSlot().getService().getId()) ||
+                ("NAMED".equals(h.getTherapistPreference()) && clean(input.publicName())==null) ||
+                (h.getRequestedLabel()!=null && !h.getRequestedLabel().equalsIgnoreCase(clean(input.type()))))
+            throw new IllegalStateException("Resolve reservation #"+h.getId()+" before editing this therapist");
+        if(!Objects.equals(clean(input.type()),t.getType())){
+            var ids=em.createQuery("select b.id from Booking b where b.therapist.id=:id and b.therapistPreference='LABEL' and b.endTs>:now and b.status in ('ARRIVED','CONFIRMED','PENDING_PAYMENT')",Long.class)
+                .setParameter("id",id).setParameter("now",java.time.OffsetDateTime.now()).getResultList();
+            if(!ids.isEmpty())throw new IllegalStateException("Resolve appointments "+ids+" before changing the requested label");
+        }
         var required = bookings.committedServices(id, java.time.OffsetDateTime.now(), List.of(
                 BookingStatus.CONFIRMED, BookingStatus.PENDING_PAYMENT, BookingStatus.ARRIVED));
         if (!input.serviceIds().containsAll(required)) {
@@ -84,7 +111,7 @@ public class OwnerCatalogController {
         var assigned=services.findAllById(in.serviceIds());
         if(assigned.size()!=in.serviceIds().size() || assigned.stream().anyMatch(s->!Objects.equals(s.getSpa().getId(),t.getSpa().getId())))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Services must belong to this spa");
-        t.setName(in.name().trim());t.setDisplayName(in.name().trim());t.setType(in.type());t.setBio(in.bio());
+        t.setName(in.name().trim());t.setDisplayName(in.name().trim());t.setType(clean(in.type()));t.setPublicName(clean(in.publicName()));t.setBio(in.bio());
         t.setIsActive(in.active());t.setIsAvailable(in.available());t.setService(null);
         t.getServices().clear();t.getServices().addAll(assigned);
         return view(therapists.saveAndFlush(t));

@@ -357,8 +357,8 @@ public class SpaServiceImpl implements SpaService {
     }
 
     private SpaResponseDTO toResponseDto(Spa spa) {
-        List<Long> therapistIds = spa.getTherapists() != null
-                ? spa.getTherapists().stream().map(Therapist::getId).toList()
+        List<Long> therapistIds = Boolean.TRUE.equals(spa.getAllowTherapistSelection()) && spa.getTherapists() != null
+                ? spa.getTherapists().stream().filter(t->t.getPublicName()!=null && !t.getPublicName().isBlank()).map(Therapist::getId).toList()
                 : Collections.emptyList();
 
         List<Long> serviceIds = spa.getServices() != null
@@ -429,7 +429,7 @@ public class SpaServiceImpl implements SpaService {
                 .images(imageDtos)
                 .videos(videoDtos)
                 .therapistIds(therapistIds)
-                .therapistTypesAvailable(spa.getTherapistTypesAvailable())
+                .therapistTypesAvailable(Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection()) ? spa.getTherapistTypesAvailable() : java.util.Set.of())
                 .serviceIds(serviceIds)
                 .openTimeLocal(formatTime(spa.getOpenTimeLocal()))
                 .closeTimeLocal(formatTime(spa.getCloseTimeLocal()))

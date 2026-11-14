@@ -149,12 +149,22 @@ public class BookingServiceImpl implements BookingService {
         validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
         Long preferred = request.getTherapistId();
-        if(preferred!=null && !Boolean.TRUE.equals(spa.getAllowTherapistSelection())) throw new IllegalArgumentException("Named selection disabled");
+        String label=request.getTherapistType();
+        if (hold != null && preferred == null && label == null) {
+            if ("NAMED".equals(hold.getTherapistPreference())) preferred=hold.getTherapist().getId();
+            label=hold.getRequestedLabel();
+        }
+        String mode=SessionAllocation.preference(preferred,label);
+        allocation.validatePreference(spa,preferred,label);
+        if(hold!=null && hold.getTherapistPreference()!=null){
+            if(!mode.equals(hold.getTherapistPreference()) || !java.util.Objects.equals(label,hold.getRequestedLabel()))
+                throw new IllegalStateException(SessionAllocation.TAKEN+"; reserve your updated preference first");
+        }
         if(hold!=null && hold.getTherapist()!=null){
             if(preferred!=null && !preferred.equals(hold.getTherapist().getId())) throw new IllegalStateException("Choose the therapist reserved by this hold");
             preferred=hold.getTherapist().getId();
         }
-        Therapist therapist=allocation.choose(slot,preferred,request.getTherapistType(),hold==null?null:hold.getId(),null);
+        Therapist therapist=allocation.choose(slot,preferred,label,hold==null?null:hold.getId(),null);
         String requestedTherapistType=therapist.getType();
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
@@ -228,6 +238,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setPaymentMode(paymentMode);
         booking.setPaymentType(payWithPackage ? BookingPaymentType.PAID_BY_PACKAGE : BookingPaymentType.STANDARD);
         booking.setRoom(slot.getRoom());
+        booking.setTherapistPreference(mode);
         booking.setTherapist(therapist);
         booking.setTherapistType(requestedTherapistType);
         booking.setBookingSource(bookingSource);
@@ -341,7 +352,13 @@ public class BookingServiceImpl implements BookingService {
         int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(targetSlot.getId(), now)).orElse(0);
         validateSlot(spa, service, targetSlot, booking.getGuestCount(), activeHolds);
 
-        var replacement=allocation.choose(targetSlot,booking.getTherapist()==null?null:booking.getTherapist().getId(),null,null,booking.getId());
+        boolean change=Boolean.TRUE.equals(request.getChangeTherapistPreference());
+        String mode=change?SessionAllocation.preference(request.getTherapistId(),request.getTherapistType()):booking.getTherapistPreference();
+        Long named=change?request.getTherapistId():("NAMED".equals(mode)||mode==null) && booking.getTherapist()!=null?booking.getTherapist().getId():null;
+        String label=change?request.getTherapistType():"LABEL".equals(mode)?booking.getTherapistType():null;
+        if(change)allocation.validatePreference(spa,named,label);
+        var replacement=allocation.choose(targetSlot,named,label,null,booking.getId());
+        booking.setTherapistPreference(mode);
         booking.setRoom(targetSlot.getRoom());
         booking.setTherapist(replacement);
         booking.setTherapistType(replacement.getType());
@@ -458,7 +475,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private BookingSummaryResponse toSummaryResponse(Booking booking, CancellationEligibility eligibility) {
-        return BookingSummaryResponse.builder()
+        return BookingSummaryResponse.builder().therapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()))
                 .bookingId(booking.getId())
                 .bookingReference(booking.getBookingReference())
                 .spaId(booking.getSpa().getId())
@@ -507,6 +524,7 @@ public class BookingServiceImpl implements BookingService {
 
     private BookingCreateResponse buildResponse(Booking booking, int totalCents) {
         BookingCreateResponse response = new BookingCreateResponse();
+        response.setTherapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()));
         response.setBookingId(booking.getId());
         response.setBookingReference(booking.getBookingReference());
         response.setStatus(booking.getStatus().name());

@@ -2,7 +2,7 @@ import { uniqueAvailableTimes } from './availableTimes';
 import { track } from '../../telemetry';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getSlots } from '../../api/bookingApi';
+import { getSlots, getTherapistDirectory } from '../../api/bookingApi';
 import client, { errorMessage } from '../../api/client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -60,7 +60,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
         preferred.startsWith('type:') ? undefined : preferred || undefined,
         preferred.startsWith('type:') ? preferred.slice(5) : undefined
       );
-      setHold(data.holdToken, data.expiresAt);
+      setHold(data.holdToken, data.expiresAt, data.therapistName);
       onNext();
     },
     onError: () => {
@@ -68,21 +68,15 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
       void refetch();
     }
   });
-  const options = [
-    ...new Map(
-      (slots || [])
-        .filter((s) => s.therapistSelectionEnabled)
-        .flatMap((s) => s.therapists)
-        .map((t) => [t.id, t])
-    ).values()
-  ];
-  const types = [
-    ...new Set(
-      (slots || [])
-        .filter((s) => s.therapistTypeSelectionEnabled)
-        .flatMap((s) => s.therapistTypes.filter((t) => t.availableCount > 0).map((t) => t.type))
-    )
-  ];
+  const directory = useQuery({
+    queryKey: ['therapist-directory', state.spaId, state.service?.id],
+    queryFn: () => getTherapistDirectory(state.spaId!, state.service!.id),
+    enabled: Boolean(state.spaId && state.service),
+    refetchInterval: 15000
+  });
+  const options = directory.data?.named || [];
+  const types = directory.data?.labels || [];
+  const selectedName = options.find(t => String(t.id) === preferred)?.name;
   const times = uniqueAvailableTimes(slots || [], preferred);
   const activeHold = Boolean(
     state.holdToken && state.holdExpiresAt && new Date(state.holdExpiresAt) > new Date()
@@ -116,7 +110,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
             disabled={
               !state.slot ||
               hold.isPending ||
-              (!activeHold && !slots?.some((s) => s.available && s.id === state.selectedSlot?.id))
+              (!activeHold && !times.some((s) => s.id === state.selectedSlot?.id))
             }
             size="sm"
           >
@@ -138,18 +132,25 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
         View a full week of availability
       </Link>
       <div className="grid gap-4 md:grid-cols-3">
-        {(!!options.length || !!types.length || !!preferred) && (
+        {directory.isError && <p role="alert">{errorMessage(directory.error)}</p>}
           <label>
             Therapist
             <select
+              aria-label="Therapist"
               className="block rounded-xl border p-2"
+              disabled={hold.isPending}
               value={preferred}
               onChange={(e) => {
-                setPreferred(e.target.value);
+                const choice = e.target.value;
+                setPreferred(choice);
+                setTherapist(choice && !choice.startsWith('type:') ? choice : undefined,
+                  choice.startsWith('type:') ? choice.slice(5) : undefined);
                 setSlot(undefined);
               }}
             >
               <option value="">Any available therapist</option>
+              {preferred && !selectedName && !types.some(label => 'type:' + label === preferred) &&
+                <option value={preferred}>Previously selected therapist</option>}
               {types.map((type) => (
                 <option key={type} value={'type:' + type}>
                   {type}
@@ -163,7 +164,6 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
               ))}
             </select>
           </label>
-        )}
         <Input
           type="date"
           disabled={hold.isPending}
@@ -221,13 +221,13 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           !isError &&
           !isLoading && (
             <p role="status" className="text-sm text-slate-500">
-              No slots available for the selected date.
+              {preferred ? `${selectedName || (preferred.startsWith('type:') ? preferred.slice(5) : 'Selected therapist')} has no available times on this date. Choose another date or therapist.` : 'No slots available for the selected date.'}
             </p>
           )
         )}
       </div>
       {slots
-        ?.filter((s) => !s.available)
+        ?.filter((s) => !preferred && !s.available)
         .map((s) => (
           <div key={s.id} className="flex gap-3 items-center">
             <span>{new Date(s.startTime).toLocaleString()} — unavailable</span>

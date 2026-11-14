@@ -3,6 +3,7 @@ package com.nirvana.application.model.dto;
 import java.time.OffsetDateTime;
 
 public class SlotHoldResponse {
+    @lombok.Getter @lombok.Setter private String therapistName;
 
     private String holdToken;
     private OffsetDateTime expiresAt;

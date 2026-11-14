@@ -35,6 +35,7 @@ public class Booking extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String therapistPreference;
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="room_id")
     private SpaRoom room;
 

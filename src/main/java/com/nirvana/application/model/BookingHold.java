@@ -23,6 +23,8 @@ public class BookingHold extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String therapistPreference;
+    private String requestedLabel;
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="room_id")
     private SpaRoom room;
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="therapist_id")

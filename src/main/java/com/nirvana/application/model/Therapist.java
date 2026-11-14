@@ -32,6 +32,7 @@ public class Therapist extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(length=128) private String publicName;
 
     // Link therapist to a spa (if therapists are exclusive to a spa)
     @ManyToOne(fetch = FetchType.LAZY)

@@ -6,6 +6,7 @@ import { Slot } from '../types/booking';
 interface BookingState {
   holdToken?: string;
   holdExpiresAt?: string;
+  heldTherapistName?: string;
   spaId?: string;
   spaName?: string;
   service?: Service;
@@ -28,7 +29,7 @@ interface BookingContextValue {
   setTherapist: (id?: string, type?: string) => void;
   setPaymentMode: (mode: 'ONLINE' | 'OFFLINE') => void;
   setNotes: (notes: string) => void;
-  setHold: (token: string, expiresAt: string) => void;
+  setHold: (token: string, expiresAt: string, name?: string) => void;
   reset: () => void;
 }
 
@@ -54,6 +55,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       slot: undefined,
       selectedSlot: undefined,
       holdToken: undefined,
+      heldTherapistName: undefined,
       holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
@@ -66,6 +68,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       slot: undefined,
       selectedSlot: undefined,
       holdToken: undefined,
+      heldTherapistName: undefined,
       holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
@@ -75,10 +78,9 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       ...prev,
       selectedSlot,
       holdToken: undefined,
+      heldTherapistName: undefined,
       holdExpiresAt: undefined,
-      slot: selectedSlot?.startTime,
-      therapistId: undefined,
-      therapistType: undefined
+      slot: selectedSlot?.startTime
     }));
   const setGuests = (guests: number) =>
     setState((prev) => ({
@@ -87,17 +89,16 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       slot: undefined,
       selectedSlot: undefined,
       holdToken: undefined,
-      holdExpiresAt: undefined,
-      therapistId: undefined,
-      therapistType: undefined
+      heldTherapistName: undefined,
+      holdExpiresAt: undefined
     }));
   const setTherapist = (therapistId?: string, therapistType?: string) =>
     setState((prev) => ({ ...prev, therapistId, therapistType }));
   const setPaymentMode = (paymentMode: 'ONLINE' | 'OFFLINE') =>
     setState((prev) => ({ ...prev, paymentMode }));
   const setNotes = (notes: string) => setState((prev) => ({ ...prev, notes }));
-  const setHold = (holdToken: string, holdExpiresAt: string) =>
-    setState((prev) => ({ ...prev, holdToken, holdExpiresAt }));
+  const setHold = (holdToken: string, holdExpiresAt: string, heldTherapistName?: string) =>
+    setState((prev) => ({ ...prev, holdToken, holdExpiresAt, heldTherapistName }));
   const reset = () => setState({ bookingSource: 'WEB', guests: 1, paymentMode: 'ONLINE' });
 
   return (
