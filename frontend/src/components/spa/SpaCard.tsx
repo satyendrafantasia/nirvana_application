@@ -8,27 +8,42 @@ interface SpaCardProps {
   spa: Spa;
 }
 
+export function SpaCardLayout({ cover, name, address, rating, count, children }: {
+  cover: React.ReactNode;
+  name: string;
+  address?: string;
+  rating?: number;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <article className="card spa-card flex min-w-0 flex-col overflow-hidden">
+      <div className="relative h-52 w-full overflow-hidden">{cover}</div>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800">{name}</h3>
+            <p className="text-sm text-slate-500">{address}</p>
+          </div>
+          {rating != null && <RatingBadge rating={rating} count={count} />}
+        </div>
+        {children}
+      </div>
+    </article>
+  );
+}
+
 const SpaCard = ({ spa }: SpaCardProps) => {
   return (
-    <div className="card spa-card flex flex-col overflow-hidden">
-      <div className="h-52 w-full overflow-hidden">
-        <img
+    <SpaCardLayout name={spa.name} address={spa.address} rating={spa.rating} count={spa.reviewCount}
+      cover={<img
           src={
             spa.coverImage ||
             'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
           }
           loading="lazy" decoding="async" width={800} height={480} alt={spa.coverImage ? spa.name : ''}
           className="h-full w-full object-cover"
-        />
-      </div>
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800">{spa.name}</h3>
-            <p className="text-sm text-slate-500">{spa.address}</p>
-          </div>
-          {spa.rating && <RatingBadge rating={spa.rating} count={spa.reviewCount} />}
-        </div>
+        />}>
         <div className="flex flex-wrap gap-2 text-xs text-slate-600">
           {spa.categories?.map((category) => (
             <span key={category} className="rounded-full bg-primary-50 px-3 py-1 text-primary-700">
@@ -43,8 +58,7 @@ const SpaCard = ({ spa }: SpaCardProps) => {
             View details
           </Button>
         </div>
-      </div>
-    </div>
+    </SpaCardLayout>
   );
 };
 

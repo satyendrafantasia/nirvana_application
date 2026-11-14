@@ -37,7 +37,14 @@ public class PlaceDiscoveryController {
         Map<String,ObjectNode> unique = new LinkedHashMap<>();
         response.path("places").forEach(place -> {
             String id = place.path("id").asText();
-            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")) unique.putIfAbsent(id, object.deepCopy());
+            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")) {
+                ObjectNode summary = object.deepCopy();
+                JsonNode photos = summary.remove("photos");
+                if (photos != null && photos.isArray() && !photos.isEmpty()) {
+                    summary.putArray("photos").add(photos.get(0));
+                }
+                unique.putIfAbsent(id, summary);
+            }
         });
         references.record(unique.keySet(), request.mode().name(), request.city(), request.locality(), request.countryCode());
         if (!unique.isEmpty()) {

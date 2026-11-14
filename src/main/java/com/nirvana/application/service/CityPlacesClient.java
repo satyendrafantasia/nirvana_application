@@ -99,7 +99,7 @@ public class CityPlacesClient {
     }
 
     // Summary fields only. Phone/website are requested only when details are opened.
-    private static final String SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
+    private static final String SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
 
     public JsonNode discover(PlaceDiscoveryRequest request) {
         if (!request.isSearchValid() || !request.isBoundsValid())

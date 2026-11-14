@@ -1,3 +1,4 @@
+import { SpaCardLayout } from '../../components/spa/SpaCard';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client, { errorMessage } from '../../api/client';
@@ -74,9 +75,16 @@ function AuthorCredit({ author }: { author: Author }) {
     : <span>{label}</span>;
 }
 
-function SpaPhoto({ photo, place }: { photo: Photo; place: GooglePlace }) {
+function PhotoPlaceholder() {
+  return <div aria-label="No spa photo available" role="img" className="flex h-full items-center justify-center bg-primary-50">
+    <img src="/nirvana.svg" width="56" height="56" alt="" />
+  </div>;
+}
+
+function SpaPhoto({ photo, place, cover = false }: { photo: Photo; place: GooglePlace; cover?: boolean }) {
   const [url, setUrl] = useState('');
   const [failed, setFailed] = useState(false);
+  const frame = useRef<HTMLElement>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -84,7 +92,7 @@ function SpaPhoto({ photo, place }: { photo: Photo; place: GooglePlace }) {
     let objectUrl: string | undefined;
     setFailed(false);
     setUrl('');
-    client.get<Blob>(
+    const load = () => client.get<Blob>(
       `/api/discovery/places/${encodeURIComponent(place.id)}/photos/${encodeURIComponent(photoId)}/image`,
       { signal: controller.signal, responseType: 'blob' }
     ).then(({ data }) => {
@@ -92,21 +100,33 @@ function SpaPhoto({ photo, place }: { photo: Photo; place: GooglePlace }) {
       objectUrl = URL.createObjectURL(data);
       setUrl(objectUrl);
     }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    let observer: IntersectionObserver | undefined;
+    if (cover && frame.current && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting || controller.signal.aborted) return;
+        observer?.disconnect();
+        void load();
+      }, { rootMargin: '160px 0px' });
+      observer.observe(frame.current);
+    } else {
+      void load();
+    }
     return () => {
+      observer?.disconnect();
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [photo.name, place.id, attempt]);
+  }, [photo.name, place.id, attempt, cover]);
   return (
-    <figure className="space-y-1">
-      {failed ? <p role="status">Photo unavailable. <button type="button" className="underline" onClick={() => setAttempt(attempt + 1)}>Retry photo</button></p> : url ? (
+    <figure ref={frame} className={cover ? "relative h-full bg-primary-50" : "space-y-1"}>
+      {failed && cover ? <PhotoPlaceholder /> : failed ? <p role="status">Photo unavailable. <button type="button" className="underline" onClick={() => setAttempt(attempt + 1)}>Retry photo</button></p> : url ? (
         <a href={safeUrl(photo.googleMapsUri) || mapsUrl(place)} target="_blank" rel="noreferrer">
-          <img className="w-full rounded-lg object-contain max-h-72" src={url}
+          <img className={cover ? "h-full w-full object-cover" : "w-full rounded-lg object-contain max-h-72"} src={url}
             alt={`Photo of ${place.displayName?.text || 'this spa'}`} onError={() => setFailed(true)} />
         </a>
-      ) : <p role="status">Loading photo…</p>}
-      <figcaption className="text-xs">{photo.authorAttributions?.map((author, index) =>
-        <span className="mr-2" key={index}><AuthorCredit author={author} /></span>)}</figcaption>
+      ) : cover ? null : <p role="status">Loading photo…</p>}
+      {url && !failed && !!photo.authorAttributions?.length && <figcaption className={cover ? "absolute bottom-0 inset-x-0 bg-white/95 px-2 py-1 text-xs text-slate-800" : "text-xs"}>{photo.authorAttributions?.map((author, index) =>
+        <span className="mr-2" key={index}><AuthorCredit author={author} /></span>)}</figcaption>}
     </figure>
   );
 }
@@ -173,23 +193,16 @@ function PlaceDetails({ place }: { place: GooglePlace }) {
 export function DiscoveryCard({ place, busy }: { place: GooglePlace; busy: boolean }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <article className="card p-5 space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="text-xl font-semibold">{place.displayName?.text || 'Spa'}</h3>
-        <span className="rounded-full bg-primary-50 px-3 py-1 text-xs">
-          {place.nirvanaSpaId ? 'On Nirvana' : 'Google discovery'}
-        </span>
-      </div>
-      <p className="text-sm text-slate-600">{place.formattedAddress}</p>
-      {place.rating != null && (
-        <p className="text-sm">
-          Google rating: {place.rating} / 5 ({place.userRatingCount ?? 0} ratings)
-        </p>
-      )}
+    <SpaCardLayout name={place.displayName?.text || 'Spa'} address={place.formattedAddress}
+      rating={place.rating} count={place.userRatingCount}
+      cover={place.photos?.[0]?.name
+        ? <SpaPhoto key={place.photos[0].name} photo={place.photos[0]} place={place} cover />
+        : <PhotoPlaceholder />}>
+      <Attribution place={place} />
       {place.businessStatus && place.businessStatus !== 'OPERATIONAL' && (
         <p className="text-sm">{place.businessStatus.replaceAll('_', ' ').toLowerCase()}</p>
       )}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
         {place.nirvanaSpaId ? (
           <Button as={Link} to={`/spas/${place.nirvanaSpaId}`}>
             Book on Nirvana
@@ -207,8 +220,7 @@ export function DiscoveryCard({ place, busy }: { place: GooglePlace; busy: boole
       {!place.nirvanaSpaId && (
         <p className="text-xs text-slate-500">Not currently bookable on Nirvana.</p>
       )}
-      <Attribution place={place} />
-    </article>
+    </SpaCardLayout>
   );
 }
 
@@ -606,7 +618,7 @@ export default function Discovery({
           {results.length === 0 && (
             <p>No spas found. Try another spa name, city, locality, address or radius.</p>
           )}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-6 md:grid-cols-3">
             {results.map((place) => (
               <DiscoveryCard key={place.id} place={place} busy={busy} />
             ))}
