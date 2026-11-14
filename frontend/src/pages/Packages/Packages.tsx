@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,13 +13,24 @@ import Button from '../../components/common/Button';
 export default function Packages() {
   const catalog = useQuery({ queryKey: ['packages'], queryFn: listPackages });
   const [selected, setSelected] = useState<CatalogPackage>();
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState<{ id: number; message: string }>();
+  const feedback = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (selected || success) {
+      feedback.current?.focus({ preventScroll: true });
+      feedback.current?.scrollIntoView({ block: 'center' });
+    }
+  }, [selected, success]);
   const qc = useQueryClient();
   const buy = useMutation({
     mutationFn: async (p: CatalogPackage) => payForPackage(await startPackage(p.id)),
-    onSuccess: (p) => {
+    onSuccess: (p, item) => {
       setSelected(undefined);
-      setSuccess(`Your ${p.packageType} package is ${p.status.toLowerCase()}.`);
+      setSuccess({
+        id: item.id,
+        message: `Your ${p.packageType} package is ${p.status.toLowerCase()}.`
+      });
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['my-packages'] });
@@ -44,19 +55,6 @@ export default function Packages() {
           <p>{errorMessage(catalog.error)}</p>
           <Button onClick={() => void catalog.refetch()}>Retry</Button>
         </div>
-      )}
-      {success && (
-        <p role="status" className="rounded-xl bg-emerald-50 p-4">
-          {success}{' '}
-          <Link to="/me/packages" className="underline">
-            View your sessions
-          </Link>
-        </p>
-      )}
-      {buy.isError && (
-        <p role="alert" className="text-rose-700">
-          {errorMessage(buy.error)}
-        </p>
       )}
       {catalog.data?.length === 0 && (
         <p>There are no packages for sale yet. Please check back soon.</p>
@@ -89,43 +87,76 @@ export default function Packages() {
             </ul>
             <Button
               className="mt-auto"
+              aria-expanded={selected?.id === p.id}
               disabled={buy.isPending || !p.eligibleSpas.length}
-              onClick={() => {
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                trigger.current = event.currentTarget;
+                setSuccess(undefined);
                 setSelected(p);
                 buy.reset();
               }}
             >
               Buy package
             </Button>
+            {selected?.id === p.id && (
+              <section
+                ref={feedback}
+                tabIndex={-1}
+                aria-label="Review package purchase"
+                className="rounded-2xl border border-primary-200 bg-white p-6 space-y-4"
+              >
+                <h2 className="text-xl font-semibold">
+                  Review your {selected.packageType.toLowerCase().replaceAll('_', ' ')} package
+                </h2>
+                <p>
+                  {selected.sessions} sessions ·{' '}
+                  {packagePrice(selected.amountCents, selected.currency)} · One-time purchase
+                </p>
+                <p className="text-slate-600">
+                  Your sessions become available after payment is verified. You can hold one active
+                  package at a time.
+                </p>
+                {buy.isError && (
+                  <div role="alert" className="text-rose-700">
+                    {errorMessage(buy.error)}{' '}
+                    <Link to="/me/packages" className="underline">
+                      My packages
+                    </Link>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <Button disabled={buy.isPending} onClick={() => buy.mutate(selected)}>
+                    {buy.isPending ? 'Processing…' : 'Pay with Razorpay'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={buy.isPending}
+                    onClick={() => {
+                      setSelected(undefined);
+                      trigger.current?.focus();
+                    }}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </section>
+            )}
+            {success?.id === p.id && (
+              <section
+                role="status"
+                tabIndex={-1}
+                ref={feedback}
+                className="rounded-xl bg-emerald-50 p-4"
+              >
+                {success.message}{' '}
+                <Link to="/me/packages" className="underline">
+                  View your sessions
+                </Link>
+              </section>
+            )}
           </article>
         ))}
       </div>
-      {selected && (
-        <section
-          aria-label="Review package purchase"
-          className="rounded-2xl border border-primary-200 bg-white p-6 space-y-4"
-        >
-          <h2 className="text-xl font-semibold">
-            Review your {selected.packageType.toLowerCase().replaceAll('_', ' ')} package
-          </h2>
-          <p>
-            {selected.sessions} sessions · {packagePrice(selected.amountCents, selected.currency)} ·
-            One-time purchase
-          </p>
-          <p className="text-slate-600">
-            Your sessions become available after payment is verified. You can hold one active
-            package at a time.
-          </p>
-          <div className="flex gap-3">
-            <Button disabled={buy.isPending} onClick={() => buy.mutate(selected)}>
-              {buy.isPending ? 'Processing…' : 'Pay with Razorpay'}
-            </Button>
-            <Button variant="ghost" disabled={buy.isPending} onClick={() => setSelected(undefined)}>
-              Back
-            </Button>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

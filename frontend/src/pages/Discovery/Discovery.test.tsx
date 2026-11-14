@@ -8,17 +8,13 @@ const render = (node: React.ReactNode) =>
 describe('Google discovery', () => {
   it('only offers Nirvana booking for matched results', () => {
     const unmatched = render(
-      <DiscoveryCard
-        place={{ id: 'abc', displayName: { text: 'A spa' } }}
-        busy={false}
-      />
+      <DiscoveryCard place={{ id: 'abc', displayName: { text: 'A spa' } }} />
     );
-    expect(unmatched).toContain('View on Google Maps');
+    expect(unmatched).not.toContain('View on Google Maps');
+    expect(unmatched).toContain('/discover/places/abc');
     expect(unmatched).not.toContain('Book on Nirvana');
     expect(unmatched).toContain('Google Maps');
-    const matched = render(
-      <DiscoveryCard place={{ id: 'abc', nirvanaSpaId: 42 }} busy={false} />
-    );
+    const matched = render(<DiscoveryCard place={{ id: 'abc', nirvanaSpaId: 42 }} />);
     expect(matched).toContain('Book on Nirvana');
     expect(matched).toContain('/spas/42');
   });
@@ -33,7 +29,6 @@ describe('Google discovery', () => {
           displayName: { text: '<script>alert(1)</script>' },
           attributions: [{ provider: 'Source', providerUri: 'javascript:alert(1)' }]
         }}
-        busy={false}
       />
     );
     expect(html).not.toContain('<script>');

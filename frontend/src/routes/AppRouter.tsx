@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import TrustPage from '../pages/Static/TrustPage';
 const Discovery = lazy(() => import('../pages/Discovery/Discovery'));
 import { Route, Routes } from 'react-router-dom';
+const PlacePage = lazy(() => import('../pages/Discovery/PlacePage'));
 const Packages = lazy(() => import('../pages/Packages/Packages'));
 const MyPackages = lazy(() => import('../pages/Packages/MyPackages'));
 const FeaturePage = lazy(() => import('../features/FeaturePage'));
@@ -25,6 +26,7 @@ import { RequireAuth } from '../components/layout/RequireAuth';
 const AppRouter = () => {
   return (
     <Routes>
+      <Route path="/discover/places/:placeId" element={<RequireAuth><PlacePage /></RequireAuth>} />
       <Route
         path="/discover"
         element={

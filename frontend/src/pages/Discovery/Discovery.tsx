@@ -1,3 +1,5 @@
+import { Attribution, PhotoPlaceholder, SpaPhoto } from './PlaceMedia';
+export { mapsUrl } from './PlaceMedia';
 import { SpaCardLayout } from '../../components/spa/SpaCard';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -8,8 +10,8 @@ import Input from '../../components/common/Input';
 type Point = { latitude: number; longitude: number };
 type Bounds = { low: Point; high: Point };
 type Attribution = { provider: string; providerUri?: string };
-type Author = { displayName?: string; uri?: string; photoUri?: string };
-type Photo = { name: string; googleMapsUri?: string; authorAttributions?: Author[] };
+export type Author = { displayName?: string; uri?: string; photoUri?: string };
+export type Photo = { name: string; googleMapsUri?: string; authorAttributions?: Author[] };
 type Review = {
   name: string; rating?: number; text?: { text: string }; originalText?: { text: string };
   relativePublishTimeDescription?: string; authorAttribution?: Author; googleMapsUri?: string;
@@ -44,154 +46,7 @@ type Search = {
   rank?: 'DISTANCE' | 'POPULARITY';
   pageToken?: string;
 };
-const safeUrl = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : undefined);
-export const mapsUrl = (place: GooglePlace) =>
-  safeUrl(place.googleMapsUri) ||
-  `https://www.google.com/maps/search/?api=1&query=spa&query_place_id=${encodeURIComponent(place.id)}`;
-function Attribution({ place }: { place: GooglePlace }) {
-  return (
-    <div className="text-xs text-slate-600 space-y-1">
-      <p translate="no" className="font-normal text-[#5e5e5e] whitespace-nowrap">
-        Google Maps
-      </p>
-      {place.attributions?.map((a, i) => (
-        <p key={i}>
-          {safeUrl(a.providerUri) ? (
-            <a href={safeUrl(a.providerUri)} target="_blank" rel="noreferrer">
-              {a.provider}
-            </a>
-          ) : (
-            a.provider
-          )}
-        </p>
-      ))}
-    </div>
-  );
-}
-function AuthorCredit({ author }: { author: Author }) {
-  const label = author.displayName || 'Google Maps contributor';
-  return safeUrl(author.uri)
-    ? <a className="underline" href={safeUrl(author.uri)} target="_blank" rel="noreferrer">{label}</a>
-    : <span>{label}</span>;
-}
-
-function PhotoPlaceholder() {
-  return <div aria-label="No spa photo available" role="img" className="flex h-full items-center justify-center bg-primary-50">
-    <img src="/nirvana.svg" width="56" height="56" alt="" />
-  </div>;
-}
-
-function SpaPhoto({ photo, place, cover = false }: { photo: Photo; place: GooglePlace; cover?: boolean }) {
-  const [url, setUrl] = useState('');
-  const [failed, setFailed] = useState(false);
-  const frame = useRef<HTMLElement>(null);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    const photoId = photo.name.split('/').pop() || '';
-    let objectUrl: string | undefined;
-    setFailed(false);
-    setUrl('');
-    const load = () => client.get<Blob>(
-      `/api/discovery/places/${encodeURIComponent(place.id)}/photos/${encodeURIComponent(photoId)}/image`,
-      { signal: controller.signal, responseType: 'blob' }
-    ).then(({ data }) => {
-      if (controller.signal.aborted) return;
-      objectUrl = URL.createObjectURL(data);
-      setUrl(objectUrl);
-    }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
-    let observer: IntersectionObserver | undefined;
-    if (cover && frame.current && typeof IntersectionObserver !== 'undefined') {
-      observer = new IntersectionObserver(([entry]) => {
-        if (!entry.isIntersecting || controller.signal.aborted) return;
-        observer?.disconnect();
-        void load();
-      }, { rootMargin: '160px 0px' });
-      observer.observe(frame.current);
-    } else {
-      void load();
-    }
-    return () => {
-      observer?.disconnect();
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [photo.name, place.id, attempt, cover]);
-  return (
-    <figure ref={frame} className={cover ? "relative h-full bg-primary-50" : "space-y-1"}>
-      {failed && cover ? <PhotoPlaceholder /> : failed ? <p role="status">Photo unavailable. <button type="button" className="underline" onClick={() => setAttempt(attempt + 1)}>Retry photo</button></p> : url ? (
-        <a href={safeUrl(photo.googleMapsUri) || mapsUrl(place)} target="_blank" rel="noreferrer">
-          <img className={cover ? "h-full w-full object-cover" : "w-full rounded-lg object-contain max-h-72"} src={url}
-            alt={`Photo of ${place.displayName?.text || 'this spa'}`} onError={() => setFailed(true)} />
-        </a>
-      ) : cover ? null : <p role="status">Loading photo…</p>}
-      {url && !failed && !!photo.authorAttributions?.length && <figcaption className={cover ? "absolute bottom-0 inset-x-0 bg-white/95 px-2 py-1 text-xs text-slate-800" : "text-xs"}>{photo.authorAttributions?.map((author, index) =>
-        <span className="mr-2" key={index}><AuthorCredit author={author} /></span>)}</figcaption>}
-    </figure>
-  );
-}
-
-function PlaceDetails({ place }: { place: GooglePlace }) {
-  const [photoIndex, setPhotoIndex] = useState(0);
-  const [details, setDetails] = useState<GooglePlace>();
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    client.get<GooglePlace>(`/api/discovery/places/${encodeURIComponent(place.id)}`, { signal: controller.signal })
-      .then(({ data }) => {
-        if (!controller.signal.aborted) setDetails(data);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(errorMessage(e));
-      });
-    return () => controller.abort();
-  }, [place.id]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!details) return <p role="status">Loading spa details…</p>;
-  return (
-    <section aria-label="Live spa details" className="space-y-2 rounded-xl bg-primary-50 p-4">
-      <p>{details.internationalPhoneNumber || 'No phone number listed.'}</p>
-      {safeUrl(details.websiteUri) ? (
-        <a className="underline block" href={safeUrl(details.websiteUri)} target="_blank" rel="noreferrer">Business website</a>
-      ) : <p>No website listed.</p>}
-      <h4 className="font-semibold">Spa photos</h4>
-      {details.photos?.length ? (
-        <div className="space-y-2">
-          <SpaPhoto key={details.photos[photoIndex].name} photo={details.photos[photoIndex]} place={details} />
-          {details.photos.length > 1 && <div className="flex items-center justify-between gap-2">
-            <Button type="button" variant="secondary" disabled={photoIndex === 0}
-              onClick={() => setPhotoIndex(photoIndex - 1)}>Previous photo</Button>
-            <span>{photoIndex + 1} / {details.photos.length}</span>
-            <Button type="button" variant="secondary" disabled={photoIndex === details.photos.length - 1}
-              onClick={() => setPhotoIndex(photoIndex + 1)}>Next photo</Button>
-          </div>}
-        </div>
-      ) : <p>No Google photos available.</p>}
-      <h4 className="font-semibold">Google reviews</h4>
-      {details.reviews?.length ? <>
-        <p className="text-xs">Sorted by relevance</p>
-        {details.reviews.map((review) => (
-          <article className="space-y-1 border-t py-3 text-sm" key={review.name}>
-            <div className="flex flex-wrap items-center gap-2">
-              {safeUrl(review.authorAttribution?.photoUri) && <img loading="lazy" alt=""
-                className="h-6 w-6 rounded-full" src={review.authorAttribution?.photoUri} />}
-              {review.authorAttribution && <AuthorCredit author={review.authorAttribution} />}
-              {review.rating != null && <span>{review.rating} / 5</span>}
-              <span>{review.relativePublishTimeDescription}</span>
-            </div>
-            <p className="whitespace-pre-line">{review.originalText?.text || review.text?.text}</p>
-            {safeUrl(review.googleMapsUri) && <a className="underline" href={safeUrl(review.googleMapsUri)}
-              target="_blank" rel="noreferrer">View review on Google Maps</a>}
-          </article>
-        ))}
-      </> : <p>No Google reviews available.</p>}
-      <Attribution place={details} />
-    </section>
-  );
-}
-
-export function DiscoveryCard({ place, busy }: { place: GooglePlace; busy: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+export function DiscoveryCard({ place }: { place: GooglePlace }) {
   return (
     <SpaCardLayout name={place.displayName?.text || 'Spa'} address={place.formattedAddress}
       rating={place.rating} count={place.userRatingCount}
@@ -203,20 +58,15 @@ export function DiscoveryCard({ place, busy }: { place: GooglePlace; busy: boole
         <p className="text-sm">{place.businessStatus.replaceAll('_', ' ').toLowerCase()}</p>
       )}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-        {place.nirvanaSpaId ? (
+        {place.nirvanaSpaId && (
           <Button as={Link} to={`/spas/${place.nirvanaSpaId}`}>
             Book on Nirvana
           </Button>
-        ) : (
-          <a className="underline" href={mapsUrl(place)} target="_blank" rel="noreferrer">
-            View on Google Maps
-          </a>
         )}
-        <Button variant="secondary" type="button" disabled={busy} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-          {expanded ? 'Close details' : 'View details'}
+        <Button as={Link} to={`/discover/places/${encodeURIComponent(place.id)}`} variant={place.nirvanaSpaId ? 'secondary' : 'primary'}>
+          View details
         </Button>
       </div>
-      {expanded && <PlaceDetails place={place} />}
       {!place.nirvanaSpaId && (
         <p className="text-xs text-slate-500">Not currently bookable on Nirvana.</p>
       )}
@@ -318,7 +168,7 @@ export default function Discovery({
       );
       setMessage(
         request.mode === 'TEXT'
-          ? `Google results · page ${page} of up to 3. Results are ranked, not a complete directory.`
+          ? `Google results Â· page ${page} of up to 3. Results are ranked, not a complete directory.`
           : 'Up to 20 nearby results. Change the radius or ranking to refine your search.'
       );
     };
@@ -525,7 +375,7 @@ export default function Discovery({
                           clear();
                         }}
                       >
-                        {p.displayName?.text} — {p.formattedAddress}
+                        {p.displayName?.text} â€” {p.formattedAddress}
                       </button>
                       <Attribution place={p} />
                     </div>
@@ -535,7 +385,7 @@ export default function Discovery({
               {selected && (
                 <p role="status">
                   Selected: {selected.displayName?.text}
-                  {selected.formattedAddress ? ` — ${selected.formattedAddress}` : ''}
+                  {selected.formattedAddress ? ` â€” ${selected.formattedAddress}` : ''}
                 </p>
               )}
             </div>
@@ -598,7 +448,7 @@ export default function Discovery({
           </Button>
         </fieldset>
       </form>
-      {busy && <p role="status">Loading…</p>}
+      {busy && <p role="status">Loadingâ€¦</p>}
       {error && (
         <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">
           {error}
@@ -612,7 +462,7 @@ export default function Discovery({
       {results && (
         <section aria-label="Live Google results" className="space-y-4">
           <p className="text-sm">
-            Google Maps results · live information. Availability and prices come from onboarded
+            Google Maps results Â· live information. Availability and prices come from onboarded
             spas.
           </p>
           {results.length === 0 && (
@@ -620,7 +470,7 @@ export default function Discovery({
           )}
           <div className="grid gap-6 md:grid-cols-3">
             {results.map((place) => (
-              <DiscoveryCard key={place.id} place={place} busy={busy} />
+              <DiscoveryCard key={place.id} place={place} />
             ))}
           </div>
           <div className="flex flex-wrap gap-3">
