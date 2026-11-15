@@ -43,7 +43,8 @@ function publicPages(origin: string): Plugin {
             '/nirvana.svg',
             '/site.webmanifest',
             '/apple-touch-icon.png',
-            '/nirvana-social.png'
+            '/nirvana-social.png',
+            '/hero-spa.jpg'
           ].includes(path) ||
           path.startsWith('/assets/') ||
           path.startsWith('/api/') ||

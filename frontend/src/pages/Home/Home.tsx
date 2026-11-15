@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Discovery from '../Discovery/Discovery';
+import NearbySpas from './NearbySpas';
 import SearchSource, { type SpaSource } from '../../components/spa/SearchSource';
 import { Link, useNavigate } from 'react-router-dom';
 import CatalogueSearch from '../../components/spa/CatalogueSearch';
@@ -35,9 +36,10 @@ const Home = () => {
           <Link to="/spas" className="hero-discover">Book an appointment <span aria-hidden="true">↗</span></Link>
           <div className="hero-footnote"><span className="tiny-spark" aria-hidden="true">✳</span> A little time for yourself changes everything.</div>
         </div>
-        <div className="hero-art" role="img" aria-label="Sculptural green arches and a lime sun, an abstract moment of calm">
-          <div className="art-sun" /><div className="art-arch arch-back" /><div className="art-arch arch-front" />
-          <span className="art-topline">THE ART OF SLOWING DOWN</span>
+        <div className="hero-art">
+          <img className="hero-photo" src="/hero-spa.jpg" width="1100" height="1467" fetchPriority="high"
+            alt="A guest resting on a massage table during a hot stone treatment in a softly lit spa room" />
+          <span className="art-topline">SPA &amp; MASSAGE, BOOKED IN MINUTES</span>
           <div className="art-caption"><span>Less rush.<br />More ritual.</span><span className="art-star" aria-hidden="true">✳</span></div>
           <span className="art-number">NIRVANA / WELLNESS, REIMAGINED</span>
         </div>
@@ -53,6 +55,7 @@ const Home = () => {
             setSource('google');
           }} />}
       </section>
+      <NearbySpas signedIn={!!user} />
       <div className="wellness-strip"><span>TIME WELL SPENT</span><p>Discover your space</p><span aria-hidden="true">✳</span><p>Choose your ritual</p><span aria-hidden="true">✳</span><p>Make it your moment</p></div>
       <section className="ritual-grid" aria-label="Explore wellness">
         <Link to="/spas?serviceName=Massage" className="ritual-card"><span className="ritual-index">01 / RESTORE</span><span className="ritual-symbol" aria-hidden="true">◌</span><h3>Release the day.</h3><p>Explore massages & body treatments</p><span className="ritual-arrow" aria-hidden="true">↗</span></Link>
