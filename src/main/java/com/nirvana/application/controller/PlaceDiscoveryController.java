@@ -9,7 +9,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.nirvana.application.service.PlaceSummaryService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -20,7 +20,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class PlaceDiscoveryController {
     private final CityPlacesClient places;
-    private final JdbcTemplate jdbc;
+    private final PlaceSummaryService summaries;
     private final PlaceReferenceService references;
     public record LocationRequest(@NotBlank @Size(max=250) String query,
                                   @NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode) {}
@@ -34,29 +34,8 @@ public class PlaceDiscoveryController {
     @PostMapping("/search")
     public ResponseEntity<Map<String,Object>> search(@Valid @RequestBody PlaceDiscoveryRequest request) {
         JsonNode response = places.discover(request);
-        Map<String,ObjectNode> unique = new LinkedHashMap<>();
-        response.path("places").forEach(place -> {
-            String id = place.path("id").asText();
-            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")) {
-                ObjectNode summary = object.deepCopy();
-                JsonNode photos = summary.remove("photos");
-                if (photos != null && photos.isArray() && !photos.isEmpty()) {
-                    summary.putArray("photos").add(photos.get(0));
-                }
-                unique.putIfAbsent(id, summary);
-            }
-        });
+        Map<String,ObjectNode> unique = summaries.summarize(response);
         references.record(unique.keySet(), request.mode().name(), request.city(), request.locality(), request.countryCode());
-        if (!unique.isEmpty()) {
-            String slots = String.join(",", Collections.nCopies(unique.size(), "?"));
-            // Return only approved, active catalogue matches. Never expose drafts or owner data.
-            var matches = jdbc.queryForList("SELECT s.id, s.google_place_id AS place_id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.google_place_id IN (" + slots + ") ORDER BY s.id", unique.keySet().toArray());
-            for (var match : matches) {
-                ObjectNode place = unique.get(String.valueOf(match.get("place_id")));
-                if (place != null && !place.has("nirvanaSpaId") && "OPERATIONAL".equals(place.path("businessStatus").asText()))
-                    place.put("nirvanaSpaId", ((Number)match.get("id")).longValue());
-            }
-        }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of(
                 "places", unique.values(), "nextPageToken", response.path("nextPageToken").asText("")));
     }

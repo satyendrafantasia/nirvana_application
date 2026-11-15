@@ -46,7 +46,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         String key = resolveKey(request);
         Instant now = clock.instant();
         String userKey = resolveUserKey(request);
-        boolean allowed = isAuthPath(request.getRequestURI())
+        String path = request.getRequestURI();
+        boolean allowed = path.equals("/api/public/discovery/nearby")
+                // Open to everyone and each call is paid for at Google, so it gets the tightest limit.
+                ? rateLimitService.isAllowed(key, Math.min(properties.getPublicDiscoveryRequests(), properties.getRequests()))
+                : isAuthPath(path)
                 ? rateLimitService.isAllowed(key, Math.min(properties.getAuthRequests(), properties.getRequests()))
                 : rateLimitService.isAllowed(key);
         boolean userAllowed = true;

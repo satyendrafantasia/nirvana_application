@@ -128,6 +128,34 @@ public class CityPlacesClient {
         return call("/places:searchText", HttpMethod.POST, body, SUMMARY + ",nextPageToken");
     }
 
+    public static final int PUBLIC_RADIUS_METERS = 5000;
+    public static final int PUBLIC_RESULTS = 6;
+    // No photos: each photo is a further paid call, and the photo endpoints need sign-in.
+    private static final String PUBLIC_SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
+    @Value("${google.places.public-requests-per-minute:20}") private int publicRequestsPerMinute = 20;
+    private long publicWindow;
+    private int publicRequests;
+    /** Signed-out visitors share a small budget of their own, so they cannot use up the one for signed-in users. */
+    private synchronized void reservePublicRequest() {
+        long window = System.currentTimeMillis() / 60000;
+        if (window != publicWindow) { publicWindow = window; publicRequests = 0; }
+        if (publicRequests >= publicRequestsPerMinute) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                "Nearby search is busy. Please try again in a minute, or sign in to search.");
+        publicRequests++;
+    }
+
+    /** Nearest spas for a visitor who is not signed in: fixed radius, count and fields. */
+    public JsonNode publicNearby(double latitude, double longitude) {
+        if (configured()) reservePublicRequest();
+        Map<String,Object> body = new LinkedHashMap<>();
+        body.put("includedTypes", List.of("spa"));
+        body.put("maxResultCount", PUBLIC_RESULTS);
+        body.put("rankPreference", "DISTANCE");
+        body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(
+                "latitude", latitude, "longitude", longitude), "radius", PUBLIC_RADIUS_METERS)));
+        return call("/places:searchNearby", HttpMethod.POST, body, PUBLIC_SUMMARY);
+    }
+
     public JsonNode locations(String query, String country) {
         return call("/places:searchText", HttpMethod.POST,
                 Map.of("textQuery", query, "regionCode", country.toUpperCase(Locale.ROOT), "pageSize", 5),

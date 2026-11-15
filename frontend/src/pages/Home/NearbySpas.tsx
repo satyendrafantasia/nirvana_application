@@ -37,18 +37,23 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
-          const { data } = await client.post<{ places: GooglePlace[] }>(
-            '/api/discovery/search',
-            {
-              mode: 'NEARBY',
-              countryCode: 'IN', // required by the API; a nearby search is bounded by the circle, not the country
-              latitude: coords.latitude,
-              longitude: coords.longitude,
-              radiusMeters: NEARBY_RADIUS_METERS,
-              rank: 'DISTANCE'
-            },
-            { signal: controller.signal }
-          );
+          const position = { latitude: coords.latitude, longitude: coords.longitude };
+          // Signed-out visitors use the public endpoint: fixed radius and count, no photos.
+          const { data } = signedIn
+            ? await client.post<{ places: GooglePlace[] }>(
+                '/api/discovery/search',
+                {
+                  mode: 'NEARBY',
+                  countryCode: 'IN', // required by the API; a nearby search is bounded by the circle, not the country
+                  ...position,
+                  radiusMeters: NEARBY_RADIUS_METERS,
+                  rank: 'DISTANCE'
+                },
+                { signal: controller.signal }
+              )
+            : await client.post<{ places: GooglePlace[] }>('/api/public/discovery/nearby', position, {
+                signal: controller.signal
+              });
           if (!controller.signal.aborted) setPlaces(data.places.slice(0, NEARBY_LIMIT));
         } catch (e) {
           if (!controller.signal.aborted) setError(errorMessage(e));
@@ -66,13 +71,15 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
   };
 
   useEffect(() => {
-    if (!signedIn) return;
     const controller = new AbortController();
+    setPlaces(undefined);
+    setError('');
     (async () => {
       try {
-        const { data } = await client.get<{ configured: boolean }>('/api/discovery/status', {
-          signal: controller.signal
-        });
+        const { data } = await client.get<{ configured: boolean }>(
+          signedIn ? '/api/discovery/status' : '/api/public/discovery/status',
+          { signal: controller.signal }
+        );
         if (!data.configured) {
           setUnavailable(true);
           return;
@@ -104,13 +111,7 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
           </Link>
         )}
       </div>
-      {!signedIn ? (
-        <p className="listing-empty text-sm text-slate-500">
-          <Link className="font-semibold underline" to="/auth/login?redirect=/">
-            Sign in to see spas near you.
-          </Link>
-        </p>
-      ) : unavailable ? (
+      {unavailable ? (
         <p className="listing-empty text-sm text-slate-500">
           Nearby search is not available yet.{' '}
           <Link className="underline" to="/spas">
@@ -147,6 +148,15 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
             <>
               <p className="text-sm text-slate-600">
                 Nearest first, from Google Maps. Spas you can book on Nirvana are marked.
+                {!signedIn && (
+                  <>
+                    {' '}
+                    <Link className="underline" to="/auth/login?redirect=/">
+                      Sign in
+                    </Link>{' '}
+                    to see photos and full details.
+                  </>
+                )}
               </p>
               <div className="grid gap-6 md:grid-cols-3">
                 {places.map((place) => (

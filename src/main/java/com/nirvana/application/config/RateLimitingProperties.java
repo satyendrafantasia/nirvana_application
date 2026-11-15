@@ -22,6 +22,8 @@ public class RateLimitingProperties {
     private int blockSeconds = 120;
     /** Requests permitted per client address per window on sign-in, OTP, registration and password-reset paths */
     private int authRequests = 20;
+    /** Signed-out nearby-spa searches permitted per client address per window; each one is a paid Google call */
+    private int publicDiscoveryRequests = 5;
     /**
      * Optional shared secret that lets a trusted caller pass a rate-limit block.
      * Empty (the default) disables the bypass entirely; there is no built-in token.
@@ -76,6 +78,14 @@ public class RateLimitingProperties {
 
     public void setAuthRequests(int authRequests) {
         this.authRequests = authRequests;
+    }
+
+    public int getPublicDiscoveryRequests() {
+        return publicDiscoveryRequests;
+    }
+
+    public void setPublicDiscoveryRequests(int publicDiscoveryRequests) {
+        this.publicDiscoveryRequests = publicDiscoveryRequests;
     }
 
     public String getCaptchaBypassToken() {

@@ -68,6 +68,7 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/payments/razorpay/webhook",
                                 "/api/public/google-booking/**",
+                                "/api/public/discovery/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
