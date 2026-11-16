@@ -10,6 +10,60 @@ import {
 } from '../../api/packageApi';
 import { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
+/** Where a package can be used: a count and a button, with the full list shown only on request. */
+export function EligibleSpas({
+  packageId,
+  spas
+}: {
+  packageId: number;
+  spas: CatalogPackage['eligibleSpas'];
+}) {
+  const [open, setOpen] = useState(false);
+  if (!spas.length) return <p className="text-slate-600">No eligible spas configured yet</p>;
+  if (spas.length === 1)
+    return (
+      <p className="text-slate-600">
+        Available at{' '}
+        <Link className="underline" to={`/spas/${spas[0].id}`}>
+          {spas[0].name}
+        </Link>
+      </p>
+    );
+  const listId = `package-${packageId}-spas`;
+  return (
+    <div className="space-y-2 text-slate-600">
+      <p className="flex flex-wrap items-center justify-between gap-2">
+        Available at {spas.length} spas
+        <button
+          type="button"
+          className="font-semibold text-primary-700 underline"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? 'Hide spas' : 'View spas'}
+        </button>
+      </p>
+      {open && (
+        <ul
+          id={listId}
+          className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-3 text-sm"
+        >
+          {[...spas]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((s) => (
+              <li key={s.id}>
+                <Link className="underline" to={`/spas/${s.id}`}>
+                  {s.name}
+                </Link>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function Packages() {
   const catalog = useQuery({ queryKey: ['packages'], queryFn: listPackages });
   const [selected, setSelected] = useState<CatalogPackage>();
@@ -79,12 +133,8 @@ export default function Packages() {
                   ? `Valid for ${p.validityDays} days from activation`
                   : 'No expiry date'}
               </li>
-              <li>
-                {p.eligibleSpas.length
-                  ? `Available at: ${p.eligibleSpas.map((s) => s.name).join(', ')}`
-                  : 'No eligible spas configured yet'}
-              </li>
             </ul>
+            <EligibleSpas packageId={p.id} spas={p.eligibleSpas} />
             <Button
               className="mt-auto"
               aria-expanded={selected?.id === p.id}
