@@ -40,7 +40,9 @@ public class PlaceDiscoveryController {
                 "places", unique.values(), "nextPageToken", response.path("nextPageToken").asText("")));
     }
     @GetMapping("/places/{placeId}")
-    public ResponseEntity<JsonNode> details(@PathVariable String placeId) { return live(places.details(placeId)); }
+    public ResponseEntity<JsonNode> details(@PathVariable String placeId) {
+        return live(summaries.withBookableSpa(places.details(placeId)));
+    }
     @GetMapping("/places/{placeId}/photos/{photoId}")
     public ResponseEntity<JsonNode> photo(@PathVariable String placeId, @PathVariable String photoId) {
         return live(places.photo(placeId, photoId));

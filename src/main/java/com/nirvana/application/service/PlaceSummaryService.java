@@ -42,4 +42,14 @@ public class PlaceSummaryService {
         }
         return unique;
     }
+
+    /** Marks one place's details with the bookable Nirvana spa it belongs to, if any. */
+    public JsonNode withBookableSpa(JsonNode place) {
+        if (place instanceof ObjectNode object && "OPERATIONAL".equals(place.path("businessStatus").asText())) {
+            var ids = jdbc.queryForList("SELECT s.id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.google_place_id=? ORDER BY s.id LIMIT 1",
+                    Long.class, place.path("id").asText());
+            if (!ids.isEmpty()) object.put("nirvanaSpaId", ids.get(0));
+        }
+        return place;
+    }
 }

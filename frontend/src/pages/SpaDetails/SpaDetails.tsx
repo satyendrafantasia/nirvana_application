@@ -1,60 +1,67 @@
-import { useEffect, useRef, useState } from 'react';
-import { track } from '../../telemetry';
-import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getSpaDetails, getSpaServices } from '../../api/spaApi';
-import RatingBadge from '../../components/spa/RatingBadge';
-import ServiceCard from '../../components/spa/ServiceCard';
-import { useBookingFlow } from '../../hooks/useBookingFlow';
-import { Service } from '../../types/spa';
-import SpaInformation from '../../components/spa/SpaInformation';
+import { useParams } from 'react-router-dom';
+import client from '../../api/client';
+import { getSpaDetails } from '../../api/spaApi';
 import Spinner from '../../components/common/Spinner';
+import SpaInformation from '../../components/spa/SpaInformation';
+import SpaProfile, { type SpaProfileProps } from '../../components/spa/SpaProfile';
+import { Spa } from '../../types/spa';
+
+type GuestReview = { id: number; rating: number; title: string; text: string; createdAt?: string };
+const safeUrl = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : undefined);
+
+/** A Nirvana spa's own record, shaped for the spa page. */
+export function spaProfile(spa: Spa): Omit<SpaProfileProps, 'media' | 'back' | 'reviewsTitle'> {
+  const mapQuery =
+    spa.latitude != null && spa.longitude != null
+      ? `${spa.latitude},${spa.longitude}`
+      : [spa.name, spa.address].filter(Boolean).join(', ');
+  return {
+    name: spa.name,
+    address: spa.address,
+    rating: spa.rating,
+    reviewCount: spa.reviewCount,
+    about: spa.description,
+    hours: spa.openTimeLocal
+      ? [
+          `${spa.workingDays?.join(', ') || 'Every day'} · ${spa.openTimeLocal} – ${spa.closeTimeLocal || ''} ${spa.timezone || ''}`.trim()
+        ]
+      : undefined,
+    phone: spa.phone,
+    website: safeUrl(spa.websiteUrl),
+    email: spa.email,
+    amenities: spa.amenities,
+    spaId: spa.id,
+    mapQuery,
+    googlePlaceId: spa.googlePlaceId,
+    mapUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}${
+      spa.googlePlaceId ? `&query_place_id=${encodeURIComponent(spa.googlePlaceId)}` : ''
+    }`
+  };
+}
 
 const SpaDetails = () => {
   const { spaId = '' } = useParams();
-  const navigate = useNavigate();
-  const { setSpa, setService } = useBookingFlow();
-
-  const {
-    data: spa,
-    isLoading,
-    isError
-  } = useQuery({
+  const spa = useQuery({
     queryKey: ['spa', spaId],
     queryFn: () => getSpaDetails(spaId),
     enabled: Boolean(spaId)
   });
-
-  const { data: services, isLoading: loadingServices, isError: serviceError, refetch } = useQuery({
-    queryKey: ['spa-services', spaId],
-    queryFn: () => getSpaServices(spaId),
+  const reviews = useQuery({
+    queryKey: ['reviews', spaId],
+    queryFn: async () =>
+      (await client.get<{ page: { content: GuestReview[] } }>(`/api/spas/${spaId}/reviews`)).data
+        .page.content,
     enabled: Boolean(spaId)
   });
 
-  const servicesSection = useRef<HTMLElement>(null);
-  const [belowFold, setBelowFold] = useState(false);
-  useEffect(() => {
-    const section = servicesSection.current;
-    if (!section || !services?.length) return;
-    const observer = new IntersectionObserver(([entry]) => setBelowFold(entry.boundingClientRect.top >= window.innerHeight));
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, [spa, services]);
-  const handleBook = (service: Service) => {
-    if (!spa) return;
-    setSpa(spa.id, spa.name);
-    setService(service);
-    track('select_service');
-    navigate('/booking');
-  };
-
-  if (isError)
+  if (spa.isError)
     return (
       <p role="alert" className="p-10">
         Unable to load this spa. Please retry from search.
       </p>
     );
-  if (isLoading || !spa) {
+  if (!spa.data) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Spinner />
@@ -63,52 +70,34 @@ const SpaDetails = () => {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="grid gap-6 rounded-3xl bg-white p-6 shadow-card md:grid-cols-5">
-        <div className="md:col-span-3">
-          <img
-            src={
-              spa.coverImage ||
-              'https://images.unsplash.com/photo-1556228724-4a44ebcdf3a8?auto=format&fit=crop&w=1200&q=80'
-            }
-            width={1200} height={720} alt={spa.coverImage ? spa.name : ''}
-            className="h-80 w-full rounded-2xl object-cover"
-          />
-        </div>
-        <div className="flex flex-col gap-4 md:col-span-2">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">{spa.name}</h1>
-              <p className="text-sm text-slate-600">{spa.address}</p>
-            </div>
-            <RatingBadge rating={spa.rating} count={spa.reviewCount} />
-          </div>
-          {!!services?.length && <a className="font-semibold underline" href="#services">Choose a treatment</a>}
-          <p className="text-slate-600">{spa.description}</p>
-          <div className="rounded-2xl bg-primary-50 p-4 text-sm text-primary-800">
-            <p className="font-semibold">Opening hours</p>
-            <p>
-              {spa.workingDays?.join(', ')} · {spa.openTimeLocal || 'Contact spa'} –{' '}
-              {spa.closeTimeLocal || ''} {spa.timezone}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <section ref={servicesSection} id="services" className="mt-10 space-y-4 scroll-mt-36">
-        <h2 className="text-2xl font-semibold text-slate-900">Services</h2>
-        {loadingServices && <p role="status">Loading treatments…</p>}
-        {serviceError && <p role="alert">Treatments could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p>}
-        {services?.length === 0 && <p>No treatments are currently available to book.</p>}
-        <div className="space-y-3">
-          {services?.map((service) => (
-            <ServiceCard key={service.id} service={service} onBook={handleBook} />
-          ))}
-        </div>
-      </section>
-      {belowFold && !!services?.length && <a href="#services" className="md:hidden fixed inset-x-4 z-20 rounded-xl bg-primary-700 px-4 py-3 text-center font-semibold text-white" style={{bottom:'max(1rem, env(safe-area-inset-bottom))'}}>Choose a treatment</a>}
-      <SpaInformation spaId={spaId} />
-    </div>
+    <SpaProfile
+      {...spaProfile(spa.data)}
+      back={{ to: '/spas', label: 'All spas' }}
+      media={
+        <img
+          src={
+            spa.data.coverImage ||
+            'https://images.unsplash.com/photo-1556228724-4a44ebcdf3a8?auto=format&fit=crop&w=1200&q=80'
+          }
+          width={1200}
+          height={720}
+          alt={spa.data.coverImage ? spa.data.name : ''}
+          className="h-72 w-full rounded-2xl object-cover sm:h-96"
+        />
+      }
+      reviewsTitle="Guest reviews"
+      reviewsState={reviews.isLoading ? 'loading' : reviews.isError ? 'error' : undefined}
+      reviews={reviews.data?.map((r) => ({
+        id: String(r.id),
+        author: <span>Verified guest</span>,
+        rating: r.rating,
+        title: r.title,
+        text: r.text,
+        when: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : undefined
+      }))}
+    >
+      <SpaInformation />
+    </SpaProfile>
   );
 };
 

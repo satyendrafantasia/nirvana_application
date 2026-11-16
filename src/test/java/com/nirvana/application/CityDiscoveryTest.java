@@ -84,7 +84,12 @@ class CityDiscoveryTest {
         String request="{\"mode\":\"TEXT\",\"city\":\"Delhi\",\"countryCode\":\"IN\"}";
         when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"OPERATIONAL\"}]}"));
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").value(id));
+        // The spa page reads the same link from the place's details.
+        when(places.details("discovery_bookable_test")).thenReturn(json.readTree("{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"OPERATIONAL\"}"));
+        mvc.perform(get("/api/discovery/places/discovery_bookable_test").with(authentication(auth("ROLE_USER")))).andExpect(status().isOk()).andExpect(jsonPath("$.nirvanaSpaId").value(id));
         jdbc.update("UPDATE spa SET is_active=false WHERE id=?",id);
+        when(places.details("discovery_bookable_test")).thenReturn(json.readTree("{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"OPERATIONAL\"}"));
+        mvc.perform(get("/api/discovery/places/discovery_bookable_test").with(authentication(auth("ROLE_USER")))).andExpect(status().isOk()).andExpect(jsonPath("$.nirvanaSpaId").doesNotExist());
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist());
         jdbc.update("UPDATE spa SET is_active=true,is_verified=false WHERE id=?",id);
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist());

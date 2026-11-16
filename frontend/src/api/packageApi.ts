@@ -32,6 +32,18 @@ export interface PackageCheckout {
 }
 export const listPackages = async () =>
   (await client.get<CatalogPackage[]>('/api/packages/catalog')).data;
+/** A package one spa sells for its own visits. The price is in the spa's own currency. */
+export interface SpaPackage {
+  id: number;
+  level: string;
+  price: number;
+  freeSessionsCount: number;
+}
+export const listSpaPackages = async (spaId: string) =>
+  (await client.get<{ packages: SpaPackage[] }>(`/api/v1/spa/${spaId}/packages/available`)).data
+    .packages;
+export const startSpaPackage = async (spaId: string, id: number) =>
+  (await client.post<PackageCheckout>(`/api/v1/spa/${spaId}/packages/${id}/checkout`)).data;
 export const myPackages = async () => (await client.get<OwnedPackage[]>('/api/packages/mine')).data;
 export const startPackage = async (id: number) =>
   (await client.post<PackageCheckout>(`/api/packages/${id}/checkout`)).data;

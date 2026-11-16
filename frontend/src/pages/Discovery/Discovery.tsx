@@ -32,6 +32,9 @@ export type GooglePlace = {
   nirvanaSpaId?: number;
   location?: Point;
   viewport?: Bounds;
+  editorialSummary?: { text?: string };
+  regularOpeningHours?: { weekdayDescriptions?: string[] };
+  currentOpeningHours?: { openNow?: boolean };
 };
 type Search = {
   mode: 'TEXT' | 'NEARBY';

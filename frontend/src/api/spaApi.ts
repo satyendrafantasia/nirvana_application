@@ -16,6 +16,14 @@ interface SpaWire {
   closeTimeLocal?: string;
   workingDays?: string[];
   timezone?: string;
+  phone?: string;
+  email?: string;
+  websiteUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  googlePlaceId?: string;
+  defaultCurrency?: string;
+  amenities?: string[];
 }
 const spaView = (s: SpaWire): Spa => ({
   ...s,

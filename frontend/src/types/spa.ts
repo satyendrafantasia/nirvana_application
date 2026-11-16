@@ -13,6 +13,14 @@ export interface Spa {
   coverImage?: string;
   distanceKm?: number;
   categories?: string[];
+  phone?: string;
+  email?: string;
+  websiteUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  googlePlaceId?: string;
+  defaultCurrency?: string;
+  amenities?: string[];
 }
 
 export interface Service {

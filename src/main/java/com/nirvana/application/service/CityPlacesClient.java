@@ -64,8 +64,10 @@ public class CityPlacesClient {
 
     public JsonNode details(String placeId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
+        // Everything the spa page shows. Google has no services or prices: those come from onboarded spas.
         return call("/places/" + placeId, HttpMethod.GET, null,
-                "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions,photos,reviews");
+                "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions,photos,reviews,"
+                        + "location,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.openNow");
     }
     public JsonNode photo(String placeId, String photoId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}") || !photoId.matches("[A-Za-z0-9_-]{1,4096}"))
