@@ -24,7 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Turns spa leads into live, bookable spas once an admin confirms each spa agreed to be listed.
+ * Prepares unpublished spa inventory once an admin confirms each spa agreed to be listed.
  * Every spa starts with the same starter menu, two therapists, a room per treatment, its Google
  * Maps hours, appointment times for the coming weeks, and a place in every active Nirvana
  * package. The spa can change all of it later.
@@ -118,12 +118,12 @@ public class LeadOnboardingService {
         spa.setGoogleMapsUrl(fits((String) lead.get("maps_url"), 500));
         spa.setTimezone(ZONE.getId());
         spa.setAddress(address(lead));
-        spa.setIsActive(true);
-        spa.setIsVerified(true);
+        spa.setIsActive(false);
+        spa.setIsVerified(false);
         spa.setIsFeatured(false);
-        spa.setKycStatus(KycStatus.APPROVED);
+        spa.setKycStatus(KycStatus.PENDING);
         spa.setKycRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        spa.setKycApprovedAt(OffsetDateTime.now(ZoneOffset.UTC));
+
         // Guests book a time, not a person: the two starter therapists are placeholders.
         spa.setAllowTherapistSelection(false);
         spa.setAllowTherapistTypeSelection(false);
@@ -136,6 +136,7 @@ public class LeadOnboardingService {
         spa.setMetaJson(write(Map.of("onboardedFromLead", leadId, "permission", "confirmed by admin", "starterMenu", true)));
         spa = spas.saveAndFlush(spa);
         long spaId = spa.getId();
+        jdbc.update("UPDATE spa SET meta=? WHERE id=?", spa.getMetaJson(), spaId);
 
         Timestamp stamp = utc(OffsetDateTime.now());
         for (var day : week.entrySet()) {
@@ -193,7 +194,7 @@ public class LeadOnboardingService {
     /**
      * Keeps every spa onboarded from a lead bookable: adds appointment times so each treatment
      * room has them through the spa's booking window (its max advance days), using the spa's
-     * current weekly hours. Only days after a room's last appointment are added, and a time the
+     * current weekly hours. Gaps across the window are filled, and a time the
      * owner's slot tool already made is skipped, so running it again adds nothing.
      */
     public long topUpSlots() {
@@ -226,21 +227,29 @@ public class LeadOnboardingService {
         long added = 0;
         // Each treatment keeps the room it was given at onboarding.
         for (var room : jdbc.queryForList("""
-                SELECT sl.service_id, sl.room_id, sv.duration_min, MAX(sl.start_ts) last_start
+                SELECT sl.service_id, sl.room_id, sv.duration_min
                 FROM slot sl JOIN service sv ON sv.id=sl.service_id AND sv.is_active=1
                              JOIN spa_room r ON r.id=sl.room_id AND r.is_active=1
                 WHERE sl.spa_id=? GROUP BY sl.service_id, sl.room_id, sv.duration_min""", spaId)) {
             long serviceId = ((Number) room.get("service_id")).longValue(), roomId = ((Number) room.get("room_id")).longValue();
             int minutes = ((Number) room.get("duration_min")).intValue();
-            LocalDate lastDay = ((Timestamp) room.get("last_start")).toLocalDateTime().atOffset(ZoneOffset.UTC).atZoneSameInstant(ZONE).toLocalDate();
+            var reserved = new HashSet<>(jdbc.queryForList(
+                    "SELECT original_start FROM generated_room_slot WHERE room_id=? AND original_start>=?", Timestamp.class,
+                    roomId, Timestamp.from(earliest.toInstant())));
             List<Object[]> slots = new ArrayList<>();
-            for (LocalDate date = lastDay.isBefore(today) ? today : lastDay.plusDays(1); date.isBefore(today.plusDays(days)); date = date.plusDays(1)) {
+            for (LocalDate date = today; date.isBefore(today.plusDays(days)); date = date.plusDays(1)) {
                 LeadHours.Day hours = week.get(date.getDayOfWeek());
                 if (hours == null) continue;
                 for (LocalTime start : hours.slotStarts(minutes)) {
                     OffsetDateTime at = date.atTime(start).atZone(ZONE).toOffsetDateTime();
                     if (at.isBefore(earliest)) continue;
                     // Claim the time first; one the owner's slot tool already made is left alone.
+                    if (reserved.contains(Timestamp.from(at.toInstant()))) continue;
+                    Timestamp startUtc = utc(at), endUtc = utc(at.plusMinutes(minutes));
+                    if (Boolean.TRUE.equals(jdbc.queryForObject("""
+                            SELECT EXISTS(SELECT 1 FROM slot WHERE room_id=? AND start_ts<? AND end_ts>?)
+                                OR EXISTS(SELECT 1 FROM blackout_window WHERE spa_id=? AND provider_id IS NULL AND start_ts<? AND end_ts>?)
+                            """, Boolean.class, roomId, endUtc, startUtc, spaId, endUtc, startUtc))) continue;
                     if (jdbc.update("INSERT IGNORE INTO generated_room_slot VALUES (?,?)", roomId, Timestamp.from(at.toInstant())) == 0) continue;
                     slots.add(new Object[]{stamp, stamp, spaId, serviceId, roomId, utc(at), utc(at.plusMinutes(minutes))});
                 }

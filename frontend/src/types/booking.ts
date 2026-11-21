@@ -47,6 +47,7 @@ export interface BookingSummary {
   paymentMode: 'ONLINE' | 'OFFLINE';
   status: string;
   canCancel?: boolean;
+  invoiceAvailable?: boolean;
   refundStatus?: string;
   totalCents?: number;
   currency?: string;

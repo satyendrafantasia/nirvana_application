@@ -38,7 +38,7 @@ public class SpaLeadController {
                                  @jakarta.validation.constraints.AssertTrue(message = "Confirm each spa agreed to be listed on Nirvana") boolean permissionConfirmed,
                                  @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(60) Integer days) {}
 
-    /** Makes leads live, searchable and bookable with the starter menu. */
+    /** Prepares unpublished drafts with a proposed starter menu. */
     @PostMapping("/onboard")
     public LeadOnboardingService.Result onboard(@Valid @RequestBody OnboardRequest body) {
         return onboarding.onboard(body.leadIds(), body.days() == null ? 30 : body.days(), SecurityUtils.getCurrentUserId());
@@ -50,6 +50,17 @@ public class SpaLeadController {
                                                     @RequestParam(defaultValue = "0") int page,
                                                     @RequestParam(defaultValue = "25") int size) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(leads.list(status, q, page, size));
+    }
+
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @GetMapping("/{id}/inventory")
+    public Map<String,Object> inventory(@PathVariable long id) {
+        Long spaId = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, id);
+        if (spaId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Prepare the draft first.");
+        return Map.of("services", jdbc.queryForList("SELECT name, price_cents AS price, duration_min AS minutes FROM service WHERE spa_id=? AND is_active=1 ORDER BY name", spaId),
+                "hours", jdbc.queryForList("SELECT weekday, CAST(open_local AS CHAR) AS opens, CAST(close_local AS CHAR) AS closes FROM schedule_rule WHERE spa_id=? AND is_holiday=0 ORDER BY weekday", spaId),
+                "capacity", jdbc.queryForObject("SELECT max_concurrent_services FROM spa WHERE id=?", Integer.class, spaId));
     }
 
     @PatchMapping("/{id}")

@@ -24,6 +24,7 @@ public record InvoiceResponseDto(
         Integer taxCents,
         Integer discountCents,
         Integer totalCents,
+        Integer refundedCents,
         String currency,
 
         OffsetDateTime issuedAt,

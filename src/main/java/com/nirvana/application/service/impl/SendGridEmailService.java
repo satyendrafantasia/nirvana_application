@@ -105,9 +105,9 @@ public class SendGridEmailService implements EmailService {
         sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");
         sb.append("<li><strong>Total</strong>: ").append(dto.currency()).append(" ").append(dto.totalCents() / 100.0).append("</li>");
         sb.append("</ul>");
-        sb.append("<p>You can download your invoice here: <a href=\"")
+        sb.append("<p>Download your invoice from your booking history: <a href=\"")
                 .append(dto.invoicePdfUrl())
-                .append("\">Invoice PDF</a></p>");
+                .append("\">My bookings</a></p>");
 
         if (dto.spaAddressLine1() != null) {
             sb.append("<p><strong>Spa address</strong>: ")

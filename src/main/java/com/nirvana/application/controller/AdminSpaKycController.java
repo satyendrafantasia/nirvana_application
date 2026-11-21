@@ -20,11 +20,13 @@ public class AdminSpaKycController {
     private final SpaRepository spaRepository;
 
     @PostMapping("/{spaId}/kyc/approve")
-    public void approveKyc(@PathVariable Long spaId) {
+    public void approveKyc(@PathVariable Long spaId, @RequestParam(defaultValue="false") boolean inventoryConfirmed) {
         Spa spa = spaRepository.findById(spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found " + spaId));
 
-        spa.setKycStatus(KycStatus.VERIFIED);
+        if (spa.getMetaJson() != null && spa.getMetaJson().contains("\"onboardedFromLead\"") && !inventoryConfirmed)
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Confirm the menu, prices, opening hours and simultaneous staffing capacity with the spa before publishing.");
+        spa.setKycStatus(KycStatus.APPROVED);
         spa.setKycApprovedAt(OffsetDateTime.now(ZoneOffset.UTC));
         spa.setIsVerified(true);
         spa.setIsActive(true); // go live

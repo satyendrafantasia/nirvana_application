@@ -33,29 +33,23 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final PaymentRepository paymentRepository;
     private final EmailService emailService;   // you can provide a NoOp impl for now
 
-    @Value("${invoice.pdf-base-url:https://cdn.nirvana.invalid/invoices/}")
-    private String invoicePdfBaseUrl;
 
     @Override
     @Transactional
     public InvoiceResponseDto generateInvoiceForBooking(Long bookingId) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
         // Idempotent: if already exists, return existing
         var existing = invoiceRepository.findByBookingId(bookingId);
         if (existing.isPresent()) {
             return toDto(existing.get());
         }
 
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
-
-        if (booking.getStatus() != BookingStatus.CONFIRMED) {
-            throw new IllegalStateException("Cannot issue invoice for non-CONFIRMED booking: " + booking.getStatus());
-        }
-
         Payment payment = paymentRepository
                 .findFirstByBookingIdAndPaymentStatusIn(
                         bookingId,
-                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED))
+                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED))
                 .orElseThrow(() -> new IllegalStateException(
                         "No successful payment found for booking " + bookingId));
 
@@ -63,20 +57,23 @@ public class InvoiceServiceImpl implements InvoiceService {
         int amountCents = booking.getPriceCents();         // base price
         int taxCents = booking.getTaxCents();
         int discountCents = booking.getDiscountCents();
-        int totalCents = amountCents + taxCents - discountCents;
+        int totalCents = payment.getAmountCents();
 
         String invoiceNumber = generateInvoiceNumber();
 
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(invoiceNumber)
                 .booking(booking)
+                .user(booking.getUser())
+                .spa(booking.getSpa())
+                .status("PAID")
                 .amountCents(amountCents)
                 .taxCents(taxCents)
                 .discountCents(discountCents)
                 .totalCents(totalCents)
                 .currency(booking.getCurrency())
                 .issuedAt(OffsetDateTime.now(ZoneOffset.UTC))
-                .pdfUrl(buildPdfUrl(invoiceNumber))
+                .pdfUrl(buildPdfUrl(bookingId))
                 .metaJson(null)
                 .build();
 
@@ -135,11 +132,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
-    private String buildPdfUrl(String invoiceNumber) {
-        if (invoicePdfBaseUrl.endsWith("/")) {
-            return invoicePdfBaseUrl + invoiceNumber + ".pdf";
-        }
-        return invoicePdfBaseUrl + "/" + invoiceNumber + ".pdf";
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    private String buildPdfUrl(Long bookingId) {
+        return "/api/bookings/" + bookingId + "/invoice/pdf";
     }
 
     private InvoiceResponseDto toDto(Invoice invoice) {
@@ -164,10 +161,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .amountCents(invoice.getAmountCents())
                 .taxCents(invoice.getTaxCents())
                 .discountCents(invoice.getDiscountCents())
+                .refundedCents(paymentRepository.findTopByBookingIdOrderByCreatedAtDesc(b.getId()).map(Payment::getRefundedCents).orElse(0))
                 .totalCents(invoice.getTotalCents())
                 .currency(invoice.getCurrency())
                 .issuedAt(invoice.getIssuedAt())
-                .pdfUrl(invoice.getPdfUrl())
+                .pdfUrl(buildPdfUrl(b.getId()))
                 .build();
     }
 
@@ -202,7 +200,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .discountCents(invoice.getDiscountCents())
                 .totalCents(invoice.getTotalCents())
                 .currency(invoice.getCurrency())
-                .invoicePdfUrl(invoice.getPdfUrl())
+                .invoicePdfUrl(frontendUrl.replaceAll("/+$", "") + "/me/bookings")
                 .build();
     }
 }

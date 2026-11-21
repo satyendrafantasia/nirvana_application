@@ -196,7 +196,7 @@ public class BookingLifecycleService {
     public boolean autoComplete(Long bookingId, OffsetDateTime endedBefore) {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
         if (booking == null
-                || (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.ARRIVED)
+                || booking.getStatus() != BookingStatus.ARRIVED
                 || !booking.getEndTs().isBefore(endedBefore)) {
             return false;
         }

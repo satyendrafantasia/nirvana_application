@@ -1,3 +1,4 @@
+import { returnPath } from '../../auth/returnPath';
 import SocialLogin from './SocialLogin';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -11,13 +12,8 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const requested = params.get('redirect');
-  const redirect = owner
-    ? requested?.startsWith('/owner/')
-      ? requested
-      : '/owner'
-    : requested?.startsWith('/') && !requested.startsWith('//')
-      ? requested
-      : '/';
+  const redirect = returnPath(requested, owner ? '/owner' : '/', owner);
+  const next = '?redirect=' + encodeURIComponent(redirect);
   const { login } = useAuth();
 
   const mutation = useMutation({
@@ -25,6 +21,9 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
       const email = String(formData.get('email'));
       const password = String(formData.get('password'));
       await login({ email, password });
+    },
+    onError: () => {
+      if (sessionStorage.getItem('nirvana_mfa')) navigate('/auth/otp' + next);
     },
     onSuccess: () => {
       showToast('Logged in successfully', 'success');
@@ -55,13 +54,13 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
         <Link className="block text-primary-700" to="/auth/password">
           Forgot password?
         </Link>
-        <Link to={owner ? '/auth/otp?redirect=/owner' : '/auth/otp'}>
+        <Link to={'/auth/otp' + next}>
           Sign in with OTP / verify MFA
         </Link>
         {!owner && <SocialLogin />}
         <p className="text-sm text-slate-600">
           New here?{' '}
-          <Link to={owner ? '/owner/signup' : '/auth/register'} className="text-primary-600">
+          <Link to={(owner ? '/owner/signup' : '/auth/register') + (requested ? next : '')} className="text-primary-600">
             Create an account
           </Link>
         </p>

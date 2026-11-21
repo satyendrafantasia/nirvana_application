@@ -327,7 +327,7 @@ function Bookings({ id }: { id: string }) {
             setPage(0);
           }}
         >
-          {['TODAY', 'LAST_7_DAYS', 'LAST_30_DAYS', 'ALL'].map((w) => (
+          {['TODAY', 'ATTENDANCE_PENDING', 'LAST_7_DAYS', 'LAST_30_DAYS', 'ALL'].map((w) => (
             <option key={w} value={w}>
               {w.replaceAll('_', ' ')}
             </option>

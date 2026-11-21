@@ -29,6 +29,7 @@ export type Lead = {
   notes?: string;
   lastContactedAt?: string;
   spaId?: number;
+  published?: number;
 };
 type Page = { content: Lead[]; total: number; page: number; counts: Record<string, number> };
 type ImportResult = { created: number; updated: number; skipped: number; problems: string[] };
@@ -51,25 +52,22 @@ export function OnboardLeads({ ready }: { ready: number }) {
   });
   return (
     <section className="card space-y-3 p-4" aria-labelledby="onboard-leads">
-      <h2 id="onboard-leads" className="font-semibold">Put spas live on Nirvana</h2>
+      <h2 id="onboard-leads" className="font-semibold">Prepare spa drafts</h2>
       <p className="text-sm text-slate-600">
-        Each spa becomes searchable and bookable straight away, with its Google Maps hours (10 AM–10 PM where none
-        are listed), two therapists, and this starter menu until it sets its own: Swedish Massage ₹1,999, Deep Tissue
-        Massage ₹2,499 and Aromatherapy Massage ₹2,299, 60 minutes each. Appointment times open for the next 30 days.
-        Spas without their own photos show their Google Maps photos.
+        Drafts include proposed services, prices, hours and staffing. Confirm those details individually with each spa before publishing.
       </p>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-1" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         <span>Each of these spas has agreed to be listed and booked on Nirvana. Your name is recorded against each one.</span>
       </label>
       <Button disabled={!confirmed || !ready || run.isPending} onClick={() => run.mutate()}>
-        {run.isPending ? 'Putting spas live…' : `Put ${ready} ${ready === 1 ? 'spa' : 'spas'} live`}
+        {run.isPending ? 'Preparing drafts…' : `Prepare ${ready} drafts`}
       </Button>
       {run.isError && <p role="alert" className="text-rose-700">{errorMessage(run.error)}</p>}
       {run.data && (
         <div role="status" className="text-sm">
           <p>
-            {run.data.onboarded} live with {run.data.slots.toLocaleString()} appointment times
+            {run.data.onboarded} drafts with {run.data.slots.toLocaleString()} appointment times
             {run.data.linked > 0 && `, ${run.data.linked} already on Nirvana and linked`}
             {run.data.skipped > 0 && `, ${run.data.skipped} skipped`}.
           </p>
@@ -163,6 +161,15 @@ export function LeadCard({ lead }: { lead: Lead }) {
     mutationFn: async () => client.patch(`/api/admin/spa-leads/${lead.id}`, { status, notes }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['spa-leads'] })
   });
+  const [review, setReview] = useState(false);
+  const inventory = useQuery({
+    queryKey: ['lead-inventory', lead.id], enabled: review,
+    queryFn: async () => (await client.get<{services: {name:string;price:number;minutes:number}[]; hours: {weekday:number; opens:string; closes:string}[]; capacity:number}>(`/api/admin/spa-leads/${lead.id}/inventory`)).data
+  });
+  const publish = useMutation({
+    mutationFn: () => client.post(`/api/admin/spas/${lead.spaId}/kyc/approve?inventoryConfirmed=true`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['spa-leads'] })
+  });
   const website = safeUrl(lead.website);
   const maps = safeUrl(lead.mapsUrl);
   return (
@@ -184,7 +191,7 @@ export function LeadCard({ lead }: { lead: Lead }) {
         {lead.email && <a className="underline break-all" href={`mailto:${lead.email}`}>{lead.email}</a>}
         {website && <a className="underline" href={website} target="_blank" rel="noreferrer">Website</a>}
         {maps && <a className="underline" href={maps} target="_blank" rel="noreferrer">Google Maps</a>}
-        {lead.spaId != null && (
+        {lead.spaId != null && !!lead.published && (
           <Link className="font-medium underline" to={`/spas/${lead.spaId}`}>Live on Nirvana</Link>
         )}
         {lead.spaId == null && lead.googlePlaceId && /^[A-Za-z0-9_-]+$/.test(lead.googlePlaceId) && (
@@ -209,6 +216,18 @@ export function LeadCard({ lead }: { lead: Lead }) {
           {save.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
+      {lead.spaId != null && !lead.published && <div>
+        <Button variant="secondary" onClick={() => setReview(!review)}>Review inventory</Button>
+        {review && inventory.isError && <p role="alert">{errorMessage(inventory.error)}</p>}
+        {review && inventory.data && <div className="space-y-2">
+          <ul>{inventory.data.services.map(s => <li key={s.name}>{s.name} · {s.minutes} min · ₹{s.price / 100}</li>)}</ul>
+          <ul>{inventory.data.hours.map(h => <li key={h.weekday}>{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][h.weekday-1]} {h.opens}–{h.closes}</li>)}</ul>
+          <p>Simultaneous appointments: {inventory.data.capacity}</p>
+        <Button disabled={publish.isPending || !inventory.data.services.length || !inventory.data.hours.length || inventory.data.capacity < 1} onClick={() => {
+          if (window.confirm(`Has ${lead.name} confirmed its proposed services, prices, opening hours and simultaneous appointment capacity? Publish only after verifying each item.`)) publish.mutate();
+        }}>Confirm inventory and publish</Button></div>}
+        {publish.isError && <p role="alert">{errorMessage(publish.error)}</p>}
+      </div>}
       {lead.lastContactedAt && (
         <p className="text-xs text-slate-500">Last contacted {new Date(lead.lastContactedAt).toLocaleDateString()}</p>
       )}

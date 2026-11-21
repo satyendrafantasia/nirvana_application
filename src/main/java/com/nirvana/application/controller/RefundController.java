@@ -48,6 +48,15 @@ public class RefundController {
         return ResponseEntity.ok(refundManagementService.issueVoucher(bookingId, adminId, request));
     }
 
+    @GetMapping(value="/invoice/pdf", produces="application/pdf")
+    public ResponseEntity<byte[]> download(@PathVariable Long bookingId) throws java.io.IOException {
+        paymentService.requireBookingAccess(bookingId);
+        var invoice = invoiceService.generateInvoiceForBooking(bookingId);
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("Content-Disposition", "attachment; filename=invoice-" + bookingId + ".pdf")
+                .body(com.nirvana.application.service.InvoicePdf.render(invoice));
+    }
+
     @PostMapping("/invoice/pdf")
     public ResponseEntity<InvoiceResponseDto> ensureInvoicePdf(@PathVariable Long bookingId) {
         paymentService.requireBookingAccess(bookingId);

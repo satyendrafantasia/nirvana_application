@@ -54,8 +54,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     /** Appointments that ended before the cutoff and were never closed out by the spa. */
     @Query("""
             select b.id from Booking b
-            where b.status in (com.nirvana.application.model.enums.BookingStatus.CONFIRMED,
-                               com.nirvana.application.model.enums.BookingStatus.ARRIVED)
+            where b.status = com.nirvana.application.model.enums.BookingStatus.ARRIVED
               and b.endTs < :endedBefore
             order by b.id
             """)
@@ -164,4 +163,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("therapistId") Long therapistId,
             @Param("slotStart") OffsetDateTime slotStart,
             @Param("slotEnd") OffsetDateTime slotEnd);
+    org.springframework.data.domain.Page<Booking> findBySpaIdAndStatusAndEndTsBefore(
+            Long spaId, com.nirvana.application.model.enums.BookingStatus status,
+            OffsetDateTime before, org.springframework.data.domain.Pageable pageable);
 }

@@ -72,6 +72,7 @@ interface BookingWire {
   status: string;
   paymentMode: 'ONLINE' | 'OFFLINE';
   canCancel: boolean;
+  invoiceAvailable?: boolean;
   refundStatus?: string;
 }
 export const getUserBookings = async (
@@ -99,6 +100,7 @@ export const getUserBookings = async (
       slot: b.startTs,
       status: b.status,
       paymentMode: b.paymentMode,
+      invoiceAvailable: b.invoiceAvailable,
       canCancel: b.canCancel
       ,refundStatus:b.refundStatus
     }))

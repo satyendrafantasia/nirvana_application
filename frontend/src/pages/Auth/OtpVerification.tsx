@@ -1,3 +1,4 @@
+import { returnPath } from '../../auth/returnPath';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -21,7 +22,7 @@ export default function OtpVerification() {
     mutationFn: () => verifyOtp(verificationId, otp),
     onSuccess: (r) => {
       acceptAuth(r);
-      navigate(params.get('redirect') === '/owner' ? '/owner' : '/me/bookings');
+      navigate(returnPath(params.get('redirect'), '/me/bookings'));
     }
   });
   return (

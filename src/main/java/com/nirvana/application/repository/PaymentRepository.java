@@ -19,6 +19,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByPaymentLinkId(String paymentLinkId);
 
+    boolean existsByBookingIdAndPaymentStatusIn(Long bookingId, java.util.Collection<com.nirvana.application.model.enums.PaymentStatus> statuses);
+
     List<Payment> findByBookingId(Long bookingId);
 
     Optional<Payment> findTopByBookingIdOrderByCreatedAtDesc(Long bookingId);

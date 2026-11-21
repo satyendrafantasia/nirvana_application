@@ -10,6 +10,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "payments.razorpay")
 public class RazorpayProperties {
 
+    public boolean readyForCheckout() {
+        return enabled && org.springframework.util.StringUtils.hasText(keyId)
+                && org.springframework.util.StringUtils.hasText(keySecret);
+    }
+
     private boolean enabled;
     private String keyId;
     private String keySecret;

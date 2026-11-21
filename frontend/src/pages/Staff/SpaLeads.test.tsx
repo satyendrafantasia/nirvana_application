@@ -53,13 +53,13 @@ describe('spa leads', () => {
   });
   it('puts agreed spas live only after you confirm their permission', () => {
     const html = render(<OnboardLeads ready={3} />);
-    expect(html).toContain('Put 3 spas live');
-    expect(html).toContain('₹1,999');
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Put 3 spas live/);
+    expect(html).toContain('Prepare 3 drafts');
+    expect(html).toContain('Confirm those details');
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Prepare 3 drafts/);
     expect(readyToOnboard({ NEW: 2, CONTACTED: 1, INTERESTED: 1, ONBOARDED: 5, NOT_INTERESTED: 4 })).toBe(4);
   });
   it('links an onboarded lead to its live spa', () => {
-    const html = render(<LeadCard lead={{ ...lead, status: 'ONBOARDED', spaId: 42, googlePlaceId: 'ChIJabc' }} />);
+    const html = render(<LeadCard lead={{ ...lead, status: 'ONBOARDED', spaId: 42, published: 1, googlePlaceId: 'ChIJabc' }} />);
     expect(html).toContain('href="/spas/42"');
     expect(html).not.toContain('/discover/places/');
   });

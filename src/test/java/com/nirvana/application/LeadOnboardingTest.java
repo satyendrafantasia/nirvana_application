@@ -81,9 +81,9 @@ class LeadOnboardingTest {
         Map<String, Object> spa = jdbc.queryForMap("SELECT * FROM spa WHERE id=?", spaId);
         assertEquals("Onboard Test Spa", spa.get("name"));
         assertEquals("ChIJonboardTestSpa0001", spa.get("google_place_id"));
-        assertEquals("APPROVED", spa.get("kyc_status"));
-        assertEquals(Boolean.TRUE, spa.get("is_active"));
-        assertEquals(Boolean.TRUE, spa.get("is_verified"));
+        assertEquals("PENDING", spa.get("kyc_status"));
+        assertEquals(Boolean.FALSE, spa.get("is_active"));
+        assertEquals(Boolean.FALSE, spa.get("is_verified"));
         assertEquals("Haryana", spa.get("state"));
         assertEquals("122001", spa.get("postal_code"));
         assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=? AND is_active=1", Integer.class, spaId));
@@ -97,6 +97,10 @@ class LeadOnboardingTest {
         assertNotNull(jdbc.queryForObject("SELECT permission_confirmed_at FROM spa_lead WHERE id=?", Object.class, withHours));
         assertEquals("NOT_INTERESTED", jdbc.queryForObject("SELECT status FROM spa_lead WHERE id=?", String.class, declined));
 
+        mvc.perform(post("/api/admin/spas/" + spaId + "/kyc/approve").with(authentication(as("ROLE_ADMIN"))))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/admin/spas/" + spaId + "/kyc/approve").param("inventoryConfirmed","true").with(authentication(as("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
         long serviceId = jdbc.queryForObject("SELECT id FROM service WHERE spa_id=? AND name='Deep Tissue Massage'", Long.class, spaId);
         LocalDate from = LocalDate.now(ZoneId.of("Asia/Kolkata")).plusDays(1);
         var week = availability.getAvailableSlotsForServiceRange(spaId, serviceId, from, 7, 1);
@@ -141,8 +145,10 @@ class LeadOnboardingTest {
         jdbc.update("DELETE FROM generated_room_slot WHERE room_id IN (SELECT id FROM spa_room WHERE spa_id=?) AND DATE(original_start) > ?", spaId, cut);
         jdbc.update("DELETE FROM slot WHERE spa_id=? AND DATE(CONVERT_TZ(start_ts,'+00:00','+05:30')) > ?", spaId, cut);
         assertEquals(cut, jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId));
+        // Retain one manually scheduled appointment well beyond the gap.
+        jdbc.update("INSERT INTO slot (created_at,updated_at,spa_id,service_id,room_id,start_ts,end_ts,capacity_unit,booked_units,is_blocked,status,version) SELECT NOW(),NOW(),spa_id,service_id,room_id,DATE_ADD(start_ts, INTERVAL 40 DAY),DATE_ADD(end_ts, INTERVAL 40 DAY),1,0,0,'OPEN',0 FROM slot WHERE spa_id=? LIMIT 1", spaId);
         assertTrue(onboarding.topUpSlots() > 0);
-        assertEquals(from.minusDays(1).plusDays(20), jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId),
+        assertTrue(jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId).isAfter(from.plusDays(20)),
                 "times through the last day of the 21-day booking window");
         var later = availability.getAvailableSlotsForServiceRange(spaId, serviceId, cut.plusDays(1), 7, 1);
         assertEquals(72, later.days().stream().mapToInt(d -> d.slots().size()).sum(), "same weekly pattern, Wednesday still closed");

@@ -1,12 +1,15 @@
+import { returnPath } from '../../auth/returnPath';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import client, { errorMessage } from '../../api/client';
 import { authView } from '../../api/authApi';
 export default function Register({ owner = false }: { owner?: boolean }) {
+  const [params] = useSearchParams();
+  const destination = returnPath(params.get('redirect'), owner ? '/owner/onboarding' : '/', owner);
   const [email, setEmail] = useState(''),
     [verification, setVerification] = useState(''),
     [registration, setRegistration] = useState('');
@@ -42,7 +45,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
           username: data.user.email || data.user.phoneNumber
         })
       );
-      navigate(owner ? '/owner/onboarding' : '/');
+      navigate(destination);
     }
   });
   return (
@@ -126,7 +129,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
           {errorMessage(action.error)}
         </p>
       )}
-      <Link to={owner ? '/owner/login' : '/auth/login'}>Already have an account? Sign in</Link>
+      <Link to={(owner ? '/owner/login' : '/auth/login') + '?redirect=' + encodeURIComponent(destination)}>Already have an account? Sign in</Link>
     </div>
   );
 }

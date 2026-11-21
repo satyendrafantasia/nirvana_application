@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cancelBooking, getUserBookings, getSlots, getTherapistDirectory, rescheduleBooking } from '../../api/bookingApi';
 import { resumePayment } from '../../api/paymentApi';
-import { errorMessage } from '../../api/client';
+import client, { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
 import Button from '../../components/common/Button';
 import SlotGrid from '../../components/booking/SlotGrid';
@@ -31,7 +31,15 @@ export default function MyBookings() {
   });
   const action = useMutation({
     mutationFn: async ({ kind, b }: { kind: string; b: BookingSummary }) => {
-      if (kind === 'cancel') await cancelBooking(b.id);
+      if (kind === 'invoice') {
+        const response = await client.get(`/api/bookings/${b.id}/invoice/pdf`, { responseType: 'blob' });
+        const url = URL.createObjectURL(response.data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `invoice-${b.reference}.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else if (kind === 'cancel') await cancelBooking(b.id);
       else if (kind === 'move') await rescheduleBooking(b.id, target, preference === 'keep' ? undefined : preference);
       else await resumePayment(b.id);
     },
@@ -68,6 +76,8 @@ export default function MyBookings() {
           {b.therapistName && <p>Therapist: {b.therapistName}</p>}
           {b.refundStatus && b.refundStatus !== 'NONE' && <p>Refund: {b.refundStatus.toLowerCase()}</p>}
           <div className="flex gap-2 flex-wrap">
+            {b.invoiceAvailable &&
+              <Button variant="secondary" disabled={action.isPending} onClick={() => action.mutate({kind: 'invoice', b})}>Download invoice</Button>}
             {b.status === 'PENDING_PAYMENT' && b.paymentMode === 'ONLINE' && (
               <Button disabled={action.isPending} onClick={() => action.mutate({ kind: 'pay', b })}>
                 Complete payment

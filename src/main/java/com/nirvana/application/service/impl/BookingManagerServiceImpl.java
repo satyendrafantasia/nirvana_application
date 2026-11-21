@@ -43,7 +43,9 @@ public class BookingManagerServiceImpl implements BookingManagerService {
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + spaId));
 
         DateRange range = resolveRange(spa, window);
-        Page<Booking> page = (range.from() != null && range.to() != null)
+        Page<Booking> page = window == BookingWindow.ATTENDANCE_PENDING
+                ? bookingRepository.findBySpaIdAndStatusAndEndTsBefore(spaId, BookingStatus.CONFIRMED, java.time.OffsetDateTime.now(), pageable)
+                : (range.from() != null && range.to() != null)
                 ? bookingRepository.findWithDetailsBySpaIdAndStartTsBetween(spaId, range.from(), range.to(), pageable)
                 : bookingRepository.findWithDetailsBySpaId(spaId, pageable);
 

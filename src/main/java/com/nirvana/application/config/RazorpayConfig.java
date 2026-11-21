@@ -19,7 +19,7 @@ public class RazorpayConfig {
 
     @Bean
     public RazorpayClient razorpayClient() throws RazorpayException {
-        if (!props.isEnabled()) {
+        if (!props.readyForCheckout()) {
             log.warn("Razorpay disabled via config");
             return null;
         }

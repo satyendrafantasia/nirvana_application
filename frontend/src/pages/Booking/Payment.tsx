@@ -27,6 +27,11 @@ export default function Payment({
   const [usePackage, setUsePackage] = useState(false);
   const [useSpaPackage, setUseSpaPackage] = useState(false);
   const account = useQuery({ queryKey: ['account'], queryFn: getAccount, staleTime: 30_000 });
+  const options = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: async () => (await client.get<{online: boolean}>('/api/bookings/payment-options')).data
+  });
+  const method = options.data?.online ? (state.paymentMode ?? 'OFFLINE') : 'OFFLINE';
   const points = account.data?.loyaltyPoints;
   const eligibility = useQuery({
     queryKey: ['booking-package-eligibility', state.spaId, useSpaPackage],
@@ -41,7 +46,7 @@ export default function Payment({
   });
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!state.spaId || !state.service || !state.selectedSlot || !state.paymentMode)
+      if (!state.spaId || !state.service || !state.selectedSlot || !method)
         throw new Error('Select a service and available appointment time.');
       if (!created) track('booking_submitted');
       const booking =
@@ -54,7 +59,7 @@ export default function Payment({
           guests: state.guests,
           therapistId: state.therapistId,
           therapistType: state.therapistType,
-          paymentMode: state.paymentMode,
+          paymentMode: method,
           paymentMethod: 'RAZORPAY',
           specialRequest: state.notes,
           couponCode: coupon.trim() || undefined,
@@ -99,10 +104,10 @@ export default function Payment({
           Payment method
           <select
             className="block border rounded-xl p-3 w-full"
-            value={state.paymentMode}
+            value={method}
             onChange={(e) => setPaymentMode(e.target.value as 'ONLINE' | 'OFFLINE')}
           >
-            <option value="ONLINE">Pay securely with Razorpay</option>
+            {options.data?.online && <option value="ONLINE">Pay securely with Razorpay</option>}
             <option value="OFFLINE">Pay at spa</option>
           </select>
         </label>
@@ -193,7 +198,7 @@ export default function Payment({
         </Button>
         <Button
           disabled={
-            mutation.isPending ||
+            mutation.isPending || options.isPending ||
             (!created && (usePackage || useSpaPackage) && eligibility.data?.canUse !== true)
           }
           onClick={() => {

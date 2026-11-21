@@ -572,6 +572,7 @@ public class BookingServiceImpl implements BookingService {
                 .endTs(booking.getEndTs())
                 .status(booking.getStatus())
                 .paymentMode(booking.getPaymentMode())
+                .invoiceAvailable(paymentRepository.existsByBookingIdAndPaymentStatusIn(booking.getId(), java.util.List.of(PaymentStatus.CAPTURED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)))
                 .canCancel(eligibility.canCancel())
                 .refundStatus(booking.getRefundStatus().name())
                 .cancellationReason(eligibility.reason())

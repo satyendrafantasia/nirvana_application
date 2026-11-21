@@ -533,7 +533,7 @@ public class PaymentService {
                 && payment.getPaymentStatus() != PaymentStatus.REFUNDED && payment.getPaymentStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new IllegalStateException("Receipt is available only after verified payment");
         }
-        if (payment.getReceiptUrl() != null) {
+        if (payment.getReceiptUrl() != null && payment.getReceiptUrl().equals("/api/bookings/" + bookingId + "/invoice/pdf")) {
             return payment.getReceiptUrl();
         }
 

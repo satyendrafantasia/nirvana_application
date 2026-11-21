@@ -373,6 +373,9 @@ class BookingLifecycleTest {
         moveToPast(old, 3);
         sync();
         OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusHours(24);
+        assertFalse(lifecycle.autoComplete(old, cutoff));
+        jdbc.update("UPDATE booking SET status='ARRIVED' WHERE id=?", old);
+        sync();
         var due = bookings.findAutoCompletableIds(cutoff);
         assertTrue(due.contains(old));
         assertFalse(due.contains(upcoming));
@@ -380,5 +383,31 @@ class BookingLifecycleTest {
         assertFalse(lifecycle.autoComplete(upcoming, cutoff));
         assertEquals("COMPLETED", status(old));
         assertEquals("CONFIRMED", status(upcoming));
+    }
+    @Test void completedVisitHasDownloadablePrivateInvoiceAfterCapture() throws Exception {
+        long booking = book(slot(12));
+        moveToPast(booking, 3);
+        assertEquals(200, owner(action(booking, "complete")).status());
+        var payment = new com.nirvana.application.model.Payment();
+        payment.setBooking(bookings.findById(booking).orElseThrow());
+        payment.setPaymentStatus(com.nirvana.application.model.enums.PaymentStatus.INIT);
+        payment.setGateway("test");
+        payment.setTotalPrice(java.math.BigDecimal.valueOf(1999));
+        payment.setAmountCents(199900);
+        em.persist(payment);
+        em.flush();
+        payment.setTransactionId("capture-" + booking);
+        payment.setPaymentStatus(com.nirvana.application.model.enums.PaymentStatus.CAPTURED);
+        sync();
+        String url = "/api/bookings/" + booking + "/invoice/pdf";
+        var guest = new UserPrincipal(3L, "guest", "guest@example.test", "", true, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
+        var response = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url)
+                .with(authentication(new UsernamePasswordAuthenticationToken(guest, null, guest.getAuthorities()))))
+                .andReturn().getResponse();
+        assertEquals(200, response.getStatus());
+        try (var document = org.apache.pdfbox.Loader.loadPDF(response.getContentAsByteArray())) {
+            assertTrue(new org.apache.pdfbox.text.PDFTextStripper().getText(document).contains("1999.00"));
+        }
+        assertEquals(403, call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url), 2, "ROLE_CUSTOMER", null).status());
     }
 }

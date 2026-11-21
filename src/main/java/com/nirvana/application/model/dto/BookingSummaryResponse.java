@@ -26,6 +26,7 @@ public class BookingSummaryResponse {
     BookingStatus status;
     String refundStatus;
     PaymentMode paymentMode;
+    boolean invoiceAvailable;
     boolean canCancel;
     String cancellationReason;
 }
