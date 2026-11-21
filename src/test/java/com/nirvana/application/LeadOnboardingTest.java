@@ -90,6 +90,9 @@ class LeadOnboardingTest {
         // Closed on Wednesdays: six weekly rules, and no Wednesday appointments.
         assertEquals(6, jdbc.queryForObject("SELECT COUNT(*) FROM schedule_rule WHERE spa_id=?", Integer.class, spaId));
         assertEquals("ONBOARDED", jdbc.queryForObject("SELECT status FROM spa_lead WHERE id=?", String.class, withHours));
+        // Usable with every active Nirvana package.
+        assertEquals(jdbc.queryForObject("SELECT COUNT(*) FROM packages WHERE is_active=1", Integer.class),
+                jdbc.queryForObject("SELECT COUNT(*) FROM service_package_spa x JOIN packages p ON p.id=x.package_id WHERE p.is_active=1 AND x.spa_id=?", Integer.class, spaId));
         assertNotNull(jdbc.queryForObject("SELECT permission_confirmed_at FROM spa_lead WHERE id=?", Object.class, withHours));
         assertEquals("NOT_INTERESTED", jdbc.queryForObject("SELECT status FROM spa_lead WHERE id=?", String.class, declined));
 

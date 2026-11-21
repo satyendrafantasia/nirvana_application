@@ -26,7 +26,8 @@ import java.util.regex.Pattern;
 /**
  * Turns spa leads into live, bookable spas once an admin confirms each spa agreed to be listed.
  * Every spa starts with the same starter menu, two therapists, a room per treatment, its Google
- * Maps hours, and appointment times for the coming weeks. The spa can change all of it later.
+ * Maps hours, appointment times for the coming weeks, and a place in every active Nirvana
+ * package. The spa can change all of it later.
  */
 @Service
 @RequiredArgsConstructor
@@ -181,6 +182,8 @@ public class LeadOnboardingService {
                     VALUES (?,?,?,?,?,?,?,1,0,0,'OPEN',0)""", slots);
             slotCount += slots.size();
         }
+        // Guests holding a Nirvana package can use it here, like at every other live spa.
+        jdbc.update("INSERT IGNORE INTO service_package_spa (package_id, spa_id) SELECT id, ? FROM packages WHERE is_active=1", spaId);
         markOnboarded(leadId, spaId, adminId, now, null);
         return new Outcome(Kind.CREATED, spaId, name, slotCount);
     }
