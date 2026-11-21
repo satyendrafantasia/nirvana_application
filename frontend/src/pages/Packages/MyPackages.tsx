@@ -24,6 +24,14 @@ export default function MyPackages() {
         Your sessions and purchase status. Select “Use an eligible package I already own” at booking
         checkout to redeem a session.
       </p>
+      <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <Link className="underline" to="/features/package-history">
+          Sessions you have used
+        </Link>
+        <Link className="underline" to="/features/spa-packages">
+          Packages bought from a single spa
+        </Link>
+      </p>
       {owned.isLoading && <p>Loading your packages…</p>}
       {(owned.isError || retry.isError) && (
         <p role="alert" className="text-rose-700">

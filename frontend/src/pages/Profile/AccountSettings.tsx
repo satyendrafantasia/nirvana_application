@@ -51,6 +51,18 @@ export default function AccountSettings() {
           <Points account={account.data} />
           <Profile key={account.data.id} account={account.data} />
           <Password />
+          <section className="card space-y-2 p-6" aria-labelledby="benefits-heading">
+            <h2 id="benefits-heading" className="text-xl font-semibold">
+              Employer benefits
+            </h2>
+            <p className="text-sm text-slate-600">
+              If your employer offers wellness benefits through Nirvana, you can see them and use
+              your coupons here.
+            </p>
+            <Link className="underline" to="/features/benefits">
+              View corporate benefits
+            </Link>
+          </section>
         </>
       )}
     </div>
