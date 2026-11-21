@@ -168,6 +168,8 @@ public class ListingClaimService {
         var claim = pendingClaim(claimId);
         long spaId = ((Number) claim.get("spa_id")).longValue();
         var spa = spas.findById(spaId).orElseThrow();
+        if (!java.util.Objects.equals(spa.getGooglePlaceId(), claim.get("google_place_id")))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This spa is no longer linked to the claimed listing. Reject the claim instead.");
         spa.setIsActive(true);
         spa.setIsVerified(true);
         spa.setKycStatus(KycStatus.APPROVED);

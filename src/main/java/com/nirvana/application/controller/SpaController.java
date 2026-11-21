@@ -30,6 +30,7 @@ public class SpaController {
 
     private final SpaService spaService;       // your existing write/CRUD service
     private final SpaReadService spaReadService; // new read-oriented service
+    private final com.nirvana.application.security.StaffAccess staffAccess;
 
     @PostMapping
     @Operation(summary = "Create spa", description = "Onboard a new spa location with core profile and contact details.", security = {@SecurityRequirement(name = "bearerAuth")})
@@ -54,7 +55,8 @@ public class SpaController {
             @ApiResponse(responseCode = "404", description = "Spa not found", content = @Content(schema = @Schema(implementation = com.nirvana.application.api.ApiErrorResponse.class)))
     })
     public SpaDetailResponse getSpa(@Parameter(description = "Spa identifier") @PathVariable Long id) {
-        return spaReadService.getSpaDetails(id);
+        // The spa's own staff and admins see everything, including an unpublished spa; guests see the public view.
+        return staffAccess.spa(id) ? spaReadService.getSpaDetails(id) : spaReadService.getPublicSpaDetails(id);
     }
 
     // SPA SERVICES for service list on detail screen

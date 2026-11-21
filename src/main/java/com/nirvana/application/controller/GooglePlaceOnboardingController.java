@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/onboarding/google-places")
 @RequiredArgsConstructor
-@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.staff()")
+// Admins only: an import creates an ownerless spa holding the listing, which would otherwise let any
+// spa owner block a listing's real owner from claiming it. Owners use /api/owner/claims instead.
+@org.springframework.security.access.prepost.PreAuthorize("@staffAccess.admin()")
 public class GooglePlaceOnboardingController {
 
     private final GooglePlaceOnboardingService googlePlaceOnboardingService;

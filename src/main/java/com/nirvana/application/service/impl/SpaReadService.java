@@ -39,10 +39,26 @@ public class SpaReadService {
     private final MediaAssetRepository mediaAssetRepository;
     private final S3Service s3Service;
 
+    /** The full record, for the spa's own staff and platform admins. */
     @Transactional(readOnly = true)
     public SpaDetailResponse getSpaDetails(Long spaId) {
+        return getSpaDetails(spaId, true);
+    }
+
+    /**
+     * What guests may see: published spas only, without business identifiers, verification
+     * history or commercial terms. An unpublished spa answers "not found" rather than revealing it exists.
+     */
+    @Transactional(readOnly = true)
+    public SpaDetailResponse getPublicSpaDetails(Long spaId) {
+        return getSpaDetails(spaId, false);
+    }
+
+    private SpaDetailResponse getSpaDetails(Long spaId, boolean full) {
         Spa spa = spaRepository.findById(spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + spaId));
+        if (!full && !(Boolean.TRUE.equals(spa.getIsActive()) && Boolean.TRUE.equals(spa.getIsVerified())))
+            throw new EntityNotFoundException("Spa not found: " + spaId);
 
         Address a = spa.getAddress();
 
@@ -109,25 +125,25 @@ public class SpaReadService {
                 spa.getFacebookUrl(),
                 spa.getInstagramUrl(),
 
-                spa.getGstin(),
-                spa.getBusinessRegistrationNumber(),
-                spa.getOwnerName(),
-                spa.getKycStatus(),
-                spa.getKycRequestedAt(),
-                spa.getKycApprovedAt(),
-                spa.getKycRejectedAt(),
-                spa.getKycRejectedReason(),
+                full ? spa.getGstin() : null,
+                full ? spa.getBusinessRegistrationNumber() : null,
+                full ? spa.getOwnerName() : null,
+                full ? spa.getKycStatus() : null,
+                full ? spa.getKycRequestedAt() : null,
+                full ? spa.getKycApprovedAt() : null,
+                full ? spa.getKycRejectedAt() : null,
+                full ? spa.getKycRejectedReason() : null,
                 spa.getIsActive(),
                 spa.getIsVerified(),
                 spa.getIsFeatured(),
 
                 spa.getRatingAvg(),
                 spa.getRatingCount(),
-                spa.getTotalBookings(),
+                full ? spa.getTotalBookings() : null,
 
                 spa.getDefaultCurrency(),
                 spa.getTaxPercent(),
-                spa.getCommissionPct(),
+                full ? spa.getCommissionPct() : null,
                 spa.getMaxConcurrentServices(),
                 spa.getMaxAdvanceBookingDays(),
                 spa.getMinNoticeMinutes(),

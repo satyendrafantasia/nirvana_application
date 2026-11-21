@@ -1170,23 +1170,6 @@
             "$ref": "#/components/schemas/CreateOrUpdateSpaPackageRequest"
           },
           "multipart": false
-        },
-        {
-          "title": "Import Google place",
-          "method": "POST",
-          "path": "/api/onboarding/google-places/{placeId}",
-          "parameters": [
-            {
-              "name": "placeId",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string"
-              }
-            }
-          ],
-          "body": null,
-          "multipart": false
         }
       ]
     },
@@ -1630,6 +1613,23 @@
             {
               "name": "reason",
               "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "body": null,
+          "multipart": false
+        },
+        {
+          "title": "Import Google place",
+          "method": "POST",
+          "path": "/api/onboarding/google-places/{placeId}",
+          "parameters": [
+            {
+              "name": "placeId",
+              "in": "path",
               "required": true,
               "schema": {
                 "type": "string"

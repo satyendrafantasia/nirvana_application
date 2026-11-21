@@ -59,7 +59,15 @@ public class ListingClaimPhoneService {
         if (!smsProperties.isEnabled() && !logCodes)
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Text messages are not available right now. Submit without verifying and our team will call the spa.");
+        // Text only spas that can still be claimed, so this cannot be used to message any business on Google.
+        Long listed = jdbc.queryForObject("SELECT COUNT(*) FROM spa WHERE google_place_id=?", Long.class, placeId);
+        if (listed > 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This spa is already on Nirvana or has a claim under review. If it is yours, contact partner support.");
         JsonNode place = places.claimDetails(placeId);
+        if (!SpaPlaceFilter.isSpa(place))
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Google Maps does not list this business as a spa. Create your spa from scratch instead.");
         String display = place.path("internationalPhoneNumber").asText("");
         String phone = e164(display);
         if (phone == null)

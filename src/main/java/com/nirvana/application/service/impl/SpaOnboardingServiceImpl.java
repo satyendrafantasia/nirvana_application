@@ -58,10 +58,11 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
 
         if (request.getAddress() != null) {
             spa.setAddress(normalizeAddress(request.getAddress()));
-            if (spa.getAddress() != null) {
-                if (spa.getAddress().getTimezone() != null) spa.setTimezone(spa.getAddress().getTimezone());
-                spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
+            if (spa.getAddress() != null && spa.getAddress().getTimezone() != null) {
+                spa.setTimezone(spa.getAddress().getTimezone());
             }
+            // The Google Place link is never taken from the owner's request: it comes only from an
+            // approved listing claim or an administrator, so no one can attach a spa to another's listing.
         }
 
         if (spa.getTimezone() == null || spa.getTimezone().isBlank()) spa.setTimezone("Asia/Kolkata");
@@ -121,10 +122,9 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
 
         spa.setAddress(normalizeAddress(addressDto));
 
-        // keep timezone column in sync if you really need the separate field
-        if (spa.getAddress() != null) {
-            if (spa.getAddress().getTimezone() != null) spa.setTimezone(spa.getAddress().getTimezone());
-            spa.setGooglePlaceId(spa.getAddress().getGooglePlaceId());
+        // Keep the timezone column in sync. The Google Place link is not owner-editable.
+        if (spa.getAddress() != null && spa.getAddress().getTimezone() != null) {
+            spa.setTimezone(spa.getAddress().getTimezone());
         }
 
         Spa saved = spaRepository.save(spa);
