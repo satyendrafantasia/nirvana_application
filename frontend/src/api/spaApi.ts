@@ -37,6 +37,14 @@ export const searchSpas = async (params: Record<string, string | number | undefi
   const { data } = await client.get<{ content: SpaWire[] }>('/api/spas/search', { params });
   return data.content.map(spaView);
 };
+/** One page of search results, with the total so the page can offer more. */
+export const searchSpasPage = async (params: Record<string, string | number | undefined>) => {
+  const { data } = await client.get<{ content: SpaWire[]; page: number; totalElements: number; totalPages: number }>(
+    '/api/spas/search',
+    { params }
+  );
+  return { spas: data.content.map(spaView), page: data.page, total: data.totalElements, totalPages: data.totalPages };
+};
 export const getSpaDetails = async (id: string) =>
   spaView((await client.get<SpaWire>(`/api/spas/${id}`)).data);
 export const getSpaServices = async (id: string): Promise<Service[]> => {

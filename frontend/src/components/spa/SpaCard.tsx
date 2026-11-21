@@ -35,7 +35,8 @@ export function SpaCardLayout({ cover, name, address, rating, count, children }:
 
 const SpaCard = ({ spa }: SpaCardProps) => {
   return (
-    <SpaCardLayout name={spa.name} address={spa.address} rating={spa.rating} count={spa.reviewCount}
+    // No reviews yet: show no stars rather than "0.0".
+    <SpaCardLayout name={spa.name} address={spa.address} rating={spa.reviewCount ? spa.rating : undefined} count={spa.reviewCount}
       cover={<img
           src={
             spa.coverImage ||
