@@ -60,6 +60,12 @@ describe('listing claim review', () => {
     expect(html).toContain('Reject');
     expect(html).toContain('call the number shown on the Google listing');
   });
+  it('marks whether the listing phone was verified by text', () => {
+    expect(render(<ClaimCard claim={claim} />)).toContain('Phone not verified');
+    const verified = render(<ClaimCard claim={{ ...claim, phoneVerifiedAt: '2026-11-20T10:05:00Z' }} />);
+    expect(verified).toContain('Listing phone verified by text');
+    expect(verified).not.toContain('call the number shown');
+  });
   it('shows the outcome instead of actions once reviewed', () => {
     const html = render(
       <ClaimCard claim={{ ...claim, status: 'REJECTED', reviewNote: 'Could not reach the spa', reviewedAt: '2026-11-21T10:00:00Z' }} />

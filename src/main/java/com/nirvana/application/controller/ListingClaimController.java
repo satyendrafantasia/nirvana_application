@@ -24,6 +24,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ListingClaimController {
     private final ListingClaimService claims;
+    private final com.nirvana.application.service.ListingClaimPhoneService phoneChecks;
 
     public record SearchRequest(@NotBlank @Size(min = 2, max = 200) String query,
                                 @NotBlank @Pattern(regexp = "[A-Za-z]{2}") String countryCode) {}
@@ -41,6 +42,23 @@ public class ListingClaimController {
     public ResponseEntity<Map<String, Object>> prefill(@PathVariable String placeId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
         return live(claims.prefill(placeId));
+    }
+
+    public record VerifyCodeRequest(@NotBlank @Size(max = 64) String verificationId,
+                                    @NotBlank @Pattern(regexp = "\\d{6}", message = "Enter the 6-digit code") String code) {}
+
+    /** Texts a code to the phone number on the Google listing, not one the owner typed. */
+    @PostMapping("/api/owner/claims/places/{placeId}/phone-code")
+    @PreAuthorize("@staffAccess.staff()")
+    public Map<String, Object> sendPhoneCode(@PathVariable String placeId) {
+        if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
+        return phoneChecks.send(SecurityUtils.getCurrentUserId(), placeId);
+    }
+
+    @PostMapping("/api/owner/claims/phone-code/verify")
+    @PreAuthorize("@staffAccess.staff()")
+    public Map<String, Object> verifyPhoneCode(@Valid @RequestBody VerifyCodeRequest request) {
+        return phoneChecks.verify(SecurityUtils.getCurrentUserId(), request.verificationId(), request.code());
     }
 
     @PostMapping("/api/owner/claims")

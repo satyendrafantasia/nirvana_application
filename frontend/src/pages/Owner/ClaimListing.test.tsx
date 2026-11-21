@@ -5,7 +5,7 @@ import { StaticRouter } from 'react-router-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '../../contexts/AuthContext';
 import OwnerPortal from './OwnerPortal';
-import { ClaimDetails, ClaimSearch, ClaimSubmitted, type ClaimForm } from './ClaimListing';
+import { ClaimDetails, ClaimSearch, ClaimSubmitted, PhoneCheck, type ClaimForm } from './ClaimListing';
 import { claimUrl } from '../../components/spa/SpaProfile';
 
 function render(node: React.ReactNode, location = '/owner/claim') {
@@ -67,6 +67,25 @@ describe('claiming a Google listing', () => {
     expect(html).toContain('query=12.97,77.59');
     // Submitting stays disabled until the declaration is ticked.
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+  });
+  it('asks the owner to verify the listing phone before submitting', () => {
+    const html = render(<ClaimDetails initial={form} onBack={() => {}} onDone={() => {}} />);
+    expect(html).toContain('Verify you manage this spa');
+    expect(html).toContain('Text me a code');
+    expect(html).toContain('not the one you');
+    expect(html).toContain('I can’t get texts on that number');
+  });
+  it('lets an owner whose listing has no phone submit without a code', () => {
+    const html = render(
+      <ClaimDetails initial={{ ...form, listingHasPhone: false }} onBack={() => {}} onDone={() => {}} />
+    );
+    expect(html).toContain('has no phone number we can text');
+    expect(html).not.toContain('Text me a code');
+  });
+  it('shows a verified phone and the skip path', () => {
+    const props = { placeId: 'p', hasPhone: true, onVerified: () => {}, onSkip: () => {} };
+    expect(render(<PhoneCheck {...props} skipped={false} verifiedId="v1" />)).toContain('Phone verified');
+    expect(render(<PhoneCheck {...props} skipped />)).toContain('Our team will call the number');
   });
   it('tells the owner what happens next', () => {
     const html = render(<ClaimSubmitted spaId={42} />);

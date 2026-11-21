@@ -32,7 +32,134 @@ export type ClaimForm = {
   ownerName?: string;
   termsVersion: string;
   declaration?: string;
+  /** Whether Google lists a number we can text; never sent back. */
+  listingHasPhone?: boolean;
 };
+
+type CodeSent = { verificationId: string; phone: string; expiresInMinutes: number };
+
+/** Texts a code to the phone on the Google listing to show the owner can answer it. */
+export function PhoneCheck({
+  placeId,
+  hasPhone,
+  verifiedId,
+  skipped,
+  onVerified,
+  onSkip
+}: {
+  placeId: string;
+  hasPhone: boolean;
+  verifiedId?: string;
+  skipped: boolean;
+  onVerified: (verificationId: string) => void;
+  onSkip: (skip: boolean) => void;
+}) {
+  const [sent, setSent] = useState<CodeSent>();
+  const [code, setCode] = useState('');
+  const send = useMutation({
+    mutationFn: async () =>
+      (
+        await client.post<CodeSent>(
+          `/api/owner/claims/places/${encodeURIComponent(placeId)}/phone-code`
+        )
+      ).data,
+    onSuccess: (data) => {
+      setSent(data);
+      setCode('');
+    }
+  });
+  const check = useMutation({
+    mutationFn: async () =>
+      client.post('/api/owner/claims/phone-code/verify', {
+        verificationId: sent!.verificationId,
+        code
+      }),
+    onSuccess: () => onVerified(sent!.verificationId)
+  });
+  if (verifiedId)
+    return (
+      <p className="rounded-xl bg-green-50 p-4 text-green-900" role="status">
+        ✓ Phone verified. We will show the review team that you answered the number on your Google
+        listing.
+      </p>
+    );
+  if (!hasPhone)
+    return (
+      <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+        Your Google listing has no phone number we can text, so our team will contact you to confirm
+        you manage this spa.
+      </p>
+    );
+  if (skipped)
+    return (
+      <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+        <p>
+          Our team will call the number on your Google listing to confirm you manage this spa.
+          Review may take longer this way.
+        </p>
+        <button type="button" className="underline" onClick={() => onSkip(false)}>
+          Verify by text message instead
+        </button>
+      </div>
+    );
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <p>
+        We will text a 6-digit code to the phone number on your Google listing — not the one you
+        typed above. This shows our team that you can answer the spa’s phone.
+      </p>
+      {sent && (
+        <div className="space-y-3">
+          <p role="status" className="text-sm text-slate-700">
+            Code sent to <strong>{sent.phone}</strong>. It expires in {sent.expiresInMinutes}{' '}
+            minutes.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-40">
+              <Input
+                label="Code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+            <Button
+              type="button"
+              disabled={code.length !== 6 || check.isPending}
+              onClick={() => check.mutate()}
+            >
+              {check.isPending ? 'Checking…' : 'Verify'}
+            </Button>
+          </div>
+        </div>
+      )}
+      {(send.isError || check.isError) && (
+        <p role="alert" className="text-rose-700">
+          {errorMessage(check.error || send.error)}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant={sent ? 'secondary' : 'primary'}
+          disabled={send.isPending}
+          onClick={() => {
+            check.reset();
+            send.mutate();
+          }}
+        >
+          {send.isPending ? 'Sending…' : sent ? 'Send a new code' : 'Text me a code'}
+        </Button>
+        <button type="button" className="text-sm underline" onClick={() => onSkip(true)}>
+          I can’t get texts on that number
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const countries = [
   ['IN', 'India'],
@@ -180,13 +307,21 @@ export function ClaimDetails({
   const qc = useQueryClient();
   const [form, setForm] = useState<ClaimForm>(initial);
   const [authorised, setAuthorised] = useState(false);
+  const [phoneVerificationId, setPhoneVerificationId] = useState<string>();
+  const [skipPhone, setSkipPhone] = useState(false);
+  const hasPhone = initial.listingHasPhone !== false;
+  const phoneSettled = !!phoneVerificationId || skipPhone || !hasPhone;
   const set = (key: keyof ClaimForm) => (e: { target: { value: string } }) =>
     setForm({ ...form, [key]: e.target.value });
   const submit = useMutation({
     mutationFn: async () => {
-      const { declaration: _shown, ...body } = form;
+      const { declaration: _shown, listingHasPhone: _has, ...body } = form;
       return (
-        await client.post<{ spaId: number }>('/api/owner/claims', { ...body, authorised })
+        await client.post<{ spaId: number }>('/api/owner/claims', {
+          ...body,
+          authorised,
+          phoneVerificationId
+        })
       ).data;
     },
     onSuccess: (data) => {
@@ -282,6 +417,17 @@ export function ClaimDetails({
           )}
         </p>
       </fieldset>
+      <fieldset className="space-y-3">
+        <legend className="mb-2 text-lg font-semibold">Verify you manage this spa</legend>
+        <PhoneCheck
+          placeId={form.placeId}
+          hasPhone={hasPhone}
+          verifiedId={phoneVerificationId}
+          skipped={skipPhone}
+          onVerified={setPhoneVerificationId}
+          onSkip={setSkipPhone}
+        />
+      </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-2 text-lg font-semibold">You</legend>
         <Input
@@ -314,11 +460,16 @@ export function ClaimDetails({
           {errorMessage(submit.error)}
         </p>
       )}
+      {!phoneSettled && (
+        <p className="text-sm text-slate-600">
+          Verify your phone above, or choose “I can’t get texts on that number”, to submit.
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" onClick={onBack} disabled={submit.isPending}>
           Back to search
         </Button>
-        <Button type="submit" disabled={submit.isPending || !authorised}>
+        <Button type="submit" disabled={submit.isPending || !authorised || !phoneSettled}>
           {submit.isPending ? 'Submitting…' : 'Submit claim for review'}
         </Button>
       </div>

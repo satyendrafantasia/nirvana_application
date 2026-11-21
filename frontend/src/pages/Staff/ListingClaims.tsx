@@ -26,6 +26,7 @@ export type Claim = {
   reviewNote?: string;
   reviewedAt?: string;
   kycStatus?: string;
+  phoneVerifiedAt?: string;
 };
 
 const statuses = [
@@ -75,6 +76,15 @@ export function ClaimCard({ claim }: { claim: Claim }) {
           <p className="text-sm text-slate-600">
             Spa #{claim.spaId} · claimed {when(claim.consentedAt)}
           </p>
+          {claim.phoneVerifiedAt ? (
+            <span className="mt-2 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-900">
+              ✓ Listing phone verified by text
+            </span>
+          ) : (
+            <span className="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+              Phone not verified
+            </span>
+          )}
         </div>
         <a
           className="rounded-xl border px-3 py-2 text-sm underline"
@@ -108,8 +118,9 @@ export function ClaimCard({ claim }: { claim: Claim }) {
       {claim.status === 'PENDING' && (
         <div className="space-y-3 border-t pt-4">
           <p className="text-sm text-slate-600">
-            Before approving, call the number shown on the Google listing — not the one submitted —
-            and confirm that {claim.ownerName || 'the owner'} manages this spa.
+            {claim.phoneVerifiedAt
+              ? `The claimant entered a code texted to the phone on the Google listing (${when(claim.phoneVerifiedAt)}). Check the details match the listing before approving.`
+              : `Before approving, call the number shown on the Google listing — not the one submitted — and confirm that ${claim.ownerName || 'the owner'} manages this spa.`}
           </p>
           {rejecting ? (
             <form

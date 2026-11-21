@@ -32,6 +32,7 @@ public class ListingClaimService {
     static final int MAX_PENDING_CLAIMS = 5;
 
     private final CityPlacesClient places;
+    private final ListingClaimPhoneService phoneChecks;
     private final SpaOnboardingService onboarding;
     private final SpaRepository spas;
     private final JdbcTemplate jdbc;
@@ -54,7 +55,9 @@ public class ListingClaimService {
             @NotBlank @Size(max = 64) String timezone,
             @NotBlank @Size(max = 200) String ownerName,
             @AssertTrue(message = "Confirm that you are authorised to list this spa") boolean authorised,
-            @NotBlank String termsVersion) {}
+            @NotBlank String termsVersion,
+            /** From verifying the listing's phone by SMS; absent when the owner skipped it. */
+            @Size(max = 64) String phoneVerificationId) {}
 
     /** Spa listings on Google matching the owner's search, each marked if it is already on Nirvana. */
     public List<Map<String, Object>> search(String query, String country) {
@@ -86,6 +89,7 @@ public class ListingClaimService {
         form.put("placeId", placeId);
         form.put("name", place.path("displayName").path("text").asText(""));
         form.put("phone", place.path("internationalPhoneNumber").asText(""));
+        form.put("listingHasPhone", ListingClaimPhoneService.e164(place.path("internationalPhoneNumber").asText("")) != null);
         form.put("websiteUrl", place.path("websiteUri").asText(""));
         form.put("description", place.path("editorialSummary").path("text").asText(""));
         form.put("addressLine", place.path("formattedAddress").asText(""));
@@ -121,6 +125,8 @@ public class ListingClaimService {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "You have " + pending + " claims waiting for review. Please wait for those to be reviewed.");
         // The listing must be a real spa on Google; checked live, not trusted from the browser.
         if (!SpaPlaceFilter.isSpa(places.claimDetails(request.placeId()))) throw notSpa();
+        String phoneCheck = trim(request.phoneVerificationId());
+        java.time.LocalDateTime phoneVerifiedAt = phoneCheck == null ? null : phoneChecks.consume(userId, request.placeId(), phoneCheck);
 
         AddressDTO address = AddressDTO.builder()
                 .addressLine(trim(request.addressLine())).locality(trim(request.locality())).city(trim(request.city()))
@@ -139,10 +145,10 @@ public class ListingClaimService {
         spa.setKycRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
         spas.saveAndFlush(spa);
 
-        jdbc.update("INSERT INTO spa_listing_claim (spa_id,user_id,google_place_id,terms_version,declaration,consented_at,client_ip,user_agent,status) VALUES (?,?,?,?,?,?,?,?,'PENDING')",
+        jdbc.update("INSERT INTO spa_listing_claim (spa_id,user_id,google_place_id,terms_version,declaration,consented_at,phone_verified_at,phone_verification_id,client_ip,user_agent,status) VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING')",
                 spa.getId(), userId, request.placeId(), TERMS_VERSION, DECLARATION,
-                OffsetDateTime.now(ZoneOffset.UTC), cut(clientIp, 64), cut(userAgent, 255));
-        return Map.of("spaId", spa.getId(), "name", spa.getName(), "status", "PENDING");
+                OffsetDateTime.now(ZoneOffset.UTC), phoneVerifiedAt, phoneCheck, cut(clientIp, 64), cut(userAgent, 255));
+        return Map.of("spaId", spa.getId(), "name", spa.getName(), "status", "PENDING", "phoneVerified", phoneVerifiedAt != null);
     }
 
     /** Claims for the review queue, newest first. */
@@ -151,7 +157,7 @@ public class ListingClaimService {
                 SELECT c.id, c.spa_id AS spaId, s.name AS spaName, s.city, c.google_place_id AS placeId,
                        c.status, c.consented_at AS consentedAt, c.terms_version AS termsVersion,
                        u.email AS ownerEmail, s.owner_name AS ownerName, c.review_note AS reviewNote,
-                       c.reviewed_at AS reviewedAt, s.phone, s.email AS spaEmail, s.website_url AS websiteUrl,
+                       c.reviewed_at AS reviewedAt, c.phone_verified_at AS phoneVerifiedAt, s.phone, s.email AS spaEmail, s.website_url AS websiteUrl,
                        s.address_line1 AS addressLine, s.state, s.postal_code AS postalCode, s.kyc_status AS kycStatus
                 FROM spa_listing_claim c JOIN spa s ON s.id=c.spa_id JOIN app_user u ON u.id=c.user_id
                 WHERE c.status=? ORDER BY c.consented_at DESC LIMIT 200""", status);
