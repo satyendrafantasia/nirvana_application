@@ -11,12 +11,13 @@ public final class SpaAddressSpecifications {
 
     /** Cities known by two names; Google Maps and guests use either. */
     private static final java.util.List<java.util.Set<String>> CITY_NAMES = java.util.List.of(
-            java.util.Set.of("gurgaon", "gurugram"), java.util.Set.of("bangalore", "bengaluru"),
+            java.util.Set.of("gurgaon", "gurugram"), java.util.Set.of("delhi", "new delhi"),
+            java.util.Set.of("bangalore", "bengaluru"),
             java.util.Set.of("bombay", "mumbai"), java.util.Set.of("calcutta", "kolkata"),
             java.util.Set.of("madras", "chennai"), java.util.Set.of("poona", "pune"),
             java.util.Set.of("mysore", "mysuru"), java.util.Set.of("trivandrum", "thiruvananthapuram"));
 
-    static java.util.Set<String> cityNames(String city) {
+    public static java.util.Set<String> cityNames(String city) {
         String name = city.strip().toLowerCase(java.util.Locale.ROOT);
         return CITY_NAMES.stream().filter(names -> names.contains(name)).findFirst().orElse(java.util.Set.of(name));
     }

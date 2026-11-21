@@ -117,6 +117,13 @@ class LeadOnboardingTest {
             assertTrue(search.searchSpas(city, null, null, null, "Onboard Test Spa", null, null, null, null, null, null, null, null,
                             null, null, null, "name_asc", 0, 10).content().stream().anyMatch(s -> s.id().equals(spaId)), city);
 
+        assertEquals(java.util.Set.of("delhi", "new delhi"),
+                com.nirvana.application.repository.spec.SpaAddressSpecifications.cityNames(" New Delhi "));
+        assertEquals(java.util.Set.of("pune", "poona"),
+                com.nirvana.application.repository.spec.SpaAddressSpecifications.cityNames("Pune"));
+        assertEquals(java.util.Set.of("lucknow"),
+                com.nirvana.application.repository.spec.SpaAddressSpecifications.cityNames("Lucknow"));
+
         // A lead without hours gets 10 AM–10 PM every day.
         long other = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, noHours);
         assertEquals(7, jdbc.queryForObject("SELECT COUNT(*) FROM schedule_rule WHERE spa_id=?", Integer.class, other));
