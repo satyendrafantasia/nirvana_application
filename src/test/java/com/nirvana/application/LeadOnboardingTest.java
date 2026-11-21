@@ -134,6 +134,24 @@ class LeadOnboardingTest {
         // Its website was a search link too long for the spa's field: onboarded without it.
         assertNull(jdbc.queryForObject("SELECT website_url FROM spa WHERE id=?", String.class, other));
 
+        // Running out of appointment times: the top-up refills the booking window from the spa's hours.
+        jdbc.update("UPDATE spa SET max_advance_booking_days=21 WHERE id=?", spaId);
+        String lastDay = "SELECT DATE(CONVERT_TZ(MAX(start_ts),'+00:00','+05:30')) FROM slot WHERE spa_id=?";
+        java.time.LocalDate cut = from.plusDays(6);
+        jdbc.update("DELETE FROM generated_room_slot WHERE room_id IN (SELECT id FROM spa_room WHERE spa_id=?) AND DATE(original_start) > ?", spaId, cut);
+        jdbc.update("DELETE FROM slot WHERE spa_id=? AND DATE(CONVERT_TZ(start_ts,'+00:00','+05:30')) > ?", spaId, cut);
+        assertEquals(cut, jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId));
+        assertTrue(onboarding.topUpSlots() > 0);
+        assertEquals(from.minusDays(1).plusDays(20), jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId),
+                "times through the last day of the 21-day booking window");
+        var later = availability.getAvailableSlotsForServiceRange(spaId, serviceId, cut.plusDays(1), 7, 1);
+        assertEquals(72, later.days().stream().mapToInt(d -> d.slots().size()).sum(), "same weekly pattern, Wednesday still closed");
+        assertEquals(0, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM (SELECT room_id, start_ts FROM slot WHERE spa_id=? GROUP BY room_id, start_ts HAVING COUNT(*) > 1) d""", Integer.class, spaId));
+        long before = jdbc.queryForObject("SELECT COUNT(*) FROM slot WHERE spa_id=?", Long.class, spaId);
+        onboarding.topUpSlots();
+        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM slot WHERE spa_id=?", Long.class, spaId), "a second run adds nothing");
+
         // Onboarding again changes nothing.
         var again = onboarding.onboard(List.of(withHours), 14, admin());
         assertEquals(0, again.onboarded());

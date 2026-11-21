@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
  */
 @Service
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class LeadOnboardingService {
     static final ZoneId ZONE = ZoneId.of("Asia/Kolkata");
     static final int MAX_DAYS = 60;
@@ -187,6 +188,69 @@ public class LeadOnboardingService {
         jdbc.update("INSERT IGNORE INTO service_package_spa (package_id, spa_id) SELECT id, ? FROM packages WHERE is_active=1", spaId);
         markOnboarded(leadId, spaId, adminId, now, null);
         return new Outcome(Kind.CREATED, spaId, name, slotCount);
+    }
+
+    /**
+     * Keeps every spa onboarded from a lead bookable: adds appointment times so each treatment
+     * room has them through the spa's booking window (its max advance days), using the spa's
+     * current weekly hours. Only days after a room's last appointment are added, and a time the
+     * owner's slot tool already made is skipped, so running it again adds nothing.
+     */
+    public long topUpSlots() {
+        long added = 0;
+        for (Long spaId : jdbc.queryForList("""
+                SELECT DISTINCT s.id FROM spa s JOIN spa_lead l ON l.spa_id=s.id
+                WHERE l.status='ONBOARDED' AND s.is_active=1 ORDER BY s.id""", Long.class)) {
+            try {
+                added += Objects.requireNonNull(tx.execute(status -> topUpSpa(spaId)));
+            } catch (RuntimeException e) {
+                log.warn("Could not add appointment times for spa {}: {}", spaId, e.getMessage());
+            }
+        }
+        return added;
+    }
+
+    private long topUpSpa(long spaId) {
+        Integer window = jdbc.queryForObject("SELECT max_advance_booking_days FROM spa WHERE id=?", Integer.class, spaId);
+        int days = Math.min(window == null || window < 1 ? 30 : window, MAX_DAYS);
+        Map<DayOfWeek, LeadHours.Day> week = new EnumMap<>(DayOfWeek.class);
+        for (var rule : jdbc.queryForList("SELECT weekday, open_local, close_local FROM schedule_rule WHERE spa_id=? AND is_holiday=0", spaId)) {
+            LocalTime open = ((java.sql.Time) rule.get("open_local")).toLocalTime(), close = ((java.sql.Time) rule.get("close_local")).toLocalTime();
+            week.put(DayOfWeek.of(((Number) rule.get("weekday")).intValue()),
+                    new LeadHours.Day(open, close, open.equals(LocalTime.MIDNIGHT) && close.equals(LocalTime.MIDNIGHT)));
+        }
+        if (week.isEmpty()) return 0;
+        LocalDate today = LocalDate.now(ZONE);
+        OffsetDateTime earliest = OffsetDateTime.now(ZONE).plusMinutes(60);
+        Timestamp stamp = utc(OffsetDateTime.now());
+        long added = 0;
+        // Each treatment keeps the room it was given at onboarding.
+        for (var room : jdbc.queryForList("""
+                SELECT sl.service_id, sl.room_id, sv.duration_min, MAX(sl.start_ts) last_start
+                FROM slot sl JOIN service sv ON sv.id=sl.service_id AND sv.is_active=1
+                             JOIN spa_room r ON r.id=sl.room_id AND r.is_active=1
+                WHERE sl.spa_id=? GROUP BY sl.service_id, sl.room_id, sv.duration_min""", spaId)) {
+            long serviceId = ((Number) room.get("service_id")).longValue(), roomId = ((Number) room.get("room_id")).longValue();
+            int minutes = ((Number) room.get("duration_min")).intValue();
+            LocalDate lastDay = ((Timestamp) room.get("last_start")).toLocalDateTime().atOffset(ZoneOffset.UTC).atZoneSameInstant(ZONE).toLocalDate();
+            List<Object[]> slots = new ArrayList<>();
+            for (LocalDate date = lastDay.isBefore(today) ? today : lastDay.plusDays(1); date.isBefore(today.plusDays(days)); date = date.plusDays(1)) {
+                LeadHours.Day hours = week.get(date.getDayOfWeek());
+                if (hours == null) continue;
+                for (LocalTime start : hours.slotStarts(minutes)) {
+                    OffsetDateTime at = date.atTime(start).atZone(ZONE).toOffsetDateTime();
+                    if (at.isBefore(earliest)) continue;
+                    // Claim the time first; one the owner's slot tool already made is left alone.
+                    if (jdbc.update("INSERT IGNORE INTO generated_room_slot VALUES (?,?)", roomId, Timestamp.from(at.toInstant())) == 0) continue;
+                    slots.add(new Object[]{stamp, stamp, spaId, serviceId, roomId, utc(at), utc(at.plusMinutes(minutes))});
+                }
+            }
+            jdbc.batchUpdate("""
+                    INSERT INTO slot (created_at,updated_at,spa_id,service_id,room_id,start_ts,end_ts,capacity_unit,booked_units,is_blocked,status,version)
+                    VALUES (?,?,?,?,?,?,?,1,0,0,'OPEN',0)""", slots);
+            added += slots.size();
+        }
+        return added;
     }
 
     private void markOnboarded(long leadId, long spaId, Long adminId, LocalDateTime now, String note) {
