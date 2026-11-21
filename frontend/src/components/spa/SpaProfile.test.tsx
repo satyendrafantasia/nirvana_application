@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SpaProfile, { SpaPackages, directionsUrl, embedUrl } from './SpaProfile';
 import { placeProfile } from '../../pages/Discovery/PlacePage';
 import { spaProfile } from '../../pages/SpaDetails/SpaDetails';
+import { AuthContext } from '../../contexts/AuthContext';
 
 const render = (node: React.ReactNode) =>
   renderToStaticMarkup(<StaticRouter location="/discover/places/abc">{node}</StaticRouter>);
@@ -25,8 +26,15 @@ const place = {
   reviews: [{ name: 'places/x/reviews/1', rating: 5, text: { text: 'Wonderful massage.' } }]
 };
 
+const auth = (signedIn: boolean) =>
+  ({
+    user: signedIn ? { id: '1', email: 'guest@example.test' } : null,
+    token: null,
+    isLoading: false
+  }) as unknown as React.ContextType<typeof AuthContext>;
+
 describe('spa page packages', () => {
-  const renderPackages = (spaPackages: unknown[]) => {
+  const renderPackages = (spaPackages: unknown[], signedIn = true) => {
     const qc = new QueryClient();
     qc.setQueryData(['spa', '7'], { id: '7', name: 'Lotus Day Spa', defaultCurrency: 'INR' });
     qc.setQueryData(['spa-packages', '7'], spaPackages);
@@ -50,12 +58,21 @@ describe('spa page packages', () => {
     );
     return renderToStaticMarkup(
       <QueryClientProvider client={qc}>
-        <StaticRouter location="/spas/7">
-          <SpaPackages spaId="7" />
-        </StaticRouter>
+        <AuthContext.Provider value={auth(signedIn)}>
+          <StaticRouter location="/spas/7">
+            <SpaPackages spaId="7" />
+          </StaticRouter>
+        </AuthContext.Provider>
       </QueryClientProvider>
     );
   };
+  it('lets signed-out guests see packages, and asks them to sign in to buy', () => {
+    const out = renderPackages([{ id: 1, level: 'GOLD', price: 3999, freeSessionsCount: 6 }], false);
+    expect(out).toContain('gold package');
+    expect(out).toContain('Sign in to buy');
+    expect(out).not.toContain('Buy package');
+    expect(renderPackages([{ id: 1, level: 'GOLD', price: 3999, freeSessionsCount: 6 }])).toContain('Buy package');
+  });
   it("keeps the spa's own packages and Nirvana's in separate, labelled tabs", () => {
     const html = renderPackages([{ id: 1, level: 'GOLD', price: 3999, freeSessionsCount: 6 }]);
     expect(html).toContain('role="tablist"');

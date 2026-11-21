@@ -76,6 +76,20 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/login/oauth2/**"
                         ).permitAll()
+                        // Guests browse without an account: search, published spa pages, their
+                        // treatments, reviews, Google photos, packages and FAQs. Booking and buying
+                        // still need sign-in.
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/spas/search",
+                                "/api/spas/{id:\\d+}",
+                                "/api/spas/{id:\\d+}/services",
+                                "/api/spas/{id:\\d+}/reviews",
+                                "/api/spas/{id:\\d+}/google-photos",
+                                "/api/spas/{id:\\d+}/google-photos/{photoId}/image",
+                                "/api/packages/catalog",
+                                "/api/v1/spa/{id:\\d+}/packages/available",
+                                "/api/faqs"
+                        ).permitAll()
                         .requestMatchers("/management/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                         .anyRequest().authenticated()
                 )

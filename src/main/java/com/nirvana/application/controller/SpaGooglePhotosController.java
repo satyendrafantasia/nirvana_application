@@ -7,18 +7,16 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * The Google Maps photo list for a published spa that has none of its own, fetched live each time
- * and never stored, as Google's terms require. Images then load through the discovery photo
- * endpoint. The Place ID comes from the spa record, not the caller.
+ * The Google Maps photos of a published spa that has none of its own, fetched live each time and
+ * never stored, as Google's terms require. Open to guests, so the Place ID always comes from the
+ * spa record, never the caller: this can't be used to fetch photos of any other place.
  */
 @RestController
 @RequestMapping("/api/spas/{spaId}/google-photos")
-@PreAuthorize("isAuthenticated()")
 @RequiredArgsConstructor
 public class SpaGooglePhotosController {
     private final CityPlacesClient places;
@@ -27,6 +25,12 @@ public class SpaGooglePhotosController {
     @GetMapping
     public ResponseEntity<JsonNode> photos(@PathVariable long spaId) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(places.photos(placeId(spaId)));
+    }
+
+    /** One photo from the list above, as an image. */
+    @GetMapping("/{photoId}/image")
+    public ResponseEntity<byte[]> image(@PathVariable long spaId, @PathVariable String photoId) {
+        return places.photoImage(placeId(spaId), photoId);
     }
 
     private String placeId(long spaId) {

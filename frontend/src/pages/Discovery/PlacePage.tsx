@@ -15,7 +15,13 @@ import {
 } from './PlaceMedia';
 
 /** One photo at a time: each Google photo is a separate paid request. */
-export function PlaceGallery({ place }: { place: GooglePlace }) {
+export function PlaceGallery({
+  place,
+  imagePath
+}: {
+  place: GooglePlace;
+  imagePath?: (photoId: string) => string;
+}) {
   const [index, setIndex] = useState(0);
   const photos = place.photos || [];
   const photo = photos[index];
@@ -23,7 +29,7 @@ export function PlaceGallery({ place }: { place: GooglePlace }) {
     <div aria-label="Spa photos">
       <div className="overflow-hidden rounded-2xl [&_figure]:relative [&_figure]:min-h-64 [&_figure_img]:h-72 [&_figure_img]:max-h-none [&_figure_img]:object-cover sm:[&_figure_img]:h-96">
         {photo ? (
-          <SpaPhoto key={photo.name} photo={photo} place={place} />
+          <SpaPhoto key={photo.name} photo={photo} place={place} imagePath={imagePath} />
         ) : (
           <div className="h-64">
             <PhotoPlaceholder />

@@ -21,7 +21,6 @@ const Home = () => {
     isLoading
   } = useQuery({
     queryKey: ['featured-spas'],
-    enabled: !!user,
     queryFn: async () => searchSpas({ sort: 'featured', size: 6 }),
     staleTime: 1000 * 60 * 5
   });
@@ -75,11 +74,7 @@ const Home = () => {
             featuredSpas.map((spa: Spa) => <SpaCard spa={spa} key={spa.id} />)
           ) : (
             <p className="listing-empty text-sm text-slate-500">
-              {!user ? (
-                <Link to="/auth/login?redirect=/spas">
-                  Sign in to explore spas and live availability.
-                </Link>
-              ) : isError ? (
+              {isError ? (
                 'Spa listings are unavailable. Please retry once the service is connected.'
               ) : isLoading ? (
                 'Loading spas…'

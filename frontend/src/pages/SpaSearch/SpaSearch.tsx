@@ -2,8 +2,9 @@ import { useState } from 'react';
 import CatalogueSearch from '../../components/spa/CatalogueSearch';
 import Discovery from '../Discovery/Discovery';
 import SearchSource, { type SpaSource } from '../../components/spa/SearchSource';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useAuth } from '../../hooks/useAuth';
 import { searchSpasPage } from '../../api/spaApi';
 import SpaCard from '../../components/spa/SpaCard';
 import Button from '../../components/common/Button';
@@ -18,6 +19,7 @@ export function resultsSummary(shown: number, total: number) {
 const SpaSearch = () => {
   const [params, setParams] = useSearchParams();
   const [nearby, setNearby] = useState(false);
+  const { user } = useAuth();
   const source = params.get('source') === 'google' ? 'google' : 'nirvana';
   const switchSource = (next: SpaSource) => {
     const filters = new URLSearchParams(params);
@@ -46,7 +48,19 @@ const SpaSearch = () => {
           <h1 className="text-3xl font-bold">Find your next spa</h1>
           <SearchSource value={source} onChange={(next) => { setNearby(false); switchSource(next); }} />
         </div>
-        {source === 'google' ? <Discovery embedded startNearby={nearby} initialCity={params.get('city') || ''} initialSpaName={params.get('spaName') || ''} /> :
+        {source === 'google' && !user ? (
+          // Google Maps search runs on Nirvana's paid Google quota, so it stays for signed-in guests.
+          <p className="text-sm">
+            <Link className="font-semibold underline" to={`/auth/login?redirect=${encodeURIComponent('/spas?' + params.toString())}`}>
+              Sign in to search Google Maps
+            </Link>{' '}
+            or{' '}
+            <button type="button" className="underline" onClick={() => switchSource('nirvana')}>
+              browse Nirvana spas
+            </button>
+            .
+          </p>
+        ) : source === 'google' ? <Discovery embedded startNearby={nearby} initialCity={params.get('city') || ''} initialSpaName={params.get('spaName') || ''} /> :
           <CatalogueSearch key={params.toString()} params={params} onSearch={setParams}
             onNearby={() => { setNearby(true); switchSource('google'); }} />}
       </div>

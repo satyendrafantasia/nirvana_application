@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import routes from '../../routes/AppRouter.tsx?raw';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import SpaCard from '../../components/spa/SpaCard';
@@ -10,6 +11,11 @@ describe('spa search', () => {
     expect(resultsSummary(163, 163)).toBe('163 spas');
     expect(resultsSummary(1, 1)).toBe('1 spa');
     expect(PAGE_SIZE).toBeGreaterThan(10);
+  });
+  it('lets anyone open search and spa pages, but not booking', () => {
+    expect(routes).toContain('<Route path="/spas" element={<SpaSearch />} />');
+    expect(routes).toContain('<Route path="/spas/:spaId" element={<SpaDetails />} />');
+    expect(routes).toMatch(/path="\/booking\/\*"[\s\S]*?<RequireAuth/);
   });
   it('shows no stars for a spa without reviews', () => {
     const card = (rating: number, reviewCount: number) =>

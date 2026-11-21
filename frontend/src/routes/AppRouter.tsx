@@ -105,22 +105,9 @@ const AppRouter = () => {
         }
       />
       <Route path="/" element={<Home />} />
-      <Route
-        path="/spas"
-        element={
-          <RequireAuth>
-            <SpaSearch />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/spas/:spaId"
-        element={
-          <RequireAuth>
-            <SpaDetails />
-          </RequireAuth>
-        }
-      />
+      {/* Anyone can browse spas; booking and buying ask them to sign in. */}
+      <Route path="/spas" element={<SpaSearch />} />
+      <Route path="/spas/:spaId" element={<SpaDetails />} />
       <Route
         path="/booking/*"
         element={

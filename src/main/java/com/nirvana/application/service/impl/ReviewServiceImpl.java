@@ -31,7 +31,10 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional(readOnly = true)
     public ReviewListResponse listSpaReviews(Long spaId, Pageable pageable) {
         Page<Review> page = reviewRepository.findBySpaIdAndIsVisibleTrue(spaId, pageable);
-        return buildPagedResponse(page);
+        ReviewListResponse response = buildPagedResponse(page);
+        // Anyone can read a spa's reviews: leave out which guest and booking each came from.
+        response.getPage().content().forEach(r -> { r.setUserId(null); r.setBookingId(null); });
+        return response;
     }
 
     @Override

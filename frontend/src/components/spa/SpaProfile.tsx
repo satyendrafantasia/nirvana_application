@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../../api/client';
 import { getSpaDetails, getSpaServices } from '../../api/spaApi';
@@ -187,6 +188,9 @@ type PackageTab = 'spa' | 'nirvana';
 
 export function SpaPackages({ spaId }: { spaId: string }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const spa = useQuery({ queryKey: ['spa', spaId], queryFn: () => getSpaDetails(spaId) });
   const own = useQuery({
     queryKey: ['spa-packages', spaId],
@@ -316,9 +320,19 @@ export function SpaPackages({ spaId }: { spaId: string }) {
               <Button
                 className="mt-auto"
                 disabled={buy.isPending}
-                onClick={() => buy.mutate(offer)}
+                onClick={() =>
+                  user
+                    ? buy.mutate(offer)
+                    : navigate(
+                        `/auth/login?redirect=${encodeURIComponent(location.pathname + location.search + '#packages')}`
+                      )
+                }
               >
-                {buy.isPending && buy.variables?.key === offer.key ? 'Processing…' : 'Buy package'}
+                {buy.isPending && buy.variables?.key === offer.key
+                  ? 'Processing…'
+                  : user
+                    ? 'Buy package'
+                    : 'Sign in to buy'}
               </Button>
               {buy.isError && buy.variables?.key === offer.key && (
                 <p role="alert" className="text-sm text-rose-700">

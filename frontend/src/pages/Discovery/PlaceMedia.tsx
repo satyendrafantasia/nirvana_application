@@ -51,11 +51,14 @@ export function PhotoPlaceholder() {
 export function SpaPhoto({
   photo,
   place,
-  cover = false
+  cover = false,
+  imagePath
 }: {
   photo: Photo;
   place: GooglePlace;
   cover?: boolean;
+  /** Where to load the image from, when not the signed-in discovery endpoint (for example a spa page guests can open). */
+  imagePath?: (photoId: string) => string;
 }) {
   const [url, setUrl] = useState('');
   const [failed, setFailed] = useState(false);
@@ -70,7 +73,9 @@ export function SpaPhoto({
     const load = () =>
       client
         .get<Blob>(
-          `/api/discovery/places/${encodeURIComponent(place.id)}/photos/${encodeURIComponent(photoId)}/image`,
+          imagePath
+            ? imagePath(photoId)
+            : `/api/discovery/places/${encodeURIComponent(place.id)}/photos/${encodeURIComponent(photoId)}/image`,
           { signal: controller.signal, responseType: 'blob' }
         )
         .then(({ data }) => {

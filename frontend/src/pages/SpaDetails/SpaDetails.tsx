@@ -90,7 +90,12 @@ const SpaDetails = () => {
       source={googlePhotos.data?.photos?.length ? <Attribution place={googlePhotos.data} /> : undefined}
       media={
         googlePhotos.data?.photos?.length ? (
-          <PlaceGallery place={googlePhotos.data} />
+          <PlaceGallery
+            place={googlePhotos.data}
+            imagePath={(photoId) =>
+              `/api/spas/${encodeURIComponent(spaId)}/google-photos/${encodeURIComponent(photoId)}/image`
+            }
+          />
         ) : (
         <img
           src={

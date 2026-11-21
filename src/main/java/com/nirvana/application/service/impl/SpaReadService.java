@@ -54,6 +54,16 @@ public class SpaReadService {
         return getSpaDetails(spaId, false);
     }
 
+    /** The menu guests may see: a published spa's active treatments. */
+    @Transactional(readOnly = true)
+    public List<ServiceSummaryResponse> getPublicSpaServices(Long spaId) {
+        Spa spa = spaRepository.findById(spaId)
+                .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + spaId));
+        if (!(Boolean.TRUE.equals(spa.getIsActive()) && Boolean.TRUE.equals(spa.getIsVerified())))
+            throw new EntityNotFoundException("Spa not found: " + spaId);
+        return getSpaServices(spaId);
+    }
+
     private SpaDetailResponse getSpaDetails(Long spaId, boolean full) {
         Spa spa = spaRepository.findById(spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + spaId));

@@ -66,7 +66,8 @@ public class SpaController {
             @ApiResponse(responseCode = "200", description = "Spa services", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = ServiceSummaryResponse.class))))
     })
     public List<ServiceSummaryResponse> getSpaServices(@Parameter(description = "Spa identifier") @PathVariable Long id) {
-        return spaReadService.getSpaServices(id);
+        // Guests only see the menu of a published spa, as with its details.
+        return staffAccess.spa(id) ? spaReadService.getSpaServices(id) : spaReadService.getPublicSpaServices(id);
     }
 
     @PutMapping("/{id}")
