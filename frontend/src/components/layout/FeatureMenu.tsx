@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { features } from '../../features/model';
-import { canOpen, isStaff } from '../../auth/roles';
+import { canOpen, isAdmin, isStaff } from '../../auth/roles';
 import { useAuth } from '../../hooks/useAuth';
 
 /**
@@ -45,7 +45,8 @@ export default function FeatureMenu() {
           </NavLink>
         ))}
       </Menu>
-      {(['staff', 'admin'] as const).map((access) => {
+      {/* Spa owners manage everything from the Owner dashboard; this menu is for admins working across spas. */}
+      {(isAdmin(user.roles) ? (['staff', 'admin'] as const) : []).map((access) => {
         const items = features.filter((f) => f.access === access && canOpen(access, user.roles));
         if (!items.length) return null;
         return (

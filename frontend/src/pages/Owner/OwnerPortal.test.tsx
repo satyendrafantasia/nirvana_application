@@ -4,10 +4,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '../../contexts/AuthContext';
-import OwnerPortal, { bookingActions, canSpaCancel } from './OwnerPortal';
+import OwnerPortal, { bookingActions, canSpaCancel, ownerTabs } from './OwnerPortal';
 import Register from '../Auth/Register';
 import Login from '../Auth/Login';
+/** Whether a link to href is marked as the current page, whatever the attribute order. */
+const isCurrent = (html: string, href: string) =>
+  (html.match(/<a [^>]*>/g) || []).some((a) => a.includes(`href="${href}"`) && a.includes('aria-current="page"'));
 function render(element: React.ReactNode, roles: string[] = ['ROLE_USER']) {
+  return renderAt(element, '/owner', roles);
+}
+function renderAt(element: React.ReactNode, location: string, roles: string[] = ['ROLE_USER']) {
   const auth = {
     user: { id: '1', firstName: 'Test', lastName: 'User', email: 'test@example.test', roles },
     token: 'test',
@@ -22,7 +28,7 @@ function render(element: React.ReactNode, roles: string[] = ['ROLE_USER']) {
   return renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
       <AuthContext.Provider value={auth}>
-        <StaticRouter location="/owner">{element}</StaticRouter>
+        <StaticRouter location={location}>{element}</StaticRouter>
       </AuthContext.Provider>
     </QueryClientProvider>
   );
@@ -74,18 +80,33 @@ describe('Owner entry and access boundaries', () => {
     expect(html).toContain('Owner access required');
     expect(html).not.toContain('Owner workspace');
   });
-  it('exposes scoped management tabs to an owner', () => {
+  it('shows an owner five tabs', () => {
     const html = render(<OwnerPortal />, ['ROLE_USER', 'ROLE_SPA_OWNER']);
-    for (const section of [
-      'bookings',
-      'availability',
-      'therapists',
-      'services',
-      'packages',
-      'settings',
-      'onboarding'
-    ])
-      expect(html).toContain('/owner/' + section);
+    expect(ownerTabs.map((t) => t.label)).toEqual([
+      'Overview',
+      'Bookings',
+      'Schedule',
+      'Services & team',
+      'Settings'
+    ]);
+    for (const tab of ownerTabs) expect(html).toContain(`href="${tab.to}"`);
+    expect(isCurrent(html, '/owner')).toBe(true);
+    expect(isCurrent(html, '/owner/bookings')).toBe(false);
     expect(html).not.toContain('/features/files');
+  });
+  it('keeps every owner page reachable through a tab or sub-tab', () => {
+    const reachable = ownerTabs.flatMap((t) => t.sections);
+    for (const section of ['overview', 'bookings', 'availability', 'services', 'packages', 'therapists', 'settings', 'photos', 'onboarding'])
+      expect(reachable).toContain(section);
+  });
+  it('shows the sub-tabs of the tab you are on', () => {
+    const html = renderAt(<OwnerPortal />, '/owner/packages', ['ROLE_SPA_OWNER']);
+    expect(html).toContain('Treatments &amp; prices');
+    expect(isCurrent(html, '/owner/packages')).toBe(true); // the sub-tab
+    expect(isCurrent(html, '/owner/services')).toBe(true); // its tab, "Services & team"
+    const settings = renderAt(<OwnerPortal />, '/owner/onboarding', ['ROLE_SPA_OWNER']);
+    expect(settings).toContain('Setup &amp; verification');
+    expect(settings).toContain('/owner/photos');
+    expect(settings).toContain('/features/spa-management');
   });
 });

@@ -4,23 +4,26 @@ import { useAuth } from '../../hooks/useAuth';
 import { isStaff } from '../../auth/roles';
 import client, { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
-export default function Media() {
+/** With a spaId (inside the owner dashboard) the spa is already chosen, so no picker is shown. */
+export default function Media({ spaId }: { spaId?: string }) {
   const { user } = useAuth();
   return isStaff(user?.roles) ? (
-    <Upload />
+    <Upload fixedSpa={spaId} />
   ) : (
     <p className="p-8">Access restricted to authorized spa staff.</p>
   );
 }
-function Upload() {
-  const [spa, setSpa] = useState('');
+function Upload({ fixedSpa }: { fixedSpa?: string }) {
+  const [chosen, setSpa] = useState('');
+  const spa = fixedSpa || chosen;
   const [file, setFile] = useState<File>();
   const [title, setTitle] = useState('');
   const [type, setType] = useState('IMAGE');
   const spas = useQuery({
     queryKey: ['media-spas'],
     queryFn: async () =>
-      (await client.get('/api/onboarding/spas')).data as { id: number; name: string }[]
+      (await client.get('/api/onboarding/spas')).data as { id: number; name: string }[],
+    enabled: !fixedSpa
   });
   const upload = useMutation({
     mutationFn: async () => {
@@ -45,8 +48,12 @@ function Upload() {
     }
   });
   return (
-    <div className="max-w-2xl mx-auto p-8 space-y-5">
-      <h1 className="text-3xl font-bold">Spa photos & media</h1>
+    <div className={fixedSpa ? 'max-w-2xl space-y-5' : 'max-w-2xl mx-auto p-8 space-y-5'}>
+      {fixedSpa ? (
+        <h2 className="text-2xl font-bold">Photos & videos</h2>
+      ) : (
+        <h1 className="text-3xl font-bold">Spa photos & media</h1>
+      )}
       <form
         className="rounded-2xl bg-white p-6 space-y-4"
         onSubmit={(e) => {
@@ -54,22 +61,24 @@ function Upload() {
           upload.mutate();
         }}
       >
-        <label className="block">
-          Spa
-          <select
-            className="block border p-3 w-full rounded-lg"
-            required
-            value={spa}
-            onChange={(e) => setSpa(e.target.value)}
-          >
-            <option value="">Choose your spa</option>
-            {spas.data?.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!fixedSpa && (
+          <label className="block">
+            Spa
+            <select
+              className="block border p-3 w-full rounded-lg"
+              required
+              value={spa}
+              onChange={(e) => setSpa(e.target.value)}
+            >
+              <option value="">Choose your spa</option>
+              {spas.data?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block">
           Title
           <input

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { isStaff } from '../../auth/roles';
@@ -10,6 +10,7 @@ import SpaSettings from '../Staff/SpaSettings';
 import Schedule from './Schedule';
 import OwnerCatalog from './OwnerCatalog';
 import ClaimListing from './ClaimListing';
+import Media from '../Staff/Media';
 type Spa = {
   id: number;
   name: string;
@@ -18,16 +19,72 @@ type Spa = {
   kycStatus: string;
   kycRejectedReason?: string;
 };
-const tabs = [
-  'Overview',
-  'Bookings',
-  'Availability',
-  'Therapists',
-  'Services',
-  'Packages',
-  'Settings',
-  'Onboarding'
+type Link_ = { label: string; to: string; section: string };
+/** Five tabs; the two that hold several pages show those pages as sub-tabs. */
+export const ownerTabs: { label: string; to: string; sections: string[]; pages?: Link_[] }[] = [
+  { label: 'Overview', to: '/owner', sections: ['overview'] },
+  { label: 'Bookings', to: '/owner/bookings', sections: ['bookings'] },
+  { label: 'Schedule', to: '/owner/availability', sections: ['availability'] },
+  {
+    label: 'Services & team',
+    to: '/owner/services',
+    sections: ['services', 'packages', 'therapists'],
+    pages: [
+      { label: 'Treatments & prices', to: '/owner/services', section: 'services' },
+      { label: 'Packages', to: '/owner/packages', section: 'packages' },
+      { label: 'Therapists', to: '/owner/therapists', section: 'therapists' }
+    ]
+  },
+  {
+    label: 'Settings',
+    to: '/owner/settings',
+    sections: ['settings', 'photos', 'onboarding'],
+    pages: [
+      { label: 'Spa details & hours', to: '/owner/settings', section: 'settings' },
+      { label: 'Photos', to: '/owner/photos', section: 'photos' },
+      { label: 'Setup & verification', to: '/owner/onboarding', section: 'onboarding' }
+    ]
+  }
 ];
+
+function Tabs({ section }: { section: string }) {
+  const current = ownerTabs.find((t) => t.sections.includes(section));
+  return (
+    <div className="space-y-3">
+      <nav aria-label="Owner workspace" className="flex flex-wrap gap-2">
+        {ownerTabs.map((t) => (
+          <Link
+            key={t.label}
+            to={t.to}
+            aria-current={t === current ? 'page' : undefined}
+            className={`px-4 py-2 rounded-xl border ${t === current ? 'bg-primary-700 text-white' : 'bg-white'}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+      {current?.pages && (
+        <nav aria-label={current.label} className="flex flex-wrap gap-x-5 gap-y-1 border-b text-sm">
+          {current.pages.map((p) => (
+            <Link
+              key={p.to}
+              to={p.to}
+              aria-current={p.section === section ? 'page' : undefined}
+              className={`-mb-px border-b-2 pb-2 ${p.section === section ? 'border-primary-700 font-semibold text-primary-800' : 'border-transparent text-slate-600 hover:text-slate-900'}`}
+            >
+              {p.label}
+            </Link>
+          ))}
+          {current.label === 'Settings' && (
+            <Link className="-mb-px border-b-2 border-transparent pb-2 text-slate-600 hover:text-slate-900" to="/features/spa-management">
+              More tools
+            </Link>
+          )}
+        </nav>
+      )}
+    </div>
+  );
+}
 export default function OwnerPortal() {
   const { user } = useAuth();
   if (!isStaff(user?.roles))
@@ -61,20 +118,7 @@ function Portal() {
         <h1 className="text-3xl font-bold mt-2">Your spa workspace</h1>
         <p className="mt-2">Appointments, your team and the details that keep your spa running.</p>
       </header>
-      <nav aria-label="Owner workspace" className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <NavLink
-            key={t}
-            to={t === 'Overview' ? '/owner' : `/owner/${t.toLowerCase()}`}
-            end
-            className={({ isActive }) =>
-              `px-4 py-2 rounded-xl border ${isActive ? 'bg-primary-700 text-white' : 'bg-white'}`
-            }
-          >
-            {t==='Availability'?'Schedule':t}
-          </NavLink>
-        ))}
-      </nav>
+      <Tabs section={section} />
       {spas.isPending && <p>Loading your spas…</p>}
       {spas.isError && <p role="alert">{errorMessage(spas.error)}</p>}
       {!!spas.data?.length && (
@@ -122,8 +166,11 @@ function Portal() {
             </p>
             {!spa.active && (
               <p>
-                Complete onboarding, services and opening hours. Platform approval is required
-                before this spa accepts new bookings.
+                Add your treatments and opening hours, and{' '}
+                <Link className="underline" to="/owner/onboarding">
+                  finish setup & verification
+                </Link>
+                . Platform approval is required before this spa accepts new bookings.
               </p>
             )}
           </div>
@@ -148,6 +195,7 @@ function Portal() {
             />
           )}
           {section === 'settings' && <SpaSettings key={id} initialSpaId={id} />}
+          {section === 'photos' && <Media key={id} spaId={id} />}
         </>
       ) : (
         !spas.isPending &&

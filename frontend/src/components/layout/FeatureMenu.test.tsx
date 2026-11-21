@@ -36,8 +36,10 @@ describe('account menu', () => {
     expect(html).not.toContain('/auth/password');
     expect(html).not.toContain('Manage spa');
   });
-  it('still shows the spa and admin menus to staff', () => {
-    expect(render(['ROLE_USER', 'ROLE_SPA_OWNER'])).toContain('Manage spa');
-    expect(render(['ROLE_ADMIN'])).toContain('Administration');
+  it('leaves spa management to the owner dashboard, keeping both menus for admins', () => {
+    expect(render(['ROLE_USER', 'ROLE_SPA_OWNER'])).not.toContain('Manage spa');
+    const admin = render(['ROLE_ADMIN']);
+    expect(admin).toContain('Manage spa');
+    expect(admin).toContain('Administration');
   });
 });
