@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { isStaff, isAdmin } from '../../auth/roles';
+import { isStaff, isAdmin, ownsSpas } from '../../auth/roles';
 const FeatureMenu = lazy(() => import('./FeatureMenu'));
 import Button from '../common/Button';
 
@@ -50,16 +50,17 @@ const Navbar = () => {
           >
             My Packages
           </NavLink>
-          <NavLink
-            to={isStaff(user?.roles) ? '/owner' : '/owner/login'}
-            className="text-primary-700"
-          >
-            {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
-          </NavLink>
+          {/* Admin-only accounts own no spa: their tools are in the Admin menu instead. */}
+          {!(isAdmin(user?.roles) && !ownsSpas(user?.roles)) && (
+            <NavLink
+              to={isStaff(user?.roles) ? '/owner' : '/owner/login'}
+              className="text-primary-700"
+            >
+              {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
+            </NavLink>
+          )}
           <NavLink to="/discover">Discover nearby</NavLink>
           {user && <Suspense fallback={null}><FeatureMenu /></Suspense>}
-          {isAdmin(user?.roles) && <NavLink to="/admin/city-discovery">Import cities</NavLink>}
-          {isAdmin(user?.roles) && <NavLink to="/admin/listing-claims">Listing claims</NavLink>}
         </nav>
         <div className="flex items-center gap-3">
           {user ? (

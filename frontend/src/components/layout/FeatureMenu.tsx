@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { features } from '../../features/model';
-import { canOpen, isAdmin, isStaff } from '../../auth/roles';
+import { isAdmin } from '../../auth/roles';
 import { useAuth } from '../../hooks/useAuth';
 
 /**
@@ -17,7 +16,41 @@ export const ACCOUNT_MENU: { to: string; label: string }[] = [
   { to: '/features/privacy', label: 'Privacy & data' }
 ];
 
-const itemClass = ({ isActive }: { isActive: boolean }) =>
+/**
+ * One admin menu, grouped by job. It replaces the separate "Manage spa" and "Administration"
+ * menus and the loose "Import cities" and "Listing claims" links in the top bar.
+ */
+export const ADMIN_MENU: { group: string; items: { to: string; label: string }[] }[] = [
+  {
+    group: 'Review',
+    items: [
+      { to: '/admin/listing-claims', label: 'Listing claims' },
+      { to: '/features/administration', label: 'Approvals, refunds & support' }
+    ]
+  },
+  {
+    group: 'Spas',
+    items: [
+      { to: '/features/spa-management', label: 'Spa profiles' },
+      { to: '/features/spa-settings', label: 'Spa settings & hours' },
+      { to: '/features/calendar', label: 'Booking calendar' },
+      { to: '/features/analytics', label: 'Analytics' },
+      { to: '/staff/media', label: 'Photos & media' },
+      { to: '/admin/city-discovery', label: 'Import cities from Google' }
+    ]
+  },
+  {
+    group: 'Business',
+    items: [
+      { to: '/features/corporates', label: 'Corporate partners' },
+      { to: '/features/coupons', label: 'Coupons' },
+      { to: '/features/content', label: 'Help content & notifications' }
+    ]
+  },
+  { group: 'Tools', items: [{ to: '/features/files', label: 'Stored files' }] }
+];
+
+const itemClass =({ isActive }: { isActive: boolean }) =>
   `block rounded-lg px-3 py-2 hover:bg-primary-50 ${isActive ? 'text-primary-700 bg-primary-50' : ''}`;
 const close = (e: React.MouseEvent<HTMLElement>) =>
   e.currentTarget.closest('details')?.removeAttribute('open');
@@ -46,24 +79,27 @@ export default function FeatureMenu() {
         ))}
       </Menu>
       {/* Spa owners manage everything from the Owner dashboard; this menu is for admins working across spas. */}
-      {(isAdmin(user.roles) ? (['staff', 'admin'] as const) : []).map((access) => {
-        const items = features.filter((f) => f.access === access && canOpen(access, user.roles));
-        if (!items.length) return null;
-        return (
-          <Menu key={access} label={access === 'staff' ? 'Manage spa' : 'Administration'}>
-            {items.map((f) => (
-              <NavLink key={f.id} to={`/features/${f.id}`} onClick={close} className={itemClass}>
-                {f.title}
-              </NavLink>
-            ))}
-            {access === 'staff' && isStaff(user.roles) && (
-              <NavLink to="/staff/media" onClick={close} className={itemClass}>
-                Spa photos & media
-              </NavLink>
-            )}
-          </Menu>
-        );
-      })}
+      {isAdmin(user.roles) && (
+        <Menu label="Admin">
+          {ADMIN_MENU.map(({ group, items }) => (
+            <div key={group} className="border-t pt-1 first:border-t-0 first:pt-0">
+              <p className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {group}
+              </p>
+              {items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={close}
+                  className={(state) => itemClass(state).replace('py-2', 'py-1.5')}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </Menu>
+      )}
     </>
   );
 }

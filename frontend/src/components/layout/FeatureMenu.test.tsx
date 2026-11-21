@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import { AuthContext } from '../../contexts/AuthContext';
-import FeatureMenu, { ACCOUNT_MENU } from './FeatureMenu';
+import FeatureMenu, { ACCOUNT_MENU, ADMIN_MENU } from './FeatureMenu';
+import { features } from '../../features/model';
 
 function render(roles: string[]) {
   const auth = {
@@ -36,10 +37,25 @@ describe('account menu', () => {
     expect(html).not.toContain('/auth/password');
     expect(html).not.toContain('Manage spa');
   });
-  it('leaves spa management to the owner dashboard, keeping both menus for admins', () => {
-    expect(render(['ROLE_USER', 'ROLE_SPA_OWNER'])).not.toContain('Manage spa');
+  it('leaves spa management to the owner dashboard', () => {
+    const owner = render(['ROLE_USER', 'ROLE_SPA_OWNER']);
+    expect(owner).not.toContain('>Admin<');
+    expect(owner).not.toContain('/admin/listing-claims');
+  });
+  it('gives admins one grouped menu', () => {
     const admin = render(['ROLE_ADMIN']);
-    expect(admin).toContain('Manage spa');
-    expect(admin).toContain('Administration');
+    expect(admin).toContain('>Admin<');
+    expect(admin).not.toContain('Manage spa');
+    for (const { group, items } of ADMIN_MENU) {
+      expect(admin).toContain(`>${group}<`);
+      for (const item of items) expect(admin).toContain(`href="${item.to}"`);
+    }
+  });
+  it('still reaches every admin and spa tool', () => {
+    const linked = ADMIN_MENU.flatMap((g) => g.items.map((i) => i.to));
+    for (const f of features.filter((f) => f.access !== 'customer' && f.id !== 'onboarding-drafts'))
+      expect(linked).toContain(`/features/${f.id}`);
+    for (const page of ['/admin/listing-claims', '/admin/city-discovery', '/staff/media'])
+      expect(linked).toContain(page);
   });
 });
