@@ -93,11 +93,43 @@ class SpaLeadTest {
                 .content("{\"title\":\"not a list\"}")).andExpect(status().isBadRequest());
     }
 
+    @Test void importsGoogleMapsSearchResultsAndMatchesKnownSpas() throws Exception {
+        var admin = as("ROLE_ADMIN");
+        // A spa first known only by its Maps cid, and one known only by its Place ID.
+        mvc.perform(post("/api/admin/spa-leads/import").with(authentication(admin)).contentType("application/json")
+                .content("[{\"title\":\"Search Known Spa\",\"email\":\"hi@known.example.in\",\"url\":\"https://maps.google.com/?cid=13831279277064381315\"}]"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.created").value(1));
+        jdbc.update("INSERT INTO spa_lead (google_place_id,name,source,status,imported_at,updated_at) VALUES ('ChIJsearchByPlaceId01','Old name','x','CONTACTED',NOW(),NOW())");
+        String search = """
+                {"search_parameters":{"q":"spa gurgaon"},"local_results":[
+                 {"title":"Search Known Spa","place_id":"ChIJOQ1KGhUZDTkRg-OkojiT8r8","data_cid":"13831279277064381315",
+                  "gps_coordinates":{"latitude":28.4785702,"longitude":77.0819966},"rating":4.9,"reviews":310,
+                  "address":"Shop No. UG-15, Sector 28, Gurugram, Sarhol, Haryana 122009, India","phone":"+91 99909 95716"},
+                 {"title":"Renamed Spa","place_id":"ChIJsearchByPlaceId01","rating":4.6,"reviews":30},
+                 {"title":"Search New Spa","place_id":"ChIJsearchNewSpa0001","data_cid":"8623725971384164467","rating":4.6,"reviews":30,
+                  "address":"26/35, S City Rd, Sector 41, Gurugram, Haryana 122003, India","website":"https://example.in/x"}
+                ]}""";
+        mvc.perform(post("/api/admin/spa-leads/import").with(authentication(admin)).contentType("application/json").content(search))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.created").value(1)).andExpect(jsonPath("$.updated").value(2));
+        var known = jdbc.queryForMap("SELECT * FROM spa_lead WHERE google_cid='13831279277064381315'");
+        assertEquals("ChIJOQ1KGhUZDTkRg-OkojiT8r8", known.get("google_place_id"));
+        assertEquals("hi@known.example.in", known.get("email")); // kept: this export has no email
+        assertEquals(310, ((Number) known.get("google_review_count")).intValue());
+        var renamed = jdbc.queryForMap("SELECT * FROM spa_lead WHERE google_place_id='ChIJsearchByPlaceId01'");
+        assertEquals("Renamed Spa", renamed.get("name"));
+        assertEquals("CONTACTED", renamed.get("status"));
+        var fresh = jdbc.queryForMap("SELECT * FROM spa_lead WHERE google_cid='8623725971384164467'");
+        assertEquals("ChIJsearchNewSpa0001", fresh.get("google_place_id"));
+        assertEquals("https://maps.google.com/?cid=8623725971384164467", fresh.get("maps_url"));
+        assertEquals("Gurugram", fresh.get("city"));
+    }
+
     /** Run with -Dleads.file=path\to\export.json to check a real export imports cleanly. */
     @Test void importsARealExportWhenOneIsGiven() throws Exception {
         String file = System.getProperty("leads.file");
         Assumptions.assumeTrue(file != null && Files.exists(Path.of(file)));
-        int rows = json.readTree(Files.readString(Path.of(file))).size();
+        var parsed = json.readTree(Files.readString(Path.of(file)));
+        int rows = (parsed.has("local_results") ? parsed.get("local_results") : parsed).size();
         mvc.perform(post("/api/admin/spa-leads/import?city=Gurugram&source=real-file-check").with(authentication(as("ROLE_ADMIN")))
                         .contentType("application/json").content(Files.readString(Path.of(file))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.created").value(rows)).andExpect(jsonPath("$.skipped").value(0));

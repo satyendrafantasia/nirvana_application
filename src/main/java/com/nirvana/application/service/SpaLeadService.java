@@ -44,8 +44,10 @@ public class SpaLeadService {
      * Maps cid). Status and notes your team has recorded are never overwritten.
      */
     @Transactional
-    public ImportResult importLeads(JsonNode rows, String source, String cityOverride) {
-        if (rows == null || !rows.isArray()) throw bad("Upload a JSON array of spas.");
+    public ImportResult importLeads(JsonNode input, String source, String cityOverride) {
+        // Two shapes: a plain list of spas, or a Google Maps search response with "local_results".
+        JsonNode rows = input != null && input.isObject() && input.path("local_results").isArray() ? input.get("local_results") : input;
+        if (rows == null || !rows.isArray()) throw bad("Upload a JSON list of spas, or a Google Maps search result with local_results.");
         if (rows.size() > MAX_IMPORT) throw bad("Import at most " + MAX_IMPORT + " spas at a time.");
         String src = clip(blankToNull(source), 100);
         if (src == null) src = "import";
@@ -56,34 +58,45 @@ public class SpaLeadService {
             JsonNode row = rows.get(i);
             String name = clip(text(row, "title"), 255);
             if (name == null) { skipped++; problems.add("Row " + (i + 1) + ": no name"); continue; }
-            String cid = cid(text(row, "url"));
-            if (cid != null && !seen.add(cid)) { skipped++; problems.add("Row " + (i + 1) + " (" + name + "): duplicate in this file"); continue; }
+            String cid = Optional.ofNullable(cid(text(row, "url"))).orElse(digits(text(row, "data_cid")));
+            String placeId = placeId(text(row, "place_id"));
+            String key = cid != null ? "cid:" + cid : placeId != null ? "place:" + placeId : null;
+            if (key != null && !seen.add(key)) { skipped++; problems.add("Row " + (i + 1) + " (" + name + "): duplicate in this file"); continue; }
             String address = clip(text(row, "address"), 500);
             String city = clip(Optional.ofNullable(blankToNull(cityOverride)).orElse(city(address)), 100);
             String phone = clip(text(row, "phone"), 32);
             String email = email(text(row, "email"));
             String website = clip(httpUrl(text(row, "website")), 1000);
             String socials = socials(row.path("socials"));
-            BigDecimal rating = decimal(row.path("totalScore"), 1, 0, 5);
-            Integer reviews = row.path("reviewsCount").canConvertToInt() && row.path("reviewsCount").asInt() >= 0 ? row.path("reviewsCount").asInt() : null;
-            BigDecimal lat = decimal(row.path("coordinates").path("lat"), 6, -90, 90);
-            BigDecimal lng = decimal(row.path("coordinates").path("lng"), 6, -180, 180);
-            String mapsUrl = clip(httpUrl(text(row, "url")), 500);
+            BigDecimal rating = decimal(first(row, "totalScore", "rating"), 1, 0, 5);
+            JsonNode reviewNode = first(row, "reviewsCount", "reviews");
+            Integer reviews = reviewNode.canConvertToInt() && reviewNode.asInt() >= 0 ? reviewNode.asInt() : null;
+            JsonNode at = row.path("coordinates").isObject() ? row.path("coordinates") : row.path("gps_coordinates");
+            BigDecimal lat = decimal(first(at, "lat", "latitude"), 6, -90, 90);
+            BigDecimal lng = decimal(first(at, "lng", "longitude"), 6, -180, 180);
+            String mapsUrl = clip(Optional.ofNullable(httpUrl(text(row, "url")))
+                    .orElse(cid != null ? "https://maps.google.com/?cid=" + cid : null), 500);
 
+            // The same spa may arrive by cid in one export and by Place ID in another.
             Long existing = cid == null ? null : jdbc.query("SELECT id FROM spa_lead WHERE google_cid=?",
                     rs -> rs.next() ? rs.getLong(1) : null, cid);
+            if (existing == null && placeId != null)
+                existing = jdbc.query("SELECT id FROM spa_lead WHERE google_place_id=?", rs -> rs.next() ? rs.getLong(1) : null, placeId);
             if (existing == null) {
                 jdbc.update("""
-                        INSERT INTO spa_lead (google_cid,name,address,city,phone,email,website,socials_json,google_rating,google_review_count,
-                                              latitude,longitude,maps_url,source,status,imported_at,updated_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'NEW',?,?)""",
-                        cid, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, src, now(), now());
+                        INSERT INTO spa_lead (google_cid,google_place_id,name,address,city,phone,email,website,socials_json,google_rating,
+                                              google_review_count,latitude,longitude,maps_url,source,status,imported_at,updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'NEW',?,?)""",
+                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, src, now(), now());
                 created++;
             } else {
+                // Keep what an earlier export knew if this one leaves it out (Place ID, cid, email, socials).
                 jdbc.update("""
-                        UPDATE spa_lead SET name=?,address=?,city=?,phone=?,email=?,website=?,socials_json=?,google_rating=?,
-                                            google_review_count=?,latitude=?,longitude=?,maps_url=?,updated_at=? WHERE id=?""",
-                        name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, now(), existing);
+                        UPDATE spa_lead SET google_cid=COALESCE(google_cid,?),google_place_id=COALESCE(?,google_place_id),name=?,address=?,
+                                            city=?,phone=COALESCE(?,phone),email=COALESCE(?,email),website=COALESCE(?,website),
+                                            socials_json=COALESCE(?,socials_json),google_rating=?,google_review_count=?,latitude=?,
+                                            longitude=?,maps_url=COALESCE(?,maps_url),updated_at=? WHERE id=?""",
+                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, now(), existing);
                 updated++;
             }
         }
@@ -106,7 +119,7 @@ public class SpaLeadService {
         pageArgs.add(size);
         pageArgs.add(page * size);
         var rows = jdbc.queryForList("""
-                SELECT id, google_cid AS googleCid, name, address, city, phone, email, website, socials_json AS socialsJson,
+                SELECT id, google_cid AS googleCid, google_place_id AS googlePlaceId, name, address, city, phone, email, website, socials_json AS socialsJson,
                        google_rating AS googleRating, google_review_count AS googleReviewCount, latitude, longitude,
                        maps_url AS mapsUrl, source, status, notes, spa_id AS spaId, imported_at AS importedAt,
                        last_contacted_at AS lastContactedAt
@@ -139,6 +152,19 @@ public class SpaLeadService {
     }
 
     /** "…, Sector 45, Gurugram, Haryana 122003, India" → "Gurugram". */
+    static String digits(String value) {
+        return value != null && value.matches("\\d{1,25}") ? value : null;
+    }
+
+    static String placeId(String value) {
+        return value != null && value.matches("[A-Za-z0-9_-]{10,255}") ? value : null;
+    }
+
+    private static JsonNode first(JsonNode node, String... fields) {
+        for (String f : fields) if (!node.path(f).isMissingNode() && !node.path(f).isNull()) return node.path(f);
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+    }
+
     static String city(String address) {
         if (address == null) return null;
         String[] parts = address.split("\\s*,\\s*");

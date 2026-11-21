@@ -21,6 +21,7 @@ export type Lead = {
   email?: string;
   website?: string;
   socialsJson?: string;
+  googlePlaceId?: string;
   googleRating?: number;
   googleReviewCount?: number;
   mapsUrl?: string;
@@ -54,7 +55,10 @@ function ImportLeads() {
       } catch {
         throw new Error('That file is not valid JSON.');
       }
-      if (!Array.isArray(rows)) throw new Error('The file must contain a list of spas.');
+      const searchResult =
+        rows && typeof rows === 'object' && Array.isArray((rows as { local_results?: unknown }).local_results);
+      if (!Array.isArray(rows) && !searchResult)
+        throw new Error('The file must contain a list of spas or a Google Maps search result.');
       return (
         await client.post<ImportResult>('/api/admin/spa-leads/import', rows, {
           params: { city: city.trim() || undefined, source: source.trim() || file.name }
@@ -68,9 +72,9 @@ function ImportLeads() {
       <summary className="cursor-pointer font-semibold">Import spas from a file</summary>
       <div className="mt-4 space-y-3">
         <p className="text-sm text-slate-600">
-          A JSON list exported from Google Maps (title, address, phone, email, website, socials,
-          totalScore, reviewsCount, url, coordinates). Importing the same file again refreshes contact
-          details but keeps each spa’s status and notes.
+          A JSON export from Google Maps: either a list of spas, or a Maps search result with
+          “local_results”. Spas already in the list are matched by their Maps ID or Place ID and
+          updated, keeping the status and notes you have recorded.
         </p>
         <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0])} />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -128,6 +132,9 @@ export function LeadCard({ lead }: { lead: Lead }) {
         {lead.email && <a className="underline break-all" href={`mailto:${lead.email}`}>{lead.email}</a>}
         {website && <a className="underline" href={website} target="_blank" rel="noreferrer">Website</a>}
         {maps && <a className="underline" href={maps} target="_blank" rel="noreferrer">Google Maps</a>}
+        {lead.googlePlaceId && /^[A-Za-z0-9_-]+$/.test(lead.googlePlaceId) && (
+          <Link className="underline" to={`/discover/places/${lead.googlePlaceId}`}>Spa page</Link>
+        )}
         {socials(lead.socialsJson).map(([name, url]) => (
           <a key={name} className="underline capitalize" href={url} target="_blank" rel="noreferrer">{name}</a>
         ))}
