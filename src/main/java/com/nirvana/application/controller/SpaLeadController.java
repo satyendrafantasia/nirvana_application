@@ -1,6 +1,8 @@
 package com.nirvana.application.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nirvana.application.security.SecurityUtils;
+import com.nirvana.application.service.LeadOnboardingService;
 import com.nirvana.application.service.SpaLeadService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -19,6 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SpaLeadController {
     private final SpaLeadService leads;
+    private final LeadOnboardingService onboarding;
 
     public record LeadUpdate(@Size(max = 20) String status, @Size(max = 2000) String notes) {}
 
@@ -28,6 +31,17 @@ public class SpaLeadController {
                                                   @RequestParam(required = false) @Size(max = 100) String source,
                                                   @RequestParam(required = false) @Size(max = 100) String city) {
         return leads.importLeads(rows, source, city);
+    }
+
+    /** Empty leadIds means every lead not yet onboarded. */
+    public record OnboardRequest(@Size(max = 1000) java.util.List<Long> leadIds,
+                                 @jakarta.validation.constraints.AssertTrue(message = "Confirm each spa agreed to be listed on Nirvana") boolean permissionConfirmed,
+                                 @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(60) Integer days) {}
+
+    /** Makes leads live, searchable and bookable with the starter menu. */
+    @PostMapping("/onboard")
+    public LeadOnboardingService.Result onboard(@Valid @RequestBody OnboardRequest body) {
+        return onboarding.onboard(body.leadIds(), body.days() == null ? 30 : body.days(), SecurityUtils.getCurrentUserId());
     }
 
     @GetMapping

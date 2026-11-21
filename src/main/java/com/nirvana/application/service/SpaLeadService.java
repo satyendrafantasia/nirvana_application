@@ -76,6 +76,7 @@ public class SpaLeadService {
             BigDecimal lng = decimal(first(at, "lng", "longitude"), 6, -180, 180);
             String mapsUrl = clip(Optional.ofNullable(httpUrl(text(row, "url")))
                     .orElse(cid != null ? "https://maps.google.com/?cid=" + cid : null), 500);
+            String hours = openingHours(row.path("operating_hours"));
 
             // The same spa may arrive by cid in one export and by Place ID in another.
             Long existing = cid == null ? null : jdbc.query("SELECT id FROM spa_lead WHERE google_cid=?",
@@ -85,9 +86,9 @@ public class SpaLeadService {
             if (existing == null) {
                 jdbc.update("""
                         INSERT INTO spa_lead (google_cid,google_place_id,name,address,city,phone,email,website,socials_json,google_rating,
-                                              google_review_count,latitude,longitude,maps_url,source,status,imported_at,updated_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'NEW',?,?)""",
-                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, src, now(), now());
+                                              google_review_count,latitude,longitude,maps_url,opening_hours_json,source,status,imported_at,updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'NEW',?,?)""",
+                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, hours, src, now(), now());
                 created++;
             } else {
                 // Keep what an earlier export knew if this one leaves it out (Place ID, cid, email, socials).
@@ -95,8 +96,9 @@ public class SpaLeadService {
                         UPDATE spa_lead SET google_cid=COALESCE(google_cid,?),google_place_id=COALESCE(?,google_place_id),name=?,address=?,
                                             city=?,phone=COALESCE(?,phone),email=COALESCE(?,email),website=COALESCE(?,website),
                                             socials_json=COALESCE(?,socials_json),google_rating=?,google_review_count=?,latitude=?,
-                                            longitude=?,maps_url=COALESCE(?,maps_url),updated_at=? WHERE id=?""",
-                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, now(), existing);
+                                            longitude=?,maps_url=COALESCE(?,maps_url),opening_hours_json=COALESCE(?,opening_hours_json),
+                                            updated_at=? WHERE id=?""",
+                        cid, placeId, name, address, city, phone, email, website, socials, rating, reviews, lat, lng, mapsUrl, hours, now(), existing);
                 updated++;
             }
         }
@@ -192,6 +194,24 @@ public class SpaLeadService {
         node.fields().forEachRemaining(e -> {
             String url = httpUrl(e.getValue().asText(null));
             if (url != null && e.getKey().matches("[a-z]{1,20}")) clean.put(e.getKey(), clip(url, 500));
+        });
+        try {
+            return clean.isEmpty() ? null : json.writeValueAsString(clean);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static final Set<String> WEEKDAYS = Set.of("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday");
+
+    /** Google Maps' per-day hours text, e.g. {"monday":"10 AM–10 PM"}, kept as listed; parsed when onboarding. */
+    private String openingHours(JsonNode node) {
+        if (!node.isObject()) return null;
+        Map<String, String> clean = new TreeMap<>();
+        node.fields().forEachRemaining(e -> {
+            String day = e.getKey().toLowerCase(Locale.ROOT);
+            String value = e.getValue().isTextual() ? blankToNull(e.getValue().asText()) : null;
+            if (WEEKDAYS.contains(day) && value != null) clean.put(day, clip(value, 100));
         });
         try {
             return clean.isEmpty() ? null : json.writeValueAsString(clean);

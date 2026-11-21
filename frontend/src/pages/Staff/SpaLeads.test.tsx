@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '../../contexts/AuthContext';
-import SpaLeads, { LeadCard, type Lead } from './SpaLeads';
+import SpaLeads, { LeadCard, OnboardLeads, readyToOnboard, type Lead } from './SpaLeads';
 import { ADMIN_MENU } from '../../components/layout/FeatureMenu';
 
 function render(node: React.ReactNode, roles = ['ROLE_ADMIN']) {
@@ -50,5 +50,17 @@ describe('spa leads', () => {
     expect(html).toContain('instagram');
     expect(html).not.toContain('javascript:');
     expect(html).toContain('Not interested');
+  });
+  it('puts agreed spas live only after you confirm their permission', () => {
+    const html = render(<OnboardLeads ready={3} />);
+    expect(html).toContain('Put 3 spas live');
+    expect(html).toContain('₹1,999');
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Put 3 spas live/);
+    expect(readyToOnboard({ NEW: 2, CONTACTED: 1, INTERESTED: 1, ONBOARDED: 5, NOT_INTERESTED: 4 })).toBe(4);
+  });
+  it('links an onboarded lead to its live spa', () => {
+    const html = render(<LeadCard lead={{ ...lead, status: 'ONBOARDED', spaId: 42, googlePlaceId: 'ChIJabc' }} />);
+    expect(html).toContain('href="/spas/42"');
+    expect(html).not.toContain('/discover/places/');
   });
 });

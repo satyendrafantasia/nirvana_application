@@ -28,9 +28,61 @@ export type Lead = {
   status: LeadStatus;
   notes?: string;
   lastContactedAt?: string;
+  spaId?: number;
 };
 type Page = { content: Lead[]; total: number; page: number; counts: Record<string, number> };
 type ImportResult = { created: number; updated: number; skipped: number; problems: string[] };
+type OnboardResult = { onboarded: number; linked: number; skipped: number; slots: number; problems: string[] };
+
+/** Leads that onboarding picks up: everything not onboarded or declined. */
+export const readyToOnboard = (counts?: Record<string, number>) =>
+  (counts?.NEW || 0) + (counts?.CONTACTED || 0) + (counts?.INTERESTED || 0);
+
+export function OnboardLeads({ ready }: { ready: number }) {
+  const qc = useQueryClient();
+  const [confirmed, setConfirmed] = useState(false);
+  const run = useMutation({
+    mutationFn: async () =>
+      (await client.post<OnboardResult>('/api/admin/spa-leads/onboard', { leadIds: [], permissionConfirmed: true, days: 30 }, { timeout: 600000 })).data,
+    onSuccess: () => {
+      setConfirmed(false);
+      void qc.invalidateQueries({ queryKey: ['spa-leads'] });
+    }
+  });
+  return (
+    <section className="card space-y-3 p-4" aria-labelledby="onboard-leads">
+      <h2 id="onboard-leads" className="font-semibold">Put spas live on Nirvana</h2>
+      <p className="text-sm text-slate-600">
+        Each spa becomes searchable and bookable straight away, with its Google Maps hours (10 AM–10 PM where none
+        are listed), two therapists, and this starter menu until it sets its own: Swedish Massage ₹1,999, Deep Tissue
+        Massage ₹2,499 and Aromatherapy Massage ₹2,299, 60 minutes each. Appointment times open for the next 30 days.
+        Spas without their own photos show their Google Maps photos.
+      </p>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-1" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+        <span>Each of these spas has agreed to be listed and booked on Nirvana. Your name is recorded against each one.</span>
+      </label>
+      <Button disabled={!confirmed || !ready || run.isPending} onClick={() => run.mutate()}>
+        {run.isPending ? 'Putting spas live…' : `Put ${ready} ${ready === 1 ? 'spa' : 'spas'} live`}
+      </Button>
+      {run.isError && <p role="alert" className="text-rose-700">{errorMessage(run.error)}</p>}
+      {run.data && (
+        <div role="status" className="text-sm">
+          <p>
+            {run.data.onboarded} live with {run.data.slots.toLocaleString()} appointment times
+            {run.data.linked > 0 && `, ${run.data.linked} already on Nirvana and linked`}
+            {run.data.skipped > 0 && `, ${run.data.skipped} skipped`}.
+          </p>
+          {run.data.problems.length > 0 && (
+            <ul className="list-disc pl-5 text-slate-600">
+              {run.data.problems.map((p) => <li key={p}>{p}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 const safeUrl = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : undefined);
 const socials = (raw?: string): [string, string][] => {
@@ -132,7 +184,10 @@ export function LeadCard({ lead }: { lead: Lead }) {
         {lead.email && <a className="underline break-all" href={`mailto:${lead.email}`}>{lead.email}</a>}
         {website && <a className="underline" href={website} target="_blank" rel="noreferrer">Website</a>}
         {maps && <a className="underline" href={maps} target="_blank" rel="noreferrer">Google Maps</a>}
-        {lead.googlePlaceId && /^[A-Za-z0-9_-]+$/.test(lead.googlePlaceId) && (
+        {lead.spaId != null && (
+          <Link className="font-medium underline" to={`/spas/${lead.spaId}`}>Live on Nirvana</Link>
+        )}
+        {lead.spaId == null && lead.googlePlaceId && /^[A-Za-z0-9_-]+$/.test(lead.googlePlaceId) && (
           <Link className="underline" to={`/discover/places/${lead.googlePlaceId}`}>Spa page</Link>
         )}
         {socials(lead.socialsJson).map(([name, url]) => (
@@ -188,10 +243,12 @@ export default function SpaLeads() {
         <h1 className="text-3xl font-bold">Spa leads</h1>
         <p className="text-slate-600">
           Spas to approach about joining Nirvana. When one is interested, send them to{' '}
-          <span className="font-medium">For spa owners</span> to sign up and claim their listing.
+          <span className="font-medium">For spa owners</span> to sign up and claim their listing,
+          or, once they have agreed, put them live yourself below.
         </p>
       </div>
       <ImportLeads />
+      {leads.data && readyToOnboard(leads.data.counts) > 0 && <OnboardLeads ready={readyToOnboard(leads.data.counts)} />}
       <nav aria-label="Lead status" className="flex flex-wrap gap-2">
         {['', ...STATUSES].map((s) => (
           <button

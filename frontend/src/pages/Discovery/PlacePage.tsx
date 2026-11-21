@@ -15,7 +15,7 @@ import {
 } from './PlaceMedia';
 
 /** One photo at a time: each Google photo is a separate paid request. */
-function PlaceGallery({ place }: { place: GooglePlace }) {
+export function PlaceGallery({ place }: { place: GooglePlace }) {
   const [index, setIndex] = useState(0);
   const photos = place.photos || [];
   const photo = photos[index];

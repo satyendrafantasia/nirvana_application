@@ -70,6 +70,11 @@ public class CityPlacesClient {
                 "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions,photos,reviews,"
                         + "location,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.openNow");
     }
+    /** Just the listing's photos and the credits Google requires with them, for a Nirvana spa page. */
+    public JsonNode photos(String placeId) {
+        if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
+        return call("/places/" + placeId, HttpMethod.GET, null, "id,displayName,googleMapsUri,attributions,photos");
+    }
     public JsonNode photo(String placeId, String photoId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}") || !photoId.matches("[A-Za-z0-9_-]{1,4096}"))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid photo reference.");

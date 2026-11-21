@@ -6,6 +6,9 @@ import Spinner from '../../components/common/Spinner';
 import SpaInformation from '../../components/spa/SpaInformation';
 import SpaProfile, { type SpaProfileProps } from '../../components/spa/SpaProfile';
 import { Spa } from '../../types/spa';
+import type { GooglePlace } from '../Discovery/Discovery';
+import { PlaceGallery } from '../Discovery/PlacePage';
+import { Attribution } from '../Discovery/PlaceMedia';
 
 type GuestReview = { id: number; rating: number; title: string; text: string; createdAt?: string };
 const safeUrl = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : undefined);
@@ -55,6 +58,17 @@ const SpaDetails = () => {
     enabled: Boolean(spaId)
   });
 
+  // A spa with no photos of its own shows its Google Maps photos, loaded live with Google's credits.
+  const googlePhotos = useQuery({
+    queryKey: ['spa-google-photos', spaId],
+    queryFn: async ({ signal }) =>
+      (await client.get<GooglePlace>(`/api/spas/${spaId}/google-photos`, { signal })).data,
+    enabled: Boolean(spa.data && !spa.data.coverImage && spa.data.googlePlaceId),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000
+  });
+
   if (spa.isError)
     return (
       <p role="alert" className="p-10">
@@ -73,7 +87,11 @@ const SpaDetails = () => {
     <SpaProfile
       {...spaProfile(spa.data)}
       back={{ to: '/spas', label: 'All spas' }}
+      source={googlePhotos.data?.photos?.length ? <Attribution place={googlePhotos.data} /> : undefined}
       media={
+        googlePhotos.data?.photos?.length ? (
+          <PlaceGallery place={googlePhotos.data} />
+        ) : (
         <img
           src={
             spa.data.coverImage ||
@@ -84,6 +102,7 @@ const SpaDetails = () => {
           alt={spa.data.coverImage ? spa.data.name : ''}
           className="h-72 w-full rounded-2xl object-cover sm:h-96"
         />
+        )
       }
       reviewsTitle="Guest reviews"
       reviewsState={reviews.isLoading ? 'loading' : reviews.isError ? 'error' : undefined}
