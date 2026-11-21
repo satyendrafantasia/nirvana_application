@@ -30,6 +30,7 @@ export type Lead = {
   lastContactedAt?: string;
   spaId?: number;
   published?: number;
+  needsOwner?: number;
 };
 type Page = { content: Lead[]; total: number; page: number; counts: Record<string, number> };
 type ImportResult = { created: number; updated: number; skipped: number; problems: string[] };
@@ -52,22 +53,22 @@ export function OnboardLeads({ ready }: { ready: number }) {
   });
   return (
     <section className="card space-y-3 p-4" aria-labelledby="onboard-leads">
-      <h2 id="onboard-leads" className="font-semibold">Prepare spa drafts</h2>
+      <h2 id="onboard-leads" className="font-semibold">Publish imported spas</h2>
       <p className="text-sm text-slate-600">
-        Drafts include proposed services, prices, hours and staffing. Confirm those details individually with each spa before publishing.
+        Each spa opens daily from 11 am to 9 pm with five therapists and five rooms. Sessions are ₹1,500 for 45 minutes or ₹2,000 for 60 minutes. Owners can edit these settings.
       </p>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-1" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         <span>Each of these spas has agreed to be listed and booked on Nirvana. Your name is recorded against each one.</span>
       </label>
       <Button disabled={!confirmed || !ready || run.isPending} onClick={() => run.mutate()}>
-        {run.isPending ? 'Preparing drafts…' : `Prepare ${ready} drafts`}
+        {run.isPending ? 'Publishing…' : `Publish ${ready} spas`}
       </Button>
       {run.isError && <p role="alert" className="text-rose-700">{errorMessage(run.error)}</p>}
       {run.data && (
         <div role="status" className="text-sm">
           <p>
-            {run.data.onboarded} drafts with {run.data.slots.toLocaleString()} appointment times
+            {run.data.onboarded} live with {run.data.slots.toLocaleString()} appointment times
             {run.data.linked > 0 && `, ${run.data.linked} already on Nirvana and linked`}
             {run.data.skipped > 0 && `, ${run.data.skipped} skipped`}.
           </p>
@@ -161,6 +162,11 @@ export function LeadCard({ lead }: { lead: Lead }) {
     mutationFn: async () => client.patch(`/api/admin/spa-leads/${lead.id}`, { status, notes }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['spa-leads'] })
   });
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const assign = useMutation({
+    mutationFn: () => client.post(`/api/admin/spa-leads/${lead.id}/owner`, {email: ownerEmail.trim()}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['spa-leads'] })
+  });
   const [review, setReview] = useState(false);
   const inventory = useQuery({
     queryKey: ['lead-inventory', lead.id], enabled: review,
@@ -228,6 +234,14 @@ export function LeadCard({ lead }: { lead: Lead }) {
         }}>Confirm inventory and publish</Button></div>}
         {publish.isError && <p role="alert">{errorMessage(publish.error)}</p>}
       </div>}
+      {!!lead.needsOwner && <form className="flex flex-wrap items-end gap-3" onSubmit={event => {
+        event.preventDefault();
+        if (window.confirm(`Grant ${ownerEmail.trim()} control of ${lead.name}? Confirm you have verified this owner's authority.`)) assign.mutate();
+      }}>
+        <Input type="email" required label="Owner account email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} />
+        <Button type="submit" disabled={assign.isPending}>Assign verified owner</Button>
+        {assign.isError && <p role="alert">{errorMessage(assign.error)}</p>}
+      </form>}
       {lead.lastContactedAt && (
         <p className="text-xs text-slate-500">Last contacted {new Date(lead.lastContactedAt).toLocaleDateString()}</p>
       )}

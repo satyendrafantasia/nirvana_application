@@ -93,6 +93,7 @@ public class OwnerScheduleController {
     public Day day(@PathVariable Long spaId,@RequestParam(required=false) LocalDate date) {
         ZoneId zone=TherapistRoster.zone(spas.findById(spaId).orElseThrow(this::missing));
         LocalDate day=date==null?LocalDate.now(zone):date;
+        availability.prepareStandardSlots(spas.findById(spaId).orElseThrow(this::missing), day, 1, null);
         var shifts=roster.load(spaId,day,day);
         var inheritedHours = availability.openingHours(spaId,day,day,zone);
         var list=slots.findBySpa_IdAndStartTsLessThanAndEndTsGreaterThanOrderByStartTsAsc(spaId,

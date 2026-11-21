@@ -68,12 +68,12 @@ class LeadOnboardingTest {
                 .andExpect(status().isBadRequest());
     }
 
-    @Test void onboardedLeadIsLiveAndBookableWithItsGoogleHours() throws Exception {
+    @Test void onboardedLeadIsLiveWithStandardInventory() throws Exception {
         leads.importLeads(json.readTree(SEARCH.replace("LONG_QUERY", "x".repeat(300))), "test", null);
         long withHours = lead("990000000000000001"), noHours = lead("990000000000000002"), declined = lead("990000000000000003");
         leads.update(declined, "NOT_INTERESTED", null);
 
-        var result = onboarding.onboard(List.of(withHours, noHours, declined), 14, admin());
+        var result = onboarding.onboard(List.of(withHours, noHours, declined), 21, admin());
         assertEquals(2, result.onboarded());
         assertEquals(1, result.skipped(), result.problems().toString());
 
@@ -81,15 +81,16 @@ class LeadOnboardingTest {
         Map<String, Object> spa = jdbc.queryForMap("SELECT * FROM spa WHERE id=?", spaId);
         assertEquals("Onboard Test Spa", spa.get("name"));
         assertEquals("ChIJonboardTestSpa0001", spa.get("google_place_id"));
-        assertEquals("PENDING", spa.get("kyc_status"));
-        assertEquals(Boolean.FALSE, spa.get("is_active"));
-        assertEquals(Boolean.FALSE, spa.get("is_verified"));
+        assertEquals("APPROVED", spa.get("kyc_status"));
+        assertEquals(Boolean.TRUE, spa.get("is_active"));
+        assertEquals(Boolean.TRUE, spa.get("is_verified"));
         assertEquals("Haryana", spa.get("state"));
         assertEquals("122001", spa.get("postal_code"));
-        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=? AND is_active=1", Integer.class, spaId));
-        assertEquals(199900, jdbc.queryForObject("SELECT price_cents FROM service WHERE spa_id=? AND name='Swedish Massage'", Integer.class, spaId));
-        // Closed on Wednesdays: six weekly rules, and no Wednesday appointments.
-        assertEquals(6, jdbc.queryForObject("SELECT COUNT(*) FROM schedule_rule WHERE spa_id=?", Integer.class, spaId));
+        assertEquals(5, jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=? AND is_active=1", Integer.class, spaId));
+        assertEquals(200000, jdbc.queryForObject("SELECT price_cents FROM service WHERE spa_id=? AND name='Swedish Massage'", Integer.class, spaId));
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=? AND duration_min=45 AND price_cents=150000", Integer.class, spaId));
+        assertEquals(5, jdbc.queryForObject("SELECT COUNT(*) FROM standard_room_service m JOIN spa_room r ON r.id=m.room_id WHERE r.spa_id=?", Integer.class, spaId));
+        assertEquals(5, jdbc.queryForObject("SELECT COUNT(*) FROM therapist WHERE spa_id=? AND is_active=1", Integer.class, spaId));
         assertEquals("ONBOARDED", jdbc.queryForObject("SELECT status FROM spa_lead WHERE id=?", String.class, withHours));
         // Usable with every active Nirvana package.
         assertEquals(jdbc.queryForObject("SELECT COUNT(*) FROM packages WHERE is_active=1", Integer.class),
@@ -97,28 +98,19 @@ class LeadOnboardingTest {
         assertNotNull(jdbc.queryForObject("SELECT permission_confirmed_at FROM spa_lead WHERE id=?", Object.class, withHours));
         assertEquals("NOT_INTERESTED", jdbc.queryForObject("SELECT status FROM spa_lead WHERE id=?", String.class, declined));
 
-        mvc.perform(post("/api/admin/spas/" + spaId + "/kyc/approve").with(authentication(as("ROLE_ADMIN"))))
-                .andExpect(status().isConflict());
-        mvc.perform(post("/api/admin/spas/" + spaId + "/kyc/approve").param("inventoryConfirmed","true").with(authentication(as("ROLE_ADMIN"))))
-                .andExpect(status().isOk());
         long serviceId = jdbc.queryForObject("SELECT id FROM service WHERE spa_id=? AND name='Deep Tissue Massage'", Long.class, spaId);
         LocalDate from = LocalDate.now(ZoneId.of("Asia/Kolkata")).plusDays(1);
         var week = availability.getAvailableSlotsForServiceRange(spaId, serviceId, from, 7, 1);
         var first = week.days().stream().filter(d -> d.date().getDayOfWeek() == java.time.DayOfWeek.MONDAY).findFirst().orElseThrow().slots().get(0);
-        assertEquals(java.time.LocalTime.of(10, 0), first.startTs().atZoneSameInstant(ZoneId.of("Asia/Kolkata")).toLocalTime(),
+        assertEquals(java.time.LocalTime.of(11, 0), first.startTs().atZoneSameInstant(ZoneId.of("Asia/Kolkata")).toLocalTime(),
                 "appointments start at the spa's local opening time");
         int total = 0;
         for (var day : week.days()) {
             int count = day.slots().size();
             total += count;
-            switch (day.date().getDayOfWeek()) {
-                case WEDNESDAY -> assertEquals(0, count, "closed day");
-                case MONDAY, TUESDAY, SATURDAY, SUNDAY -> assertEquals(12, count, day.date() + ": 10 AM–10 PM is twelve hours");
-                case THURSDAY -> assertEquals(12, count, "9:30 AM to 9:30 PM");
-                case FRIDAY -> assertEquals(12, count, "open 24 hours: 10 AM–10 PM appointments");
-            }
+            assertEquals(10,count);
         }
-        assertEquals(72, total);
+        assertEquals(70,total);
 
         // Guests find it in search under either name for the city.
         for (String city : List.of("Gurgaon", "gurugram"))
@@ -132,14 +124,13 @@ class LeadOnboardingTest {
         assertEquals(java.util.Set.of("lucknow"),
                 com.nirvana.application.repository.spec.SpaAddressSpecifications.cityNames("Lucknow"));
 
-        // A lead without hours gets 10 AM–10 PM every day.
+        // Standard hours apply even when the source omits them.
         long other = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, noHours);
-        assertEquals(7, jdbc.queryForObject("SELECT COUNT(*) FROM schedule_rule WHERE spa_id=?", Integer.class, other));
+        assertEquals(7, jdbc.queryForObject("SELECT COUNT(*) FROM spa_working_day WHERE spa_id=?", Integer.class, other));
         // Its website was a search link too long for the spa's field: onboarded without it.
         assertNull(jdbc.queryForObject("SELECT website_url FROM spa WHERE id=?", String.class, other));
 
         // Running out of appointment times: the top-up refills the booking window from the spa's hours.
-        jdbc.update("UPDATE spa SET max_advance_booking_days=21 WHERE id=?", spaId);
         String lastDay = "SELECT DATE(CONVERT_TZ(MAX(start_ts),'+00:00','+05:30')) FROM slot WHERE spa_id=?";
         java.time.LocalDate cut = from.plusDays(6);
         jdbc.update("DELETE FROM generated_room_slot WHERE room_id IN (SELECT id FROM spa_room WHERE spa_id=?) AND DATE(original_start) > ?", spaId, cut);
@@ -147,15 +138,12 @@ class LeadOnboardingTest {
         assertEquals(cut, jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId));
         // Retain one manually scheduled appointment well beyond the gap.
         jdbc.update("INSERT INTO slot (created_at,updated_at,spa_id,service_id,room_id,start_ts,end_ts,capacity_unit,booked_units,is_blocked,status,version) SELECT NOW(),NOW(),spa_id,service_id,room_id,DATE_ADD(start_ts, INTERVAL 40 DAY),DATE_ADD(end_ts, INTERVAL 40 DAY),1,0,0,'OPEN',0 FROM slot WHERE spa_id=? LIMIT 1", spaId);
-        assertTrue(onboarding.topUpSlots() > 0);
-        assertTrue(jdbc.queryForObject(lastDay, java.time.LocalDate.class, spaId).isAfter(from.plusDays(20)),
-                "times through the last day of the 21-day booking window");
         var later = availability.getAvailableSlotsForServiceRange(spaId, serviceId, cut.plusDays(1), 7, 1);
-        assertEquals(72, later.days().stream().mapToInt(d -> d.slots().size()).sum(), "same weekly pattern, Wednesday still closed");
+        assertEquals(70, later.days().stream().mapToInt(d -> d.slots().size()).sum(), "standard hours every day");
         assertEquals(0, jdbc.queryForObject("""
                 SELECT COUNT(*) FROM (SELECT room_id, start_ts FROM slot WHERE spa_id=? GROUP BY room_id, start_ts HAVING COUNT(*) > 1) d""", Integer.class, spaId));
         long before = jdbc.queryForObject("SELECT COUNT(*) FROM slot WHERE spa_id=?", Long.class, spaId);
-        onboarding.topUpSlots();
+        availability.getAvailableSlotsForServiceRange(spaId, serviceId, cut.plusDays(1), 7, 1);
         assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM slot WHERE spa_id=?", Long.class, spaId), "a second run adds nothing");
 
         // Onboarding again changes nothing.

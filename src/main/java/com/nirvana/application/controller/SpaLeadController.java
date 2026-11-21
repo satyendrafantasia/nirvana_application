@@ -38,7 +38,7 @@ public class SpaLeadController {
                                  @jakarta.validation.constraints.AssertTrue(message = "Confirm each spa agreed to be listed on Nirvana") boolean permissionConfirmed,
                                  @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(60) Integer days) {}
 
-    /** Prepares unpublished drafts with a proposed starter menu. */
+    /** Publishes consented imports with standard editable inventory. */
     @PostMapping("/onboard")
     public LeadOnboardingService.Result onboard(@Valid @RequestBody OnboardRequest body) {
         return onboarding.onboard(body.leadIds(), body.days() == null ? 30 : body.days(), SecurityUtils.getCurrentUserId());
@@ -53,6 +53,25 @@ public class SpaLeadController {
     }
 
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    public record OwnerAssignment(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Email String email) {}
+
+    @PostMapping("/{id}/owner")
+    @org.springframework.transaction.annotation.Transactional
+    public void assignOwner(@PathVariable long id, @Valid @RequestBody OwnerAssignment in) {
+        var accounts = jdbc.queryForList("""
+                SELECT u.id FROM app_user u JOIN role r ON r.id=u.role_id
+                WHERE u.email=? AND u.active=1 AND u.is_active=1 AND u.deleted_at IS NULL AND r.role_type='Spa_MANAGER'
+                """, Long.class, in.email().strip());
+        if (accounts.size()!=1) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Choose an active spa owner account.");
+        jdbc.update("INSERT INTO spa_manager(user_id) VALUES (?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)",accounts.get(0));
+        int changed=jdbc.update("""
+                UPDATE spa s JOIN spa_lead l ON l.spa_id=s.id JOIN spa_manager m ON m.user_id=?
+                SET s.spa_manager_id=m.id,s.version=s.version+1
+                WHERE l.id=? AND l.status='ONBOARDED' AND s.spa_manager_id IS NULL AND JSON_EXTRACT(s.meta,'$.standardInventory') IS NOT NULL
+                """,accounts.get(0),id);
+        if (changed!=1) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"This listing is already assigned or is not a standard imported spa.");
+    }
 
     @GetMapping("/{id}/inventory")
     public Map<String,Object> inventory(@PathVariable long id) {

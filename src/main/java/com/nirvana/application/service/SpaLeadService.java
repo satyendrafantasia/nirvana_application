@@ -123,7 +123,7 @@ public class SpaLeadService {
         var rows = jdbc.queryForList("""
                 SELECT id, google_cid AS googleCid, google_place_id AS googlePlaceId, name, address, city, phone, email, website, socials_json AS socialsJson,
                        google_rating AS googleRating, google_review_count AS googleReviewCount, latitude, longitude,
-                       maps_url AS mapsUrl, source, status, notes, spa_id AS spaId, (SELECT is_active+0 FROM spa WHERE id=spa_lead.spa_id) AS published, imported_at AS importedAt,
+                       maps_url AS mapsUrl, source, status, notes, spa_id AS spaId, (SELECT is_active+0 FROM spa WHERE id=spa_lead.spa_id) AS published, (SELECT (spa_manager_id IS NULL)+0 FROM spa WHERE id=spa_lead.spa_id AND JSON_EXTRACT(meta,'$.standardInventory') IS NOT NULL) AS needsOwner, imported_at AS importedAt,
                        last_contacted_at AS lastContactedAt
                 FROM spa_lead""" + where + " ORDER BY FIELD(status,'INTERESTED','NEW','CONTACTED','ONBOARDED','NOT_INTERESTED'), google_review_count DESC, id LIMIT ? OFFSET ?",
                 pageArgs.toArray());

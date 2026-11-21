@@ -1,6 +1,5 @@
 package com.nirvana.application.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nirvana.application.model.Address;
 import com.nirvana.application.model.Spa;
@@ -24,10 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Prepares unpublished spa inventory once an admin confirms each spa agreed to be listed.
- * Every spa starts with the same starter menu, two therapists, a room per treatment, its Google
- * Maps hours, appointment times for the coming weeks, and a place in every active Nirvana
- * package. The spa can change all of it later.
+ * Publishes consented spa leads with an owner-editable starter inventory.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,9 +37,11 @@ public class LeadOnboardingService {
     public record StarterService(String name, String description, int minutes, int priceRupees) {}
 
     public static final List<StarterService> STARTER_MENU = List.of(
-            new StarterService("Swedish Massage", "Full-body massage with long, flowing strokes to relax muscles and ease stress.", 60, 1999),
-            new StarterService("Deep Tissue Massage", "Firm-pressure massage that works into tight muscles and knots.", 60, 2499),
-            new StarterService("Aromatherapy Massage", "Gentle full-body massage with essential oils.", 60, 2299));
+            new StarterService("Swedish Massage", "Full-body massage with long, flowing strokes to relax muscles and ease stress.", 60, 2000),
+            new StarterService("Deep Tissue Massage", "Firm-pressure massage that works into tight muscles and knots.", 60, 2000),
+            new StarterService("Aromatherapy Massage", "Gentle full-body massage with essential oils.", 60, 2000),
+            new StarterService("Foot Massage", "Focused massage for the feet and lower legs.", 45, 1500),
+            new StarterService("Head and Shoulder Massage", "Massage for the scalp, neck and shoulders.", 45, 1500));
 
     public record Result(int onboarded, int linked, int skipped, long slots, List<Map<String, Object>> spas, List<String> problems) {}
 
@@ -103,9 +101,9 @@ public class LeadOnboardingService {
             }
         }
 
-        Map<DayOfWeek, LeadHours.Day> week = LeadHours.week(hours((String) lead.get("opening_hours_json")));
-        if (week.isEmpty()) return new Outcome(Kind.SKIPPED, null, "listed as closed every day", 0);
-        LeadHours.Day usual = usualHours(week);
+        var usual = new LeadHours.Day(LocalTime.of(11, 0), LocalTime.of(21, 0), false);
+        Map<DayOfWeek, LeadHours.Day> week = new EnumMap<>(DayOfWeek.class);
+        for (var day : DayOfWeek.values()) week.put(day, usual);
 
         Spa spa = new Spa();
         String name = (String) lead.get("name");
@@ -118,35 +116,30 @@ public class LeadOnboardingService {
         spa.setGoogleMapsUrl(fits((String) lead.get("maps_url"), 500));
         spa.setTimezone(ZONE.getId());
         spa.setAddress(address(lead));
-        spa.setIsActive(false);
-        spa.setIsVerified(false);
+        spa.setIsActive(true);
+        spa.setIsVerified(true);
         spa.setIsFeatured(false);
-        spa.setKycStatus(KycStatus.PENDING);
+        spa.setKycStatus(KycStatus.APPROVED);
+        spa.setKycApprovedAt(now.atOffset(ZoneOffset.UTC));
         spa.setKycRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
-        // Guests book a time, not a person: the two starter therapists are placeholders.
+        // Guests book a time, not a person: the starter therapists are placeholders.
         spa.setAllowTherapistSelection(false);
         spa.setAllowTherapistTypeSelection(false);
-        spa.setMaxConcurrentServices(2);
+        spa.setMaxConcurrentServices(5);
         spa.setMaxAdvanceBookingDays(days);
         spa.setMinNoticeMinutes(60);
         spa.setOpenTimeLocal(usual.allDay() ? LocalTime.MIDNIGHT : usual.open());
         spa.setCloseTimeLocal(usual.allDay() ? LocalTime.of(23, 59) : usual.close());
         spa.setWorkingDays(EnumSet.copyOf(week.keySet()));
-        spa.setMetaJson(write(Map.of("onboardedFromLead", leadId, "permission", "confirmed by admin", "starterMenu", true)));
+        spa.setMetaJson(write(Map.of("onboardedFromLead", leadId, "permission", "confirmed by admin", "starterMenu", true, "standardInventory", true)));
         spa = spas.saveAndFlush(spa);
         long spaId = spa.getId();
         jdbc.update("UPDATE spa SET meta=? WHERE id=?", spa.getMetaJson(), spaId);
 
         Timestamp stamp = utc(OffsetDateTime.now());
-        for (var day : week.entrySet()) {
-            LeadHours.Day d = day.getValue();
-            jdbc.update("INSERT INTO schedule_rule (spa_id,weekday,open_local,close_local,is_holiday,version,note) VALUES (?,?,?,?,0,0,?)",
-                    spaId, day.getKey().getValue(), d.allDay() ? LocalTime.MIDNIGHT : d.open(), d.allDay() ? LocalTime.MIDNIGHT : d.close(),
-                    "From Google Maps at onboarding");
-        }
         List<Long> therapists = new ArrayList<>();
-        for (int t = 1; t <= 2; t++)
+        for (int t = 1; t <= 5; t++)
             therapists.add(insert("INSERT INTO therapist (created_at,updated_at,spa_id,name,display_name,type,currency,is_active,is_available,rating_avg,rating_count,version) VALUES (?,?,?,?,?,'massage','INR',1,1,0,0,0)",
                     stamp, stamp, spaId, "Therapist " + t, "Therapist " + t));
 
@@ -162,10 +155,11 @@ public class LeadOnboardingService {
                     VALUES (?,?,?,?,?,'massage',?,?,0,?,?,'INR','ANY',1,1,1,1,0)""",
                     stamp, stamp, spaId, item.name(), item.description(), item.minutes(), item.minutes(), cents, cents);
             for (long therapist : therapists) jdbc.update("INSERT INTO therapist_service (therapist_id,service_id) VALUES (?,?)", therapist, serviceId);
-            // One room per treatment, so each treatment can be offered at every hour; the two
-            // therapists cap how many guests are seen at once.
+            // One room per treatment, so each treatment can be offered through the day; the
+            // team and rooms cap how many guests are seen at once.
             long roomId = insert("INSERT INTO spa_room (created_at,updated_at,spa_id,name,capacity,is_active,version) VALUES (?,?,?,?,1,1,0)",
                     stamp, stamp, spaId, "Treatment room " + (s + 1));
+            jdbc.update("INSERT INTO standard_room_service (room_id,service_id) VALUES (?,?)", roomId, serviceId);
             List<Object[]> slots = new ArrayList<>(), claimed = new ArrayList<>();
             for (int d = 0; d < days; d++) {
                 LocalDate date = today.plusDays(d);
@@ -201,7 +195,7 @@ public class LeadOnboardingService {
         long added = 0;
         for (Long spaId : jdbc.queryForList("""
                 SELECT DISTINCT s.id FROM spa s JOIN spa_lead l ON l.spa_id=s.id
-                WHERE l.status='ONBOARDED' AND s.is_active=1 ORDER BY s.id""", Long.class)) {
+                WHERE l.status='ONBOARDED' AND s.is_active=1 AND JSON_EXTRACT(s.meta,'$.standardInventory') IS NULL ORDER BY s.id""", Long.class)) {
             try {
                 added += Objects.requireNonNull(tx.execute(status -> topUpSpa(spaId)));
             } catch (RuntimeException e) {
@@ -267,22 +261,6 @@ public class LeadOnboardingService {
                 UPDATE spa_lead SET spa_id=?, status='ONBOARDED', permission_confirmed_by=?, permission_confirmed_at=?, updated_at=?,
                        notes=CASE WHEN ? IS NULL THEN notes WHEN notes IS NULL THEN ? ELSE CONCAT(notes, '\n', ?) END
                 WHERE id=?""", spaId, adminId, now, now, note, note, note, leadId);
-    }
-
-    /** The hours most days share, shown on the spa page. */
-    private static LeadHours.Day usualHours(Map<DayOfWeek, LeadHours.Day> week) {
-        Map<LeadHours.Day, Integer> counts = new HashMap<>();
-        week.values().forEach(d -> counts.merge(d, 1, Integer::sum));
-        return Collections.max(counts.entrySet(), Map.Entry.comparingByValue()).getKey();
-    }
-
-    private Map<String, String> hours(String stored) {
-        if (stored == null) return null;
-        try {
-            return json.readValue(stored, new TypeReference<Map<String, String>>() {});
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private static Address address(Map<String, Object> lead) {

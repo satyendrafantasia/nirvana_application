@@ -53,9 +53,9 @@ describe('spa leads', () => {
   });
   it('puts agreed spas live only after you confirm their permission', () => {
     const html = render(<OnboardLeads ready={3} />);
-    expect(html).toContain('Prepare 3 drafts');
-    expect(html).toContain('Confirm those details');
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Prepare 3 drafts/);
+    expect(html).toContain('Publish 3 spas');
+    expect(html).toContain('five therapists and five rooms');
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Publish 3 spas/);
     expect(readyToOnboard({ NEW: 2, CONTACTED: 1, INTERESTED: 1, ONBOARDED: 5, NOT_INTERESTED: 4 })).toBe(4);
   });
   it('links an onboarded lead to its live spa', () => {

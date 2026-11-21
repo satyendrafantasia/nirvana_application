@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SlotAvailabilityService {
 
+    private final StandardAppointmentSlots standardSlots;
     private final TherapistRoster roster;
     private final SessionAllocation allocation;
     private final SpaRepository spaRepository;
@@ -39,7 +40,7 @@ public class SlotAvailabilityService {
 
     // ---------- SINGLE DAY (you already had this flow) ----------
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<SlotAvailabilityResponse> getAvailableSlotsForServiceOnDate(
             Long spaId,
             Long serviceId,
@@ -52,7 +53,7 @@ public class SlotAvailabilityService {
 
     // ---------- WEEK / RANGE VIEW (for Fresha-style UI) ----------
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WeekSlotsResponse getAvailableSlotsForServiceRange(
             Long spaId,
             Long serviceId,
@@ -63,7 +64,7 @@ public class SlotAvailabilityService {
         return getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, false);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<SlotAvailabilityResponse> getTherapistAvailabilityForServiceOnDate(
             Long spaId,
             Long serviceId,
@@ -116,6 +117,7 @@ public class SlotAvailabilityService {
         OffsetDateTime from = startOfRange.toOffsetDateTime();
         OffsetDateTime to = endOfRange.toOffsetDateTime();
 
+        prepareStandardSlots(spa, startDate, days, serviceId);
         // Fetch all slots for spa+service in range
         List<Slot> slots = slotRepository.findSlotsForServiceBetween(spaId, serviceId, from, to);
         Map<Long, Integer> holdMap = buildHoldMap(slots);
@@ -178,6 +180,20 @@ public class SlotAvailabilityService {
     }
 
     // ---------- internal helpers ----------
+
+    public void prepareStandardSlots(Spa spa, LocalDate first, int days, Long serviceId) {
+        if (spa.getMetaJson() == null || !spa.getMetaJson().contains("\"standardInventory\"") || !Boolean.TRUE.equals(spa.getIsActive())) return;
+        ZoneId zone = TherapistRoster.zone(spa);
+        LocalDate today = LocalDate.now(zone);
+        LocalDate last = first.plusDays(days - 1);
+        LocalDate horizon = today.plusDays(Optional.ofNullable(spa.getMaxAdvanceBookingDays()).orElse(30) - 1);
+        if (first.isBefore(today)) first = today;
+        if (last.isAfter(horizon)) last = horizon;
+        if (!first.isAfter(last)) {
+            spaRepository.lockSchedule(spa.getId()).orElseThrow();
+            standardSlots.fill(spa, serviceId, openingHours(spa.getId(), first, last, zone));
+        }
+    }
 
     /** Operating intervals clipped to the requested local dates, including overnight carry-in. */
     public List<TherapistRoster.Interval> openingHours(long spaId, LocalDate first, LocalDate last, ZoneId zone) {
