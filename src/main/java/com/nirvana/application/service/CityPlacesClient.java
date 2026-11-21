@@ -161,6 +161,25 @@ public class CityPlacesClient {
         return call("/places:searchNearby", HttpMethod.POST, body, PUBLIC_SUMMARY);
     }
 
+    /** An owner looking for their own listing: name and address only, no photos or contact details. */
+    public JsonNode claimSearch(String query, String country) {
+        Map<String,Object> body = new LinkedHashMap<>();
+        body.put("textQuery", query);
+        body.put("includedType", "spa");
+        body.put("strictTypeFiltering", true);
+        body.put("pageSize", 10);
+        body.put("regionCode", country.toUpperCase(Locale.ROOT));
+        return call("/places:searchText", HttpMethod.POST, body,
+                "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus");
+    }
+
+    /** Live details used only to pre-fill the owner's claim form; the owner confirms each field before anything is saved. */
+    public JsonNode claimDetails(String placeId) {
+        if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
+        return call("/places/" + placeId, HttpMethod.GET, null,
+                "id,primaryType,displayName,formattedAddress,addressComponents,location,internationalPhoneNumber,websiteUri,businessStatus,editorialSummary");
+    }
+
     public JsonNode locations(String query, String country) {
         return call("/places:searchText", HttpMethod.POST,
                 Map.of("textQuery", query, "regionCode", country.toUpperCase(Locale.ROOT), "pageSize", 5),

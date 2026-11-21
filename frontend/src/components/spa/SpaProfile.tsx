@@ -102,7 +102,11 @@ function Section({
   );
 }
 
-function NotListed({ what, website }: { what: string; website?: string }) {
+/** Where an owner starts claiming this listing; sign-in returns them here. */
+export const claimUrl = (placeId?: string) =>
+  placeId ? `/owner/claim?place=${encodeURIComponent(placeId)}` : '/owner/claim';
+
+function NotListed({ what, website, placeId }: { what: string; website?: string; placeId?: string }) {
   return (
     <div className="listing-empty space-y-2 text-sm text-slate-600">
       <p>
@@ -118,8 +122,8 @@ function NotListed({ what, website }: { what: string; website?: string }) {
             ·{' '}
           </>
         )}
-        <Link className="underline" to="/owner/signup">
-          Own this spa? List it on Nirvana
+        <Link className="underline" to={claimUrl(placeId)}>
+          Own this spa? Claim this listing
         </Link>
       </p>
     </div>
@@ -385,12 +389,12 @@ export default function SpaProfile(p: SpaProfileProps) {
         {p.spaId ? (
           <SpaServices spaId={p.spaId} spaName={p.name} />
         ) : (
-          <NotListed what="treatments and prices" website={p.website} />
+          <NotListed what="treatments and prices" website={p.website} placeId={p.googlePlaceId} />
         )}
       </Section>
 
       <Section id="packages" eyebrow="SAVE ON REGULAR VISITS" title="Packages">
-        {p.spaId ? <SpaPackages spaId={p.spaId} /> : <NotListed what="packages" />}
+        {p.spaId ? <SpaPackages spaId={p.spaId} /> : <NotListed what="packages" placeId={p.googlePlaceId} />}
       </Section>
 
       <Section id="reviews" eyebrow="WHAT GUESTS SAY" title={p.reviewsTitle}>

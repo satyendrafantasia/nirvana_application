@@ -59,6 +59,7 @@ const Navbar = () => {
           <NavLink to="/discover">Discover nearby</NavLink>
           {user && <Suspense fallback={null}><FeatureMenu /></Suspense>}
           {isAdmin(user?.roles) && <NavLink to="/admin/city-discovery">Import cities</NavLink>}
+          {isAdmin(user?.roles) && <NavLink to="/admin/listing-claims">Listing claims</NavLink>}
         </nav>
         <div className="flex items-center gap-3">
           {user ? (

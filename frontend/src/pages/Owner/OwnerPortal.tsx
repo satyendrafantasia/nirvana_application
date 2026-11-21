@@ -9,6 +9,7 @@ import Drafts from '../Staff/Drafts';
 import SpaSettings from '../Staff/SpaSettings';
 import Schedule from './Schedule';
 import OwnerCatalog from './OwnerCatalog';
+import ClaimListing from './ClaimListing';
 type Spa = {
   id: number;
   name: string;
@@ -92,8 +93,24 @@ function Portal() {
           </select>
         </label>
       )}
-      {section === 'onboarding' ? (
-        <Drafts owner />
+      {!!spas.data?.length && section !== 'claim' && (
+        <Link className="inline-block text-sm underline" to="/owner/claim">
+          Add another spa from Google Maps
+        </Link>
+      )}
+      {section === 'claim' ? (
+        <ClaimListing />
+      ) : section === 'onboarding' ? (
+        <>
+          <p className="card p-4">
+            Is your spa on Google Maps?{' '}
+            <Link className="underline" to="/owner/claim">
+              Claim your listing
+            </Link>{' '}
+            and we will fill in most of this for you.
+          </p>
+          <Drafts owner />
+        </>
       ) : spa ? (
         <>
           <div className="rounded-xl border bg-white p-4">
@@ -138,15 +155,20 @@ function Portal() {
           <div className="card p-8 space-y-4">
             <h2 className="text-2xl font-bold">Welcome. Let’s create your first spa.</h2>
             <p>
-              Add your business details, location and verification documents. Save your progress at
-              any time.
+              If your spa is on Google Maps, claim your listing and we will fill in your name,
+              address and contact details for you to check. Otherwise, add your details yourself.
             </p>
-            <Link
-              className="inline-block rounded-xl bg-primary-700 text-white px-5 py-3"
-              to="/owner/onboarding"
-            >
-              Create your spa
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                className="inline-block rounded-xl bg-primary-700 text-white px-5 py-3"
+                to="/owner/claim"
+              >
+                Find my spa on Google Maps
+              </Link>
+              <Link className="inline-block rounded-xl border px-5 py-3" to="/owner/onboarding">
+                Create from scratch
+              </Link>
+            </div>
           </div>
         )
       )}

@@ -1,0 +1,244 @@
+package com.nirvana.application.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nirvana.application.model.dto.AddressDTO;
+import com.nirvana.application.model.dto.SpaOnboardingStartRequest;
+import com.nirvana.application.model.enums.KycStatus;
+import com.nirvana.application.repository.SpaRepository;
+import jakarta.validation.constraints.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.*;
+
+/**
+ * An owner claims their spa's Google Maps listing. Google details only pre-fill the form; what is
+ * saved is what the owner confirmed and submitted, linked to the listing by its Place ID.
+ */
+@Service
+@RequiredArgsConstructor
+public class ListingClaimService {
+    public static final String TERMS_VERSION = "partner-2026-11";
+    public static final String DECLARATION =
+            "I own or am authorised to manage this spa. The details I submitted are correct, and I agree to the Nirvana partner terms.";
+    static final int MAX_PENDING_CLAIMS = 5;
+
+    private final CityPlacesClient places;
+    private final SpaOnboardingService onboarding;
+    private final SpaRepository spas;
+    private final JdbcTemplate jdbc;
+
+    public record ClaimRequest(
+            @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{1,255}") String placeId,
+            @NotBlank @Size(max = 200) String name,
+            @NotBlank @Pattern(regexp = "[+0-9 ()-]{6,30}", message = "Enter a valid phone number") String phone,
+            @Email @Size(max = 200) String email,
+            @Size(max = 500) @Pattern(regexp = "(https?://\\S+)?", message = "Website must start with http:// or https://") String websiteUrl,
+            @Size(max = 2000) String description,
+            @NotBlank @Size(max = 255) String addressLine,
+            @Size(max = 255) String locality,
+            @NotBlank @Size(max = 100) String city,
+            @Size(max = 100) String state,
+            @Size(max = 20) String postalCode,
+            @NotBlank @Pattern(regexp = "[A-Za-z]{2}") String countryCode,
+            @DecimalMin("-90") @DecimalMax("90") BigDecimal latitude,
+            @DecimalMin("-180") @DecimalMax("180") BigDecimal longitude,
+            @NotBlank @Size(max = 64) String timezone,
+            @NotBlank @Size(max = 200) String ownerName,
+            @AssertTrue(message = "Confirm that you are authorised to list this spa") boolean authorised,
+            @NotBlank String termsVersion) {}
+
+    /** Spa listings on Google matching the owner's search, each marked if it is already on Nirvana. */
+    public List<Map<String, Object>> search(String query, String country) {
+        List<JsonNode> found = new ArrayList<>();
+        places.claimSearch(query, country).path("places").forEach(place -> {
+            if (place.path("id").asText().matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isSpa(place)) found.add(place);
+        });
+        Set<String> listed = listed(found.stream().map(p -> p.path("id").asText()).toList());
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (JsonNode place : found) {
+            String id = place.path("id").asText();
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("placeId", id);
+            row.put("name", place.path("displayName").path("text").asText(""));
+            row.put("address", place.path("formattedAddress").asText(""));
+            row.put("businessStatus", place.path("businessStatus").asText(""));
+            row.put("alreadyListed", listed.contains(id));
+            results.add(row);
+        }
+        return results;
+    }
+
+    /** Google's details shaped as the claim form. Nothing here is stored. */
+    public Map<String, Object> prefill(String placeId) {
+        if (!listed(List.of(placeId)).isEmpty()) throw alreadyListed();
+        JsonNode place = places.claimDetails(placeId);
+        if (!SpaPlaceFilter.isSpa(place)) throw notSpa();
+        Map<String, Object> form = new LinkedHashMap<>();
+        form.put("placeId", placeId);
+        form.put("name", place.path("displayName").path("text").asText(""));
+        form.put("phone", place.path("internationalPhoneNumber").asText(""));
+        form.put("websiteUrl", place.path("websiteUri").asText(""));
+        form.put("description", place.path("editorialSummary").path("text").asText(""));
+        form.put("addressLine", place.path("formattedAddress").asText(""));
+        form.put("locality", component(place, "sublocality_level_1", "sublocality", "neighborhood"));
+        form.put("city", component(place, "locality", "administrative_area_level_3", "administrative_area_level_2"));
+        form.put("state", component(place, "administrative_area_level_1"));
+        form.put("postalCode", component(place, "postal_code"));
+        String country = shortComponent(place, "country");
+        form.put("countryCode", country);
+        form.put("timezone", "IN".equalsIgnoreCase(country) || country.isEmpty() ? "Asia/Kolkata" : "");
+        if (place.path("location").has("latitude")) {
+            form.put("latitude", place.path("location").path("latitude").decimalValue().setScale(6, java.math.RoundingMode.HALF_UP));
+            form.put("longitude", place.path("location").path("longitude").decimalValue().setScale(6, java.math.RoundingMode.HALF_UP));
+        }
+        form.put("termsVersion", TERMS_VERSION);
+        form.put("declaration", DECLARATION);
+        return form;
+    }
+
+    /** Creates the owner's spa, unpublished and pending review, and records their consent. */
+    @Transactional
+    public Map<String, Object> submit(Long userId, ClaimRequest request, String clientIp, String userAgent) {
+        if (!TERMS_VERSION.equals(request.termsVersion()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The partner terms have changed. Reload the page and review them again.");
+        try {
+            ZoneId.of(request.timezone());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a valid time zone.");
+        }
+        if (!listed(List.of(request.placeId())).isEmpty()) throw alreadyListed();
+        Long pending = jdbc.queryForObject("SELECT COUNT(*) FROM spa_listing_claim WHERE user_id=? AND status='PENDING'", Long.class, userId);
+        if (pending != null && pending >= MAX_PENDING_CLAIMS)
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "You have " + pending + " claims waiting for review. Please wait for those to be reviewed.");
+        // The listing must be a real spa on Google; checked live, not trusted from the browser.
+        if (!SpaPlaceFilter.isSpa(places.claimDetails(request.placeId()))) throw notSpa();
+
+        AddressDTO address = AddressDTO.builder()
+                .addressLine(trim(request.addressLine())).locality(trim(request.locality())).city(trim(request.city()))
+                .state(trim(request.state())).postalCode(trim(request.postalCode()))
+                .countryCode(request.countryCode().toUpperCase(Locale.ROOT)).formattedAddress(trim(request.addressLine()))
+                .latitude(coordinate(request.latitude())).longitude(coordinate(request.longitude())).timezone(request.timezone())
+                .googlePlaceId(request.placeId()).build();
+        var summary = onboarding.startOnboarding(userId, SpaOnboardingStartRequest.builder()
+                .name(trim(request.name())).phone(trim(request.phone())).email(trim(request.email()))
+                .websiteUrl(trim(request.websiteUrl())).description(trim(request.description())).address(address).build());
+        var spa = spas.findById(summary.getId()).orElseThrow();
+        spa.setOwnerName(trim(request.ownerName()));
+        spa.setGooglePlaceId(request.placeId());
+        if (spa.getAddress() != null) spa.getAddress().setGeoSource("OWNER_CONFIRMED");
+        spa.setKycStatus(KycStatus.PENDING);
+        spa.setKycRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        spas.saveAndFlush(spa);
+
+        jdbc.update("INSERT INTO spa_listing_claim (spa_id,user_id,google_place_id,terms_version,declaration,consented_at,client_ip,user_agent,status) VALUES (?,?,?,?,?,?,?,?,'PENDING')",
+                spa.getId(), userId, request.placeId(), TERMS_VERSION, DECLARATION,
+                OffsetDateTime.now(ZoneOffset.UTC), cut(clientIp, 64), cut(userAgent, 255));
+        return Map.of("spaId", spa.getId(), "name", spa.getName(), "status", "PENDING");
+    }
+
+    /** Claims for the review queue, newest first. */
+    public List<Map<String, Object>> list(String status) {
+        return jdbc.queryForList("""
+                SELECT c.id, c.spa_id AS spaId, s.name AS spaName, s.city, c.google_place_id AS placeId,
+                       c.status, c.consented_at AS consentedAt, c.terms_version AS termsVersion,
+                       u.email AS ownerEmail, s.owner_name AS ownerName, c.review_note AS reviewNote,
+                       c.reviewed_at AS reviewedAt, s.phone, s.email AS spaEmail, s.website_url AS websiteUrl,
+                       s.address_line1 AS addressLine, s.state, s.postal_code AS postalCode, s.kyc_status AS kycStatus
+                FROM spa_listing_claim c JOIN spa s ON s.id=c.spa_id JOIN app_user u ON u.id=c.user_id
+                WHERE c.status=? ORDER BY c.consented_at DESC LIMIT 200""", status);
+    }
+
+    @Transactional
+    public void approve(long claimId, Long adminId) {
+        var claim = pendingClaim(claimId);
+        long spaId = ((Number) claim.get("spa_id")).longValue();
+        var spa = spas.findById(spaId).orElseThrow();
+        spa.setIsActive(true);
+        spa.setIsVerified(true);
+        spa.setKycStatus(KycStatus.APPROVED);
+        spa.setKycApprovedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        spas.saveAndFlush(spa);
+        review(claimId, "APPROVED", adminId, null);
+    }
+
+    /** Rejecting frees the listing so its real owner can claim it. */
+    @Transactional
+    public void reject(long claimId, Long adminId, String note) {
+        var claim = pendingClaim(claimId);
+        var spa = spas.findById(((Number) claim.get("spa_id")).longValue()).orElseThrow();
+        spa.setIsActive(false);
+        spa.setIsVerified(false);
+        spa.setGooglePlaceId(null);
+        spa.setKycStatus(KycStatus.REJECTED);
+        spa.setKycRejectedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        spa.setKycRejectedReason(note);
+        spas.saveAndFlush(spa);
+        review(claimId, "REJECTED", adminId, note);
+    }
+
+    private Map<String, Object> pendingClaim(long claimId) {
+        var rows = jdbc.queryForList("SELECT * FROM spa_listing_claim WHERE id=? FOR UPDATE", claimId);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found.");
+        if (!"PENDING".equals(rows.get(0).get("status")))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This claim has already been reviewed.");
+        return rows.get(0);
+    }
+
+    private void review(long claimId, String status, Long adminId, String note) {
+        jdbc.update("UPDATE spa_listing_claim SET status=?, reviewed_at=?, reviewed_by=?, review_note=? WHERE id=?",
+                status, OffsetDateTime.now(ZoneOffset.UTC), adminId, note, claimId);
+    }
+
+    private Set<String> listed(List<String> ids) {
+        if (ids.isEmpty()) return Set.of();
+        String slots = String.join(",", Collections.nCopies(ids.size(), "?"));
+        return new HashSet<>(jdbc.queryForList("SELECT google_place_id FROM spa WHERE google_place_id IN (" + slots + ")", String.class, ids.toArray()));
+    }
+
+    private static String component(JsonNode place, String... types) {
+        return findComponent(place, types).path("longText").asText("");
+    }
+
+    private static String shortComponent(JsonNode place, String... types) {
+        return findComponent(place, types).path("shortText").asText("");
+    }
+
+    private static JsonNode findComponent(JsonNode place, String... types) {
+        for (String type : types)
+            for (JsonNode c : place.path("addressComponents"))
+                for (JsonNode t : c.path("types"))
+                    if (type.equals(t.asText())) return c;
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+    }
+
+    private static ResponseStatusException alreadyListed() {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
+                "This spa is already on Nirvana or has a claim under review. If it is yours, contact partner support.");
+    }
+
+    private static ResponseStatusException notSpa() {
+        return new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Google Maps does not list this business as a spa. Create your spa from scratch instead.");
+    }
+
+    private static String trim(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
+    }
+
+    private static BigDecimal coordinate(BigDecimal value) {
+        return value == null ? null : value.setScale(6, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static String cut(String value, int max) {
+        return value == null ? null : value.length() > max ? value.substring(0, max) : value;
+    }
+}

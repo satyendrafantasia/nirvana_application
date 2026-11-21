@@ -12,7 +12,9 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
   const [params] = useSearchParams();
   const requested = params.get('redirect');
   const redirect = owner
-    ? '/owner'
+    ? requested?.startsWith('/owner/')
+      ? requested
+      : '/owner'
     : requested?.startsWith('/') && !requested.startsWith('//')
       ? requested
       : '/';

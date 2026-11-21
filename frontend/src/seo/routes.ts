@@ -2,6 +2,7 @@
 const paths = new Set([
   '/discover',
   '/admin/city-discovery',
+  '/admin/listing-claims',
   '/staff/media',
   '/packages',
   '/me/packages',
