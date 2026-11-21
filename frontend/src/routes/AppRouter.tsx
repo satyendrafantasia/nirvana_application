@@ -10,6 +10,7 @@ const PasswordReset = lazy(() => import('../pages/Auth/PasswordReset'));
 const Media = lazy(() => import('../pages/Staff/Media'));
 const CityDiscovery = lazy(() => import('../pages/Staff/CityDiscovery'));
 const ListingClaims = lazy(() => import('../pages/Staff/ListingClaims'));
+const SpaLeads = lazy(() => import('../pages/Staff/SpaLeads'));
 const Home = lazy(() => import('../pages/Home/Home'));
 const SpaSearch = lazy(() => import('../pages/SpaSearch/SpaSearch'));
 const SpaDetails = lazy(() => import('../pages/SpaDetails/SpaDetails'));
@@ -49,6 +50,14 @@ const AppRouter = () => {
         element={
           <RequireAuth>
             <ListingClaims />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/spa-leads"
+        element={
+          <RequireAuth>
+            <SpaLeads />
           </RequireAuth>
         }
       />

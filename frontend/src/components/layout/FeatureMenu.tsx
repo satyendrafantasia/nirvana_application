@@ -24,6 +24,7 @@ export const ADMIN_MENU: { group: string; items: { to: string; label: string }[]
   {
     group: 'Review',
     items: [
+      { to: '/admin/spa-leads', label: 'Spa leads' },
       { to: '/admin/listing-claims', label: 'Listing claims' },
       { to: '/features/administration', label: 'Approvals, refunds & support' }
     ]

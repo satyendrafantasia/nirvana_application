@@ -1,0 +1,30 @@
+-- Spas to approach about joining Nirvana, imported from lists such as Google Maps exports.
+-- A lead is not a spa: nothing here is shown to guests or blocks an owner's listing claim.
+CREATE TABLE spa_lead (
+  id bigint NOT NULL AUTO_INCREMENT,
+  google_cid varchar(25) DEFAULT NULL,
+  name varchar(255) NOT NULL,
+  address varchar(500) DEFAULT NULL,
+  city varchar(100) DEFAULT NULL,
+  phone varchar(32) DEFAULT NULL,
+  email varchar(255) DEFAULT NULL,
+  website varchar(1000) DEFAULT NULL,
+  socials_json text DEFAULT NULL,
+  google_rating decimal(2,1) DEFAULT NULL,
+  google_review_count int DEFAULT NULL,
+  latitude decimal(9,6) DEFAULT NULL,
+  longitude decimal(9,6) DEFAULT NULL,
+  maps_url varchar(500) DEFAULT NULL,
+  source varchar(100) NOT NULL,
+  status varchar(20) NOT NULL DEFAULT 'NEW',
+  notes varchar(2000) DEFAULT NULL,
+  spa_id bigint DEFAULT NULL,
+  imported_at datetime(6) NOT NULL,
+  updated_at datetime(6) NOT NULL,
+  last_contacted_at datetime(6) DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_spa_lead_cid (google_cid),
+  KEY idx_spa_lead_status (status, city),
+  KEY idx_spa_lead_phone (phone),
+  CONSTRAINT fk_spa_lead_spa FOREIGN KEY (spa_id) REFERENCES spa (id)
+);
