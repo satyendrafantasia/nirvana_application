@@ -111,9 +111,10 @@ public class LeadOnboardingService {
         spa.setName(name);
         spa.setPhone((String) lead.get("phone"));
         spa.setEmail((String) lead.get("email"));
-        spa.setWebsiteUrl((String) lead.get("website"));
+        // A link longer than the spa's field is almost always a pasted search URL; a cut-off link wouldn't work.
+        spa.setWebsiteUrl(fits((String) lead.get("website"), 255));
         spa.setGooglePlaceId(placeId);
-        spa.setGoogleMapsUrl((String) lead.get("maps_url"));
+        spa.setGoogleMapsUrl(fits((String) lead.get("maps_url"), 500));
         spa.setTimezone(ZONE.getId());
         spa.setAddress(address(lead));
         spa.setIsActive(true);
@@ -230,6 +231,10 @@ public class LeadOnboardingService {
         a.setAddressType("SPA_BRANCH");
         a.setGeoSource("GOOGLE_MAPS_LEAD");
         return a;
+    }
+
+    private static String fits(String value, int max) {
+        return value != null && value.length() <= max ? value : null;
     }
 
     /** Times are stored as UTC wall-clock values, as the app's JPA mapping reads them. */

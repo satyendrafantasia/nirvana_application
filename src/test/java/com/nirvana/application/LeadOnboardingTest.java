@@ -41,7 +41,8 @@ class LeadOnboardingTest {
               "gps_coordinates":{"latitude":28.45,"longitude":77.05},
               "operating_hours":{"monday":"10 AM–10 PM","tuesday":"10 AM–10 PM","wednesday":"Closed","thursday":"9:30 AM–9:30 PM",
                                  "friday":"Open 24 hours","saturday":"10 AM–10 PM","sunday":"10 AM–10 PM"}},
-             {"title":"Onboard No Hours Spa","data_cid":"990000000000000002","address":"Sector 14, Gurugram, Haryana 122007, India"},
+             {"title":"Onboard No Hours Spa","data_cid":"990000000000000002","address":"Sector 14, Gurugram, Haryana 122007, India",
+              "website":"https://www.google.com/search?q=LONG_QUERY"},
              {"title":"Onboard Declined Spa","data_cid":"990000000000000003","address":"Sector 15, Gurugram, Haryana 122001, India"}
             ]}""";
 
@@ -68,7 +69,7 @@ class LeadOnboardingTest {
     }
 
     @Test void onboardedLeadIsLiveAndBookableWithItsGoogleHours() throws Exception {
-        leads.importLeads(json.readTree(SEARCH), "test", null);
+        leads.importLeads(json.readTree(SEARCH.replace("LONG_QUERY", "x".repeat(300))), "test", null);
         long withHours = lead("990000000000000001"), noHours = lead("990000000000000002"), declined = lead("990000000000000003");
         leads.update(declined, "NOT_INTERESTED", null);
 
@@ -130,6 +131,8 @@ class LeadOnboardingTest {
         // A lead without hours gets 10 AM–10 PM every day.
         long other = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, noHours);
         assertEquals(7, jdbc.queryForObject("SELECT COUNT(*) FROM schedule_rule WHERE spa_id=?", Integer.class, other));
+        // Its website was a search link too long for the spa's field: onboarded without it.
+        assertNull(jdbc.queryForObject("SELECT website_url FROM spa WHERE id=?", String.class, other));
 
         // Onboarding again changes nothing.
         var again = onboarding.onboard(List.of(withHours), 14, admin());
