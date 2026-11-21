@@ -29,6 +29,8 @@ const SpaSearch = () => {
   };
   const filters = new URLSearchParams(params);
   filters.delete('source');
+  const city = params.get('city')?.trim();
+  const narrowed = ['spaName', 'serviceName', 'q', 'minRating'].some(key => params.get(key)?.trim());
   const queryParams = Object.fromEntries(filters);
 
   const results = useInfiniteQuery({
@@ -74,7 +76,21 @@ const SpaSearch = () => {
             {results.isError && <p role="alert">Unable to load spas. Check the connection and retry.</p>}
             {results.isLoading && <p className="text-sm text-slate-500">Loading spas...</p>}
             {!results.isLoading && !results.isError && spas.length === 0 && (
-              <p className="text-sm text-slate-500">No spas found.</p>
+              <section className="card space-y-4 p-6 md:col-span-3">
+                <p role="status" className="font-semibold">
+                  {narrowed
+                    ? `No bookable spas${city ? ' in ' + city : ''} match your filters.`
+                    : `No spas are bookable on Nirvana${city ? ' in ' + city : ''} yet.`}
+                </p>
+                {city && (
+                  <Button onClick={() => {
+                    setNearby(false);
+                    setParams(new URLSearchParams({ source: 'google', city }));
+                  }}>
+                    Search Google Places in {city}
+                  </Button>
+                )}
+              </section>
             )}
             {spas.map((spa: Spa) => (
               <SpaCard spa={spa} key={spa.id} />
