@@ -28,6 +28,7 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     private final TaskScheduler taskScheduler;
     private final BookingRepository bookingRepository;
     private final PlatformTransactionManager transactionManager;
+    private final com.nirvana.application.service.SpaBookingAlerts spaAlerts;
 
     @Override
     public void scheduleBookingNotifications(Booking booking) {
@@ -85,17 +86,21 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
                     case CONFIRMED -> {
                         attempt(booking, notificationService::notifyCustomerBookingConfirmed);
                         attempt(booking, notificationService::notifySpaOwnerBookingConfirmed);
+                        // Most spas have no email but do have a mobile: they confirm by SMS link.
+                        attempt(booking, spaAlerts::bookingConfirmed);
                     }
                     case CANCELLED -> {
                         attempt(booking, notificationService::notifyCustomerBookingCancelled);
                         // The spa was never told about a booking that expired unpaid.
                         if (!BookingLifecycleService.PAYMENT_TIMEOUT.equals(booking.getCancellationReasonCode())) {
                             attempt(booking, notificationService::notifySpaOwnerBookingCancelled);
+                            attempt(booking, spaAlerts::bookingCancelled);
                         }
                     }
                     case RESCHEDULED -> {
                         attempt(booking, notificationService::notifyCustomerBookingRescheduled);
                         attempt(booking, notificationService::notifySpaOwnerBookingRescheduled);
+                        if (booking.getStatus() == BookingStatus.CONFIRMED) attempt(booking, spaAlerts::bookingRescheduled);
                     }
                 }
             });

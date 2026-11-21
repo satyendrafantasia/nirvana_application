@@ -33,8 +33,9 @@ class BookingNotificationTest {
     NotificationService sender = mock(NotificationService.class);
     BookingRepository bookings = mock(BookingRepository.class);
     TaskScheduler scheduler = mock(TaskScheduler.class);
+    com.nirvana.application.service.SpaBookingAlerts spaAlerts = mock(com.nirvana.application.service.SpaBookingAlerts.class);
     NotificationSchedulingServiceImpl service =
-            new NotificationSchedulingServiceImpl(sender, scheduler, bookings, mock(PlatformTransactionManager.class));
+            new NotificationSchedulingServiceImpl(sender, scheduler, bookings, mock(PlatformTransactionManager.class), spaAlerts);
     Booking booking;
 
     @BeforeEach void setUp() {

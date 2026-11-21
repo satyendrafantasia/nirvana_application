@@ -217,6 +217,21 @@ loyalty:
   # completed. One point is worth one minor currency unit at checkout. 0 disables earning.
   earn-percent: ${LOYALTY_EARN_PERCENT:2}
 
+# Booking SMS to spas, with a private link to confirm or decline. Uses the sms settings above
+# (AWS SNS). Indian carriers need a DLT-registered sender and one template per message kind.
+spa-alerts:
+  enabled: ${SPA_ALERTS_ENABLED:true}
+  interval-ms: 120000
+  log-messages: false
+  sms:
+    sender-id: ${SPA_SMS_SENDER_ID:}
+    dlt-entity-id: ${SPA_SMS_DLT_ENTITY_ID:}
+    templates:
+      new: ${SPA_SMS_TEMPLATE_NEW:}
+      reminder: ${SPA_SMS_TEMPLATE_REMINDER:}
+      cancelled: ${SPA_SMS_TEMPLATE_CANCELLED:}
+      moved: ${SPA_SMS_TEMPLATE_MOVED:}
+
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   scheduling:

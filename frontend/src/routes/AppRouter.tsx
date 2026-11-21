@@ -23,6 +23,7 @@ const MyBookings = lazy(() => import('../pages/Profile/MyBookings'));
 const AccountSettings = lazy(() => import('../pages/Profile/AccountSettings'));
 const OwnerPortal = lazy(() => import('../pages/Owner/OwnerPortal'));
 const NotFound = lazy(() => import('../pages/Static/NotFound'));
+const SpaBookingReply = lazy(() => import('../pages/SpaBookingReply/SpaBookingReply'));
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
@@ -108,6 +109,8 @@ const AppRouter = () => {
       {/* Anyone can browse spas; booking and buying ask them to sign in. */}
       <Route path="/spas" element={<SpaSearch />} />
       <Route path="/spas/:spaId" element={<SpaDetails />} />
+      {/* A spa answers its booking SMS here, from a private link, without an account. */}
+      <Route path="/b/:token" element={<SpaBookingReply />} />
       <Route
         path="/booking/*"
         element={

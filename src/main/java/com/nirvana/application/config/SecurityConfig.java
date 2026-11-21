@@ -69,6 +69,8 @@ public class SecurityConfig {
                                 "/api/payments/razorpay/webhook",
                                 "/api/public/google-booking/**",
                                 "/api/public/discovery/**",
+                                // A spa answers its booking SMS from a private link, without an account.
+                                "/api/public/spa-bookings/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
