@@ -106,7 +106,15 @@ function Section({
 export const claimUrl = (placeId?: string) =>
   placeId ? `/owner/claim?place=${encodeURIComponent(placeId)}` : '/owner/claim';
 
-function NotListed({ what, website, placeId }: { what: string; website?: string; placeId?: string }) {
+function NotListed({
+  what,
+  website,
+  placeId
+}: {
+  what: string;
+  website?: string;
+  placeId?: string;
+}) {
   return (
     <div className="listing-empty space-y-2 text-sm text-slate-600">
       <p>
@@ -174,8 +182,10 @@ type Offer = {
   start: () => ReturnType<typeof startPackage>;
 };
 const packageName = (type: string) => `${type.toLowerCase().replaceAll('_', ' ')} package`;
+/** Who sells the package: the spa itself, or Nirvana across many spas. */
+type PackageTab = 'spa' | 'nirvana';
 
-function SpaPackages({ spaId }: { spaId: string }) {
+export function SpaPackages({ spaId }: { spaId: string }) {
   const qc = useQueryClient();
   const spa = useQuery({ queryKey: ['spa', spaId], queryFn: () => getSpaDetails(spaId) });
   const own = useQuery({
@@ -194,68 +204,135 @@ function SpaPackages({ spaId }: { spaId: string }) {
     }
   });
   const currency = spa.data?.defaultCurrency || 'INR';
-  const offers: Offer[] = [
-    ...(own.data || []).map((p) => ({
-      key: `spa-${p.id}`,
-      title: packageName(p.level),
-      price: packagePrice(Math.round(p.price * 100), currency),
-      sessions: p.freeSessionsCount,
-      note: 'For visits to this spa only',
-      mine: true,
-      start: () => startSpaPackage(spaId, p.id)
-    })),
-    ...(catalog.data || [])
-      .filter((p) => p.eligibleSpas.some((s) => String(s.id) === spaId))
-      .map((p) => ({
-        key: `nirvana-${p.id}`,
-        title: `Nirvana ${packageName(p.packageType)}`,
-        price: packagePrice(p.amountCents, p.currency),
-        sessions: p.sessions,
-        note:
-          `Use it here and at ${p.eligibleSpas.length - 1} other Nirvana spas` +
-          (p.validityDays ? ` · valid ${p.validityDays} days` : ''),
-        mine: false,
-        start: () => startPackage(p.id)
-      }))
-  ];
+  const spaName = spa.data?.name || 'this spa';
+  const spaOffers: Offer[] = (own.data || []).map((p) => ({
+    key: `spa-${p.id}`,
+    title: packageName(p.level),
+    price: packagePrice(Math.round(p.price * 100), currency),
+    sessions: p.freeSessionsCount,
+    note: 'Use the sessions at this spa only',
+    mine: true,
+    start: () => startSpaPackage(spaId, p.id)
+  }));
+  const nirvanaOffers: Offer[] = (catalog.data || [])
+    .filter((p) => p.eligibleSpas.some((s) => String(s.id) === spaId))
+    .map((p) => ({
+      key: `nirvana-${p.id}`,
+      title: packageName(p.packageType),
+      price: packagePrice(p.amountCents, p.currency),
+      sessions: p.sessions,
+      note:
+        `Use the sessions here or at ${p.eligibleSpas.length - 1} other Nirvana spas` +
+        (p.validityDays ? ` · valid ${p.validityDays} days` : ''),
+      mine: false,
+      start: () => startPackage(p.id)
+    }));
+  const [chosen, setChosen] = useState<PackageTab>();
+  // Open on the spa's own packages when it sells any; otherwise on Nirvana's.
+  const tab: PackageTab = chosen ?? (spaOffers.length ? 'spa' : 'nirvana');
   const loading = own.isLoading || catalog.isLoading;
+  const tabs: { id: PackageTab; label: string; count: number }[] = [
+    { id: 'spa', label: "This spa's packages", count: spaOffers.length },
+    { id: 'nirvana', label: 'Nirvana packages', count: nirvanaOffers.length }
+  ];
+  const offers = tab === 'spa' ? spaOffers : nirvanaOffers;
+  const select = (next: PackageTab) => {
+    setChosen(next);
+    document.getElementById(`package-tab-${next}`)?.focus();
+  };
   return (
     <>
       {loading && <p role="status">Loading packages…</p>}
       {(own.isError || catalog.isError) && (
         <p role="alert">{errorMessage(own.error || catalog.error)}</p>
       )}
-      {!loading && !offers.length && !own.isError && !catalog.isError && (
-        <p>This spa is not selling any packages at the moment.</p>
-      )}
-      <div className="grid gap-5 md:grid-cols-3">
-        {offers.map((offer) => (
-          <article key={offer.key} className="spa-package">
-            <h3 className="text-lg font-semibold capitalize text-slate-900">{offer.title}</h3>
-            <p className="text-3xl font-bold text-primary-700">{offer.price}</p>
-            <ul className="space-y-1 text-sm text-slate-600">
-              <li>{offer.sessions} spa sessions</li>
-              <li>{offer.note}</li>
-            </ul>
-            <Button
-              className="mt-auto"
-              disabled={buy.isPending}
-              onClick={() => buy.mutate(offer)}
-            >
-              {buy.isPending && buy.variables?.key === offer.key ? 'Processing…' : 'Buy package'}
-            </Button>
-            {buy.isError && buy.variables?.key === offer.key && (
-              <p role="alert" className="text-sm text-rose-700">
-                {errorMessage(buy.error)}
-              </p>
-            )}
-            {bought?.key === offer.key && (
-              <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm">
-                {bought.message} Choose it at checkout when you book.
-              </p>
-            )}
-          </article>
+      <div
+        role="tablist"
+        aria-label="Who sells the package"
+        className="package-tabs mb-5 flex flex-wrap gap-2"
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            id={`package-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`package-panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => setChosen(t.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
+                select(t.id === 'spa' ? 'nirvana' : 'spa');
+            }}
+            className={`rounded-xl border px-4 py-2 text-sm font-semibold ${
+              tab === t.id
+                ? 'border-primary-700 bg-primary-700 text-white'
+                : 'border-slate-300 bg-white text-slate-700'
+            }`}
+          >
+            {t.label} ({t.count})
+          </button>
         ))}
+      </div>
+      <div
+        role="tabpanel"
+        id={`package-panel-${tab}`}
+        aria-labelledby={`package-tab-${tab}`}
+        tabIndex={0}
+        className="space-y-4"
+      >
+        <div>
+          <h3 className="text-xl font-semibold text-slate-900">
+            {tab === 'spa' ? `Packages from ${spaName}` : 'Nirvana packages'}
+          </h3>
+          <p className="text-sm text-slate-600">
+            {tab === 'spa'
+              ? 'Sold by this spa. Your sessions can only be used here.'
+              : 'Sold by Nirvana. Your sessions can be used at this spa and at other Nirvana spas.'}
+          </p>
+        </div>
+        {!loading && !offers.length && !own.isError && !catalog.isError && (
+          <p>
+            {tab === 'spa'
+              ? 'This spa doesn’t sell its own packages yet.'
+              : 'No Nirvana packages can be used at this spa yet.'}
+          </p>
+        )}
+        <div className="grid gap-5 md:grid-cols-3">
+          {offers.map((offer) => (
+            <article key={offer.key} className="spa-package">
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${offer.mine ? 'text-slate-500' : 'text-primary-700'}`}
+              >
+                {offer.mine ? 'Spa package' : 'Nirvana package'}
+              </p>
+              <h3 className="text-lg font-semibold capitalize text-slate-900">{offer.title}</h3>
+              <p className="text-3xl font-bold text-primary-700">{offer.price}</p>
+              <ul className="space-y-1 text-sm text-slate-600">
+                <li>{offer.sessions} spa sessions</li>
+                <li>{offer.note}</li>
+              </ul>
+              <Button
+                className="mt-auto"
+                disabled={buy.isPending}
+                onClick={() => buy.mutate(offer)}
+              >
+                {buy.isPending && buy.variables?.key === offer.key ? 'Processing…' : 'Buy package'}
+              </Button>
+              {buy.isError && buy.variables?.key === offer.key && (
+                <p role="alert" className="text-sm text-rose-700">
+                  {errorMessage(buy.error)}
+                </p>
+              )}
+              {bought?.key === offer.key && (
+                <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm">
+                  {bought.message} Choose it at checkout when you book.
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
       </div>
     </>
   );
@@ -351,7 +428,12 @@ export default function SpaProfile(p: SpaProfileProps) {
                   <div>
                     <dt>Website</dt>
                     <dd>
-                      <a className="underline break-all" href={p.website} target="_blank" rel="noreferrer">
+                      <a
+                        className="underline break-all"
+                        href={p.website}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         {p.website.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
                       </a>
                     </dd>
@@ -394,7 +476,11 @@ export default function SpaProfile(p: SpaProfileProps) {
       </Section>
 
       <Section id="packages" eyebrow="SAVE ON REGULAR VISITS" title="Packages">
-        {p.spaId ? <SpaPackages spaId={p.spaId} /> : <NotListed what="packages" placeId={p.googlePlaceId} />}
+        {p.spaId ? (
+          <SpaPackages spaId={p.spaId} />
+        ) : (
+          <NotListed what="packages" placeId={p.googlePlaceId} />
+        )}
       </Section>
 
       <Section id="reviews" eyebrow="WHAT GUESTS SAY" title={p.reviewsTitle}>

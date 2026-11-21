@@ -2,7 +2,8 @@ import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
-import SpaProfile, { directionsUrl, embedUrl } from './SpaProfile';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import SpaProfile, { SpaPackages, directionsUrl, embedUrl } from './SpaProfile';
 import { placeProfile } from '../../pages/Discovery/PlacePage';
 import { spaProfile } from '../../pages/SpaDetails/SpaDetails';
 
@@ -23,6 +24,60 @@ const place = {
   currentOpeningHours: { openNow: true },
   reviews: [{ name: 'places/x/reviews/1', rating: 5, text: { text: 'Wonderful massage.' } }]
 };
+
+describe('spa page packages', () => {
+  const renderPackages = (spaPackages: unknown[]) => {
+    const qc = new QueryClient();
+    qc.setQueryData(['spa', '7'], { id: '7', name: 'Lotus Day Spa', defaultCurrency: 'INR' });
+    qc.setQueryData(['spa-packages', '7'], spaPackages);
+    qc.setQueryData(
+      ['packages'],
+      [
+        {
+          id: 2,
+          packageType: 'SILVER',
+          description: '',
+          amountCents: 500000,
+          currency: 'INR',
+          sessions: 5,
+          validityDays: 90,
+          eligibleSpas: [
+            { id: 7, name: 'Lotus Day Spa' },
+            { id: 8, name: 'Other Spa' }
+          ]
+        }
+      ]
+    );
+    return renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <StaticRouter location="/spas/7">
+          <SpaPackages spaId="7" />
+        </StaticRouter>
+      </QueryClientProvider>
+    );
+  };
+  it("keeps the spa's own packages and Nirvana's in separate, labelled tabs", () => {
+    const html = renderPackages([{ id: 1, level: 'GOLD', price: 3999, freeSessionsCount: 6 }]);
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('This spa&#x27;s packages (1)');
+    expect(html).toContain('Nirvana packages (1)');
+    // Opens on the spa's own packages, with its own headline.
+    expect(html).toMatch(/aria-selected="true"[^>]*>This spa&#x27;s packages/);
+    expect(html).toContain('Packages from Lotus Day Spa');
+    expect(html).toContain('Your sessions can only be used here.');
+    expect(html).toContain('Spa package');
+    expect(html).toContain('gold package');
+    expect(html).not.toContain('silver package');
+  });
+  it('opens on Nirvana packages when the spa sells none of its own', () => {
+    const html = renderPackages([]);
+    expect(html).toContain('This spa&#x27;s packages (0)');
+    expect(html).toMatch(/aria-selected="true"[^>]*>Nirvana packages/);
+    expect(html).toContain('Sold by Nirvana.');
+    expect(html).toContain('silver package');
+    expect(html).toContain('Use the sessions here or at 1 other Nirvana spas');
+  });
+});
 
 describe('the spa page', () => {
   const html = render(
