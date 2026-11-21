@@ -59,7 +59,8 @@ public class CityPlacesClient {
         body.put("pageSize", 20);
         body.put("regionCode", country);
         if (token != null && !token.isBlank()) body.put("pageToken", token);
-        return call("/places:searchText", HttpMethod.POST, body, "places.id,nextPageToken");
+        // Type and name let SpaPlaceFilter drop salons and gyms Google also tags "spa"; neither is stored.
+        return call("/places:searchText", HttpMethod.POST, body, "places.id,places.primaryType,places.displayName,nextPageToken");
     }
 
     public JsonNode details(String placeId) {
@@ -101,7 +102,7 @@ public class CityPlacesClient {
     }
 
     // Summary fields only. Phone/website are requested only when details are opened.
-    private static final String SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
+    private static final String SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
 
     public JsonNode discover(PlaceDiscoveryRequest request) {
         if (!request.isSearchValid() || !request.isBoundsValid())
@@ -109,6 +110,7 @@ public class CityPlacesClient {
         Map<String,Object> body = new LinkedHashMap<>();
         if (request.mode() == PlaceDiscoveryRequest.Mode.NEARBY) {
             body.put("includedTypes", List.of("spa"));
+            body.put("excludedPrimaryTypes", SpaPlaceFilter.EXCLUDED_PRIMARY_TYPES);
             body.put("maxResultCount", 20);
             body.put("rankPreference", request.rank() == null ? "DISTANCE" : request.rank().name());
             body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(
@@ -133,7 +135,7 @@ public class CityPlacesClient {
     public static final int PUBLIC_RADIUS_METERS = 5000;
     public static final int PUBLIC_RESULTS = 6;
     // No photos: each photo is a further paid call, and the photo endpoints need sign-in.
-    private static final String PUBLIC_SUMMARY = "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
+    private static final String PUBLIC_SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
     @Value("${google.places.public-requests-per-minute:20}") private int publicRequestsPerMinute = 20;
     private long publicWindow;
     private int publicRequests;
@@ -151,6 +153,7 @@ public class CityPlacesClient {
         if (configured()) reservePublicRequest();
         Map<String,Object> body = new LinkedHashMap<>();
         body.put("includedTypes", List.of("spa"));
+        body.put("excludedPrimaryTypes", SpaPlaceFilter.EXCLUDED_PRIMARY_TYPES);
         body.put("maxResultCount", PUBLIC_RESULTS);
         body.put("rankPreference", "DISTANCE");
         body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(

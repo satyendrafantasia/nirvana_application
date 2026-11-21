@@ -20,7 +20,7 @@ class CityPlacesClientTest {
   var builder=new RestTemplateBuilder(template -> {
    customizer.customize(template);
    customizer.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchText"))
-    .andExpect(method(HttpMethod.POST)).andExpect(header("X-Goog-FieldMask","places.id,nextPageToken"))
+    .andExpect(method(HttpMethod.POST)).andExpect(header("X-Goog-FieldMask","places.id,places.primaryType,places.displayName,nextPageToken"))
     .andExpect(content().json("{\"textQuery\":\"spas in Bengaluru, IN\",\"includedType\":\"spa\",\"strictTypeFiltering\":true,\"pageSize\":20,\"regionCode\":\"IN\",\"pageToken\":\"next\"}"))
     .andRespond(withSuccess("{\"places\":[{\"id\":\"abc\"}]}",MediaType.APPLICATION_JSON));
   });
@@ -41,6 +41,7 @@ class CityPlacesClientTest {
    customizer.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchNearby"))
     .andExpect(method(HttpMethod.POST))
     .andExpect(header("X-Goog-FieldMask", org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("websiteUri"))))
+    .andExpect(jsonPath("$.excludedPrimaryTypes", org.hamcrest.Matchers.hasItems("hair_salon", "beauty_salon", "gym")))
     .andExpect(content().json("{\"includedTypes\":[\"spa\"],\"maxResultCount\":20,\"rankPreference\":\"DISTANCE\",\"locationRestriction\":{\"circle\":{\"center\":{\"latitude\":12.97,\"longitude\":77.59},\"radius\":3000}}}"))
     .andRespond(withSuccess("{\"places\":[]}",MediaType.APPLICATION_JSON));
   }));

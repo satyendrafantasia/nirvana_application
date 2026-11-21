@@ -21,7 +21,7 @@ public class PlaceSummaryService {
         Map<String, ObjectNode> unique = new LinkedHashMap<>();
         response.path("places").forEach(place -> {
             String id = place.path("id").asText();
-            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")) {
+            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isSpa(place)) {
                 ObjectNode summary = object.deepCopy();
                 JsonNode photos = summary.remove("photos");
                 if (photos != null && photos.isArray() && !photos.isEmpty()) {
