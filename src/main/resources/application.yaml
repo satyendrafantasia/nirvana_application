@@ -114,7 +114,12 @@ otp:
 
 sms:
   enabled: true
-  provider: AWS_SNS
+  # AWS_SNS, or TWOFACTOR to send OTP codes through 2Factor.in. Spa booking alerts use AWS SNS only.
+  provider: ${SMS_PROVIDER:AWS_SNS}
+  twofactor:
+    api-key: ${TWOFACTOR_API_KEY:}
+    # Name of an approved OTP template in the 2Factor dashboard; empty uses 2Factor's default template.
+    otp-template: ${TWOFACTOR_OTP_TEMPLATE:}
   # DLT template ID for the OTP text "Your OTP is {#var#}. It is valid for {#var#} minutes."
   # The sender ID and entity ID are the business-wide ones under spa-alerts.sms.
   otp-template-id: ${SMS_TEMPLATE_OTP:}

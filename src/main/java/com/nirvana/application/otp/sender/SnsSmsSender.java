@@ -5,6 +5,7 @@ import com.nirvana.application.otp.exception.SmsSendException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -22,6 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "sms.provider", havingValue = "AWS_SNS", matchIfMissing = true)
 @RequiredArgsConstructor
 public class SnsSmsSender implements SmsSender {
 
