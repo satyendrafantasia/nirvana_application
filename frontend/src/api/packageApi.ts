@@ -9,7 +9,7 @@ export interface CatalogPackage {
   currency: string;
   sessions: number;
   validityDays: number | null;
-  eligibleSpas: { id: number; name: string }[];
+  eligibleSpas: { id: number; name: string; city?: string | null }[];
 }
 export interface OwnedPackage {
   subscriptionId: number;

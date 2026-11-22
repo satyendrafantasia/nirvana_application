@@ -26,7 +26,7 @@ public class PackageCheckoutService {
    EntityManager em, RazorpayProperties props, @Nullable RazorpayClient gateway) {
   this.packages=packages; this.subscriptions=subscriptions; this.em=em; this.props=props; this.gateway=gateway;
  }
- public record SpaItem(Long id,String name) {}
+ public record SpaItem(Long id,String name,String city) {}
  public record CatalogItem(Long id,String packageType,String description,int amountCents,String currency,
    int sessions,Integer validityDays,List<SpaItem> eligibleSpas) {}
  public record Purchase(Long subscriptionId,String packageType,String status,String paymentStatus,int remainingSessions,
@@ -36,7 +36,7 @@ public class PackageCheckoutService {
  public List<CatalogItem> catalog() {
   return packages.findAll().stream().filter(p->Boolean.TRUE.equals(p.getActive())).map(p->new CatalogItem(
    p.getId(),p.getPackageType().name(),p.getDescription(),p.getPriceCents(),props.getCurrency(),p.getSessionCount(),
-   p.getValidityDays(),p.getEligibleSpas().stream().map(s->new SpaItem(s.getId(),s.getName())).toList())).toList();
+   p.getValidityDays(),p.getEligibleSpas().stream().map(s->new SpaItem(s.getId(),s.getName(),s.getAddress()==null?null:s.getAddress().getCity())).toList())).toList();
  }
  @Transactional(readOnly=true)
  public List<Purchase> mine(Long userId) {
