@@ -18,7 +18,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * Tells the spa about each booking by SMS, with a private link to confirm or decline it. Most
+ * Tells the spa about each booking on WhatsApp (when set up) or by SMS, with a private link to
+ * confirm or decline it. Most
  * spas listed from Google Maps have no Nirvana account or email, but most have a mobile number.
  * The guest's booking stands meanwhile. A spa that hasn't replied gets one last reminder, and the
  * booking is then confirmed for it. Nothing here ever fails the booking: a lost SMS is logged.
@@ -38,6 +39,7 @@ public class SpaBookingAlerts {
 
     private final JdbcTemplate jdbc;
     private final SpaAlertSms sms;
+    private final SpaAlertWhatsApp whatsApp;
 
     @Value("${spa-alerts.enabled:true}")
     private boolean enabled;
@@ -61,7 +63,7 @@ public class SpaBookingAlerts {
             return;
         }
         deliver(to.get(), SpaAlertSms.Kind.NEW, "Nirvana booking " + b.getBookingReference() + ": " + summary(b)
-                + ". Please confirm or decline: " + link(token), b);
+                + ". Please confirm or decline: " + link(token), List.of(b.getBookingReference(), summary(b), time(w.deadline, b)), token, b);
     }
 
     /** A new time: the spa is asked again, with a fresh link. */
@@ -80,7 +82,7 @@ public class SpaBookingAlerts {
             return;
         }
         deliver(to.get(), SpaAlertSms.Kind.MOVED, "Nirvana booking " + b.getBookingReference() + " has moved: " + summary(b)
-                + ". Please confirm or decline: " + link(token), b);
+                + ". Please confirm or decline: " + link(token), List.of(b.getBookingReference(), summary(b), time(w.deadline, b)), token, b);
     }
 
     /** The guest (or Nirvana) cancelled: the spa is told, unless it was the spa that declined. */
@@ -93,7 +95,8 @@ public class SpaBookingAlerts {
                 String.class, b.getId());
         if (phone.isEmpty()) return;
         deliver(phone.get(0), SpaAlertSms.Kind.CANCELLED, "Nirvana booking " + b.getBookingReference() + " for "
-                + when(b.getStartTs(), b) + " has been cancelled. The time is free again. No action needed.", b);
+                + when(b.getStartTs(), b) + " has been cancelled. The time is free again. No action needed.",
+                List.of(b.getBookingReference(), when(b.getStartTs(), b)), null, b);
     }
 
     /**
@@ -116,13 +119,11 @@ public class SpaBookingAlerts {
             ZoneId zone = zone((String) row.get("timezone"));
             String deadline = fromUtc((Timestamp) row.get("deadline_at")).atZone(zone).format(TIME);
             OffsetDateTime start = fromUtc((Timestamp) row.get("start_ts")).atOffset(ZoneOffset.UTC);
-            try {
-                sms.send((String) row.get("phone"), SpaAlertSms.Kind.REMINDER, "Last reminder: Nirvana booking " + row.get("booking_reference")
-                        + " on " + start.atZoneSameInstant(zone).format(WHEN) + " is waiting for you. Confirm or decline by " + deadline
-                        + ": " + link(token) + " If we don't hear back, it stays booked.");
-            } catch (RuntimeException e) {
-                log.warn("Reminder SMS for booking {} failed: {}", row.get("booking_reference"), e.getMessage());
-            }
+            String reference = (String) row.get("booking_reference");
+            String startsAt = start.atZoneSameInstant(zone).format(WHEN);
+            send((String) row.get("phone"), SpaAlertSms.Kind.REMINDER, "Last reminder: Nirvana booking " + reference
+                    + " on " + startsAt + " is waiting for you. Confirm or decline by " + deadline
+                    + ": " + link(token) + " If we don't hear back, it stays booked.", List.of(reference, startsAt, deadline), token, reference);
             done++;
         }
         // One last reminder has gone and the time is up: the booking stands, confirmed for the spa.
@@ -165,12 +166,32 @@ public class SpaBookingAlerts {
         return f.format(Math.round(paise / 100.0));
     }
 
-    private void deliver(String to, SpaAlertSms.Kind kind, String message, Booking b) {
+    private void deliver(String to, SpaAlertSms.Kind kind, String message, List<String> values, String token, Booking b) {
+        send(to, kind, message, values, token, b.getBookingReference());
+    }
+
+    /**
+     * WhatsApp first when it is set up, using the approved template for this kind of alert; if that
+     * fails, the same alert goes as an SMS. A lost alert is logged, never thrown.
+     */
+    private void send(String to, SpaAlertSms.Kind kind, String message, List<String> values, String token, String reference) {
+        if (whatsApp.enabled()) {
+            try {
+                whatsApp.send(to, kind, values, token);
+                return;
+            } catch (RuntimeException e) {
+                log.warn("{} WhatsApp to the spa for booking {} failed, trying SMS: {}", kind, reference, e.getMessage());
+            }
+        }
         try {
             sms.send(to, kind, message);
         } catch (RuntimeException e) {
-            log.warn("{} SMS to the spa for booking {} failed: {}", kind, b.getBookingReference(), e.getMessage());
+            log.warn("{} SMS to the spa for booking {} failed: {}", kind, reference, e.getMessage());
         }
+    }
+
+    private static String time(Instant at, Booking b) {
+        return at.atZone(zone(b.getSpa().getTimezone())).format(TIME);
     }
 
     private String link(String token) {

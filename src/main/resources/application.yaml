@@ -246,6 +246,19 @@ spa-alerts:
       reminder: ${SPA_SMS_TEMPLATE_REMINDER:}
       cancelled: ${SPA_SMS_TEMPLATE_CANCELLED:}
       moved: ${SPA_SMS_TEMPLATE_MOVED:}
+  # SMS, or WHATSAPP to send alerts with Meta's WhatsApp Cloud API (SMS stays the fallback).
+  channel: ${SPA_ALERTS_CHANNEL:SMS}
+  whatsapp:
+    phone-number-id: ${SPA_WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${SPA_WHATSAPP_ACCESS_TOKEN:}
+    api-version: ${SPA_WHATSAPP_API_VERSION:v23.0}
+    language: ${SPA_WHATSAPP_LANGUAGE:en}
+    # Names of the approved templates in WhatsApp Manager.
+    templates:
+      new: ${SPA_WHATSAPP_TEMPLATE_NEW:nirvana_spa_booking_new}
+      reminder: ${SPA_WHATSAPP_TEMPLATE_REMINDER:nirvana_spa_booking_reminder}
+      cancelled: ${SPA_WHATSAPP_TEMPLATE_CANCELLED:nirvana_spa_booking_cancelled}
+      moved: ${SPA_WHATSAPP_TEMPLATE_MOVED:nirvana_spa_booking_moved}
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
