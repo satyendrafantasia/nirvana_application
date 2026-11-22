@@ -11,12 +11,14 @@ const intent: PaymentIntent = {
 };
 let callback: (r: RazorpayResult) => void;
 let options: Record<string, unknown>;
+let listeners: Record<string, (r?: unknown) => void>;
 const result = {
   razorpay_order_id: 'order_1',
   razorpay_payment_id: 'pay_1',
   razorpay_signature: 'signature'
 };
 beforeEach(() => {
+  listeners = {};
   const values = new Map<string, string>();
   vi.stubGlobal('sessionStorage', {
     getItem: (k: string) => values.get(k) || null,
@@ -31,7 +33,9 @@ beforeEach(() => {
         callback = o.handler as typeof callback;
       }
       open() {}
-      on() {}
+      on(event: string, handler: (r?: unknown) => void) {
+        listeners[event] = handler;
+      }
     }
   });
 });
@@ -82,4 +86,26 @@ it('preserves server cancellation status after a late capture', async () => {
   await Promise.resolve();
   callback(result);
   expect(await pending).toEqual({ status: 'CANCELLED', refundStatus: 'REQUESTED' });
+});
+it('keeps waiting after a failed attempt, so a later success in the same window confirms the booking', async () => {
+  client.defaults.adapter = async (config) => ({
+    data: { status: 'CONFIRMED', refundStatus: 'NONE' },
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config
+  });
+  const pending = payWithRazorpay(intent);
+  await Promise.resolve();
+  // An international test card is declined; Razorpay keeps the window open for another try.
+  listeners['payment.failed']({ error: { description: 'This business accepts domestic (Indian) card payments only.' } });
+  callback(result);
+  expect(await pending).toEqual({ status: 'CONFIRMED', refundStatus: 'NONE' });
+});
+it('says why it failed when the guest gives up after a failed attempt', async () => {
+  const pending = payWithRazorpay(intent);
+  await Promise.resolve();
+  listeners['payment.failed']({ error: { description: 'Card declined.' } });
+  (options.modal as { ondismiss: () => void }).ondismiss();
+  await expect(pending).rejects.toThrow('Payment failed: Card declined. Your booking is saved');
 });

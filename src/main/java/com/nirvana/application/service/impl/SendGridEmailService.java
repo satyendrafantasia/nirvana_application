@@ -20,7 +20,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +27,6 @@ import java.time.format.DateTimeFormatter;
 @ConditionalOnProperty(prefix = "notifications.sendgrid", name = "enabled", havingValue = "true")
 public class SendGridEmailService implements EmailService {
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm z");
 
     private final SendGrid sendGrid;
     private final SendGridProperties properties;
@@ -99,7 +97,7 @@ public class SendGridEmailService implements EmailService {
         sb.append("<li><strong>Invoice #</strong>: ").append(dto.invoiceNumber()).append("</li>");
         sb.append("<li><strong>Booking Reference</strong>: ").append(dto.bookingReference()).append("</li>");
         if (dto.bookingStartTs() != null) {
-            sb.append("<li><strong>Scheduled</strong>: ").append(DATE_TIME_FORMATTER.format(dto.bookingStartTs())).append("</li>");
+            sb.append("<li><strong>Scheduled</strong>: ").append(BookingEmailContent.formatStart(dto.bookingStartTs(), dto.spaTimezone())).append("</li>");
         }
         sb.append("<li><strong>Spa</strong>: ").append(dto.spaName()).append("</li>");
         sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");

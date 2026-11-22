@@ -34,5 +34,8 @@ public record InvoiceEmailDto(
         Integer totalCents,
         String currency,
 
-        String invoicePdfUrl
+        String invoicePdfUrl,
+
+        /** The spa's time zone, so the appointment time reads as the guest will see it on arrival. */
+        String spaTimezone
 ) {}

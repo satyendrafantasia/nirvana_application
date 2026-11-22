@@ -190,6 +190,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .spaCountry(addr != null ? addr.getCountry() : null)
                 .spaPostalCode(addr != null ? addr.getPostalCode() : null)
                 .spaPhone(spa.getPhone())
+                .spaTimezone(spa.getTimezone())
                 .bookingReference(b.getBookingReference())
                 .bookingStartTs(b.getStartTs())
                 .bookingEndTs(b.getEndTs())

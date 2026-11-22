@@ -20,7 +20,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 @Service
@@ -29,7 +28,6 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "notifications.sendgrid", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class NoOpEmailService implements EmailService {
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm z");
 
     private final NotificationLogRepository notificationLogRepository;
     private final SendGridProperties sendGridProperties;
@@ -118,7 +116,7 @@ public class NoOpEmailService implements EmailService {
         sb.append("<li><strong>Invoice #</strong>: ").append(dto.invoiceNumber()).append("</li>");
         sb.append("<li><strong>Booking Reference</strong>: ").append(dto.bookingReference()).append("</li>");
         if (dto.bookingStartTs() != null) {
-            sb.append("<li><strong>Scheduled</strong>: ").append(DATE_TIME_FORMATTER.format(dto.bookingStartTs())).append("</li>");
+            sb.append("<li><strong>Scheduled</strong>: ").append(BookingEmailContent.formatStart(dto.bookingStartTs(), dto.spaTimezone())).append("</li>");
         }
         sb.append("<li><strong>Spa</strong>: ").append(dto.spaName()).append("</li>");
         sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");

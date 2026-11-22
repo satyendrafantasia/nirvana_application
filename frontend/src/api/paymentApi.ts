@@ -25,7 +25,10 @@ export const resumePayment = async (id: string) => {
   }
   return payWithRazorpay(await initiatePayment(id));
 };
-type Checkout = { open: () => void; on: (event: string, handler: () => void) => void };
+type Checkout = {
+  open: () => void;
+  on: (event: string, handler: (response?: { error?: { description?: string } }) => void) => void;
+};
 declare global {
   interface Window {
     Razorpay?: new (options: Record<string, unknown>) => Checkout;
@@ -43,6 +46,9 @@ export const payWithRazorpay = async (
   }
   const Razorpay = await loadRazorpay();
   return new Promise((resolve, reject) => {
+    // Razorpay keeps its window open after a failed attempt so the guest can try another card or
+    // UPI. A failure only ends the payment if the guest then closes the window without paying.
+    let lastFailure: string | undefined;
     const checkout = new Razorpay({
       key: intent.razorpayKeyId,
       order_id: intent.razorpayOrderId,
@@ -69,14 +75,16 @@ export const payWithRazorpay = async (
         ondismiss: () =>
           reject(
             new Error(
-              'Payment was not completed. Your booking is saved; retry payment here or in My bookings.'
+              lastFailure
+                ? `Payment failed: ${lastFailure} Your booking is saved; retry payment here or in My bookings.`
+                : 'Payment was not completed. Your booking is saved; retry payment here or in My bookings.'
             )
           )
       }
     });
-    checkout.on('payment.failed', () =>
-      reject(new Error('Payment failed. You can retry the existing booking.'))
-    );
+    checkout.on('payment.failed', (response?: { error?: { description?: string } }) => {
+      lastFailure = response?.error?.description?.trim() || 'the attempt was declined.';
+    });
     checkout.open();
   });
 };

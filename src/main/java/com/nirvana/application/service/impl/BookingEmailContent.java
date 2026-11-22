@@ -75,6 +75,23 @@ public final class BookingEmailContent {
                         + "<p>If your plans have changed, you can reschedule or cancel from My bookings.</p>");
     }
 
+    /**
+     * A start time in the spa's time zone, or India's when the spa has none set. An offset alone
+     * has no zone name, so it can't be printed with the zone pattern directly.
+     */
+    public static String formatStart(OffsetDateTime start, String timezone) {
+        if (start == null) {
+            return "N/A";
+        }
+        ZoneId zone;
+        try {
+            zone = timezone == null || timezone.isBlank() ? ZoneId.of("Asia/Kolkata") : ZoneId.of(timezone);
+        } catch (RuntimeException invalidZone) {
+            zone = ZoneId.of("Asia/Kolkata");
+        }
+        return start.atZoneSameInstant(zone).format(WHEN);
+    }
+
     public static String formatStart(OffsetDateTime start, Spa spa) {
         if (start == null) {
             return "N/A";
