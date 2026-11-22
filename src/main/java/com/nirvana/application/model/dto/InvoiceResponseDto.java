@@ -28,5 +28,20 @@ public record InvoiceResponseDto(
         String currency,
 
         OffsetDateTime issuedAt,
-        String pdfUrl
+        String pdfUrl,
+
+        // For the printed invoice.
+        String spaAddress,
+        String spaPhone,
+        String spaTimezone,
+        OffsetDateTime appointmentStart,
+        Integer durationMinutes,
+        Integer guestCount,
+        /** ONLINE or OFFLINE (pay at spa). */
+        String paymentMode,
+        String bookingStatus,
+        String paymentStatus,
+        /** The gateway's payment ID, such as Razorpay's pay_…, when paid online. */
+        String paymentReference,
+        OffsetDateTime paidAt
 ) {}

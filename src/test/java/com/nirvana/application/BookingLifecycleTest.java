@@ -406,7 +406,8 @@ class BookingLifecycleTest {
                 .andReturn().getResponse();
         assertEquals(200, response.getStatus());
         try (var document = org.apache.pdfbox.Loader.loadPDF(response.getContentAsByteArray())) {
-            assertTrue(new org.apache.pdfbox.text.PDFTextStripper().getText(document).contains("1999.00"));
+            String text = new org.apache.pdfbox.text.PDFTextStripper().getText(document);
+            assertTrue(text.contains("1,999.00"), text);
         }
         assertEquals(403, call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url), 2, "ROLE_CUSTOMER", null).status());
     }

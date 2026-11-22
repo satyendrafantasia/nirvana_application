@@ -144,6 +144,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         Spa spa = b.getSpa();
         User user = b.getUser();
         com.nirvana.application.model.Service service = b.getService();
+        Payment payment = paymentRepository.findTopByBookingIdOrderByCreatedAtDesc(b.getId()).orElse(null);
+        Address address = spa.getAddress();
+        String spaAddress = address == null ? null
+                : address.getFormattedAddress() != null && !address.getFormattedAddress().isBlank() ? address.getFormattedAddress()
+                : java.util.stream.Stream.of(address.getAddressLine(), address.getCity(), address.getState(), address.getPostalCode())
+                        .filter(v -> v != null && !v.isBlank()).collect(java.util.stream.Collectors.joining(", "));
 
         return InvoiceResponseDto.builder()
                 .id(invoice.getId())
@@ -161,11 +167,22 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .amountCents(invoice.getAmountCents())
                 .taxCents(invoice.getTaxCents())
                 .discountCents(invoice.getDiscountCents())
-                .refundedCents(paymentRepository.findTopByBookingIdOrderByCreatedAtDesc(b.getId()).map(Payment::getRefundedCents).orElse(0))
+                .refundedCents(payment == null || payment.getRefundedCents() == null ? 0 : payment.getRefundedCents())
                 .totalCents(invoice.getTotalCents())
                 .currency(invoice.getCurrency())
                 .issuedAt(invoice.getIssuedAt())
                 .pdfUrl(buildPdfUrl(b.getId()))
+                .spaAddress(spaAddress)
+                .spaPhone(spa.getPhone())
+                .spaTimezone(spa.getTimezone())
+                .appointmentStart(b.getStartTs())
+                .durationMinutes(service.getDurationMinutes() != null ? service.getDurationMinutes() : service.getDurationMin())
+                .guestCount(b.getGuestCount())
+                .paymentMode(b.getPaymentMode() == null ? null : b.getPaymentMode().name())
+                .bookingStatus(b.getStatus() == null ? null : b.getStatus().name())
+                .paymentStatus(payment == null || payment.getPaymentStatus() == null ? null : payment.getPaymentStatus().name())
+                .paymentReference(payment == null ? null : payment.getTransactionId())
+                .paidAt(payment == null ? null : payment.getCapturedAt())
                 .build();
     }
 
