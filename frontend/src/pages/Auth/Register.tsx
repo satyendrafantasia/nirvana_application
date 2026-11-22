@@ -54,7 +54,8 @@ export default function Register({ owner = false }: { owner?: boolean }) {
         registrationToken: registration,
         acceptPrivacyPolicy: form.get('privacy') === 'on',
         fullName: String(form.get('fullName')),
-        password: String(form.get('password'))
+        password: String(form.get('password')),
+        whatsappUpdates: kind === 'phone' && form.get('whatsapp') === 'on'
       });
       acceptAuth(
         authView({
@@ -123,6 +124,12 @@ export default function Register({ owner = false }: { owner?: boolean }) {
         {registration && (
           <label className="block text-sm">
             <input name="privacy" type="checkbox" required /> I accept the <Link to="/privacy" className="underline" target="_blank">privacy policy</Link>.
+          </label>
+        )}
+        {registration && kind === 'phone' && (
+          <label className="block text-sm">
+            <input name="whatsapp" type="checkbox" /> Send my booking confirmations and reminders on
+            WhatsApp. Without an email address, this is how we can reach you about your bookings.
           </label>
         )}
         <Button disabled={action.isPending} type="submit">

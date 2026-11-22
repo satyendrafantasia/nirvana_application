@@ -96,7 +96,9 @@ function Profile({ account }: { account: Account }) {
     displayName: account.displayName || '',
     timezone: account.timezone || 'UTC',
     locale: account.locale || '',
-    marketingOptIn: account.marketingOptIn
+    marketingOptIn: account.marketingOptIn,
+    // Sent only when the guest can have WhatsApp updates, so the server keeps the current choice otherwise.
+    ...(account.phone && account.phoneVerified ? { whatsappUpdates: Boolean(account.whatsappUpdates) } : {})
   });
   const [saved, setSaved] = useState(false);
   useEffect(() => setSaved(false), [form]);
@@ -203,6 +205,16 @@ function Profile({ account }: { account: Account }) {
           />
           Send me offers and news by email
         </label>
+        {account.phone && account.phoneVerified && (
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(form.whatsappUpdates)}
+              onChange={(e) => set('whatsappUpdates', e.target.checked)}
+            />
+            Send my booking confirmations and reminders on WhatsApp to {account.phone}
+          </label>
+        )}
         {save.isError && (
           <p role="alert" className="text-rose-700">
             {errorMessage(save.error)}

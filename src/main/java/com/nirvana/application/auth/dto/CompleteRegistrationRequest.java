@@ -24,4 +24,7 @@ public class CompleteRegistrationRequest {
     @NotBlank
     @Size(min = 8, max = 255)
     private String password;
+
+    /** The guest ticked "send my booking updates on WhatsApp" (only meaningful with a verified phone). */
+    private boolean whatsappUpdates;
 }

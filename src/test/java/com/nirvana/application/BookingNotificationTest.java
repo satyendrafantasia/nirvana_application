@@ -25,10 +25,11 @@ import static org.mockito.Mockito.*;
 /** Booking emails: when they are sent, to whom, and what they say. No Spring context needed. */
 class BookingNotificationTest {
     NotificationService sender = mock(NotificationService.class);
+    com.nirvana.application.service.GuestWhatsApp guestWhatsApp = mock(com.nirvana.application.service.GuestWhatsApp.class);
     BookingRepository bookings = mock(BookingRepository.class);
     org.springframework.jdbc.core.JdbcTemplate jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
     NotificationSchedulingServiceImpl service = new NotificationSchedulingServiceImpl(sender, jdbc, bookings,
-            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class));
+            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class), guestWhatsApp);
     Booking booking;
 
     @BeforeEach void setUp() {
@@ -62,6 +63,17 @@ class BookingNotificationTest {
         for (String audience : List.of("CUSTOMER_EMAIL", "SPA_EMAIL", "SPA_MOBILE"))
             verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq(audience), eq(0));
         verifyNoInteractions(sender);
+    }
+
+    @Test void guestsWhoAgreedGetAWhatsAppJobToo() {
+        when(guestWhatsApp.recipient(booking)).thenReturn(Optional.of("+919876543210"));
+        service.scheduleBookingNotifications(booking);
+        verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq("CUSTOMER_WHATSAPP"), eq(0));
+    }
+
+    @Test void guestsWhoDidNotAgreeGetNoWhatsAppJob() {
+        service.scheduleBookingNotifications(booking);
+        verify(jdbc, never()).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq("CUSTOMER_WHATSAPP"), eq(0));
     }
 
     @Test void unpaidExpiryQueuesOnlyCustomer() {

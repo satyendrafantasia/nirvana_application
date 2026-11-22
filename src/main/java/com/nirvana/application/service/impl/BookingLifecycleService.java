@@ -40,6 +40,7 @@ public class BookingLifecycleService {
     private final PaymentRepository paymentRepository;
     private final WaitlistService waitlistService;
     private final NotificationService notificationService;
+    private final com.nirvana.application.service.GuestWhatsApp guestWhatsApp;
     private final com.nirvana.application.service.NotificationSchedulingService notifications;
     private final LoyaltyService loyalty;
 
@@ -147,6 +148,11 @@ public class BookingLifecycleService {
             notificationService.notifyCustomerBookingReminder(booking);
         } catch (RuntimeException ex) {
             log.warn("Reminder for booking {} could not be sent: {}", bookingId, ex.getMessage());
+        }
+        try {
+            guestWhatsApp.send(booking, com.nirvana.application.service.GuestWhatsApp.Kind.REMINDER);
+        } catch (RuntimeException ex) {
+            log.warn("WhatsApp reminder for booking {} could not be sent: {}", bookingId, ex.getMessage());
         }
         return true;
     }

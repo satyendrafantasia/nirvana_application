@@ -25,18 +25,21 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     private final BookingRepository bookingRepository;
     private final PlatformTransactionManager transactionManager;
     private final com.nirvana.application.service.SpaBookingAlerts spaAlerts;
+    private final com.nirvana.application.service.GuestWhatsApp guestWhatsApp;
 
     @Override public void scheduleBookingNotifications(Booking booking) { enqueue(booking, Event.CONFIRMED); }
     @Override public void bookingCancelled(Booking booking) { enqueue(booking, Event.CANCELLED); }
     @Override public void bookingRescheduled(Booking booking) { enqueue(booking, Event.RESCHEDULED); }
 
-    enum Audience { CUSTOMER_EMAIL, SPA_EMAIL, SPA_MOBILE }
+    enum Audience { CUSTOMER_EMAIL, CUSTOMER_WHATSAPP, SPA_EMAIL, SPA_MOBILE }
 
     private void enqueue(Booking booking, Event event) {
         int revision = booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount();
         for (Audience audience : Audience.values()) {
-            if (event == Event.CANCELLED && audience != Audience.CUSTOMER_EMAIL &&
+            if (event == Event.CANCELLED && (audience == Audience.SPA_EMAIL || audience == Audience.SPA_MOBILE) &&
                     BookingLifecycleService.PAYMENT_TIMEOUT.equals(booking.getCancellationReasonCode())) continue;
+            // Only guests who agreed to WhatsApp updates get a WhatsApp job.
+            if (audience == Audience.CUSTOMER_WHATSAPP && guestWhatsApp.recipient(booking).isEmpty()) continue;
             jdbc.update("""
                     INSERT INTO booking_alert_job (booking_id,event_kind,audience,revision)
                     VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
@@ -112,6 +115,11 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
                     case CANCELLED -> notificationService.notifyCustomerBookingCancelled(booking);
                 }
             }
+            case CUSTOMER_WHATSAPP -> guestWhatsApp.send(booking, switch (event) {
+                case CONFIRMED -> com.nirvana.application.service.GuestWhatsApp.Kind.CONFIRMED;
+                case RESCHEDULED -> com.nirvana.application.service.GuestWhatsApp.Kind.MOVED;
+                case CANCELLED -> com.nirvana.application.service.GuestWhatsApp.Kind.CANCELLED;
+            });
             case SPA_EMAIL -> {
                 switch (event) {
                     case CONFIRMED -> notificationService.notifySpaOwnerBookingConfirmed(booking);

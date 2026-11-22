@@ -37,7 +37,7 @@ public class AccountController {
     /** Email and phone are shown but not editable here: changing them needs verification. */
     public record AccountView(Long id, String email, String phone, String firstName, String lastName,
                               String displayName, String timezone, String locale, boolean marketingOptIn,
-                              int loyaltyPoints, boolean emailVerified, boolean phoneVerified) {
+                              int loyaltyPoints, boolean emailVerified, boolean phoneVerified, boolean whatsappUpdates) {
     }
 
     public record ProfileInput(
@@ -46,7 +46,9 @@ public class AccountController {
             @Size(max = 100) String displayName,
             @NotBlank @Size(max = 64) String timezone,
             @Pattern(regexp = "[a-z]{2,3}([-_][A-Za-z]{2,4})?", message = "must be a language code such as en or en-IN") String locale,
-            @NotNull Boolean marketingOptIn) {
+            @NotNull Boolean marketingOptIn,
+            /** Booking updates on WhatsApp; left out by older clients, which keeps the current choice. */
+            Boolean whatsappUpdates) {
     }
 
     /** bcrypt only uses the first 72 bytes, so longer passwords are refused rather than silently cut. */
@@ -76,6 +78,12 @@ public class AccountController {
         user.setTimezone(input.timezone().trim());
         user.setLocale(blankToNull(input.locale()));
         user.setMarketingOptIn(input.marketingOptIn());
+        if (input.whatsappUpdates() != null) {
+            if (input.whatsappUpdates() && (user.getPhone() == null || !Boolean.TRUE.equals(user.getPhoneVerified())))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Add and verify a mobile number to get updates on WhatsApp.");
+            if (!input.whatsappUpdates()) user.setWhatsappUpdatesAt(null);
+            else if (user.getWhatsappUpdatesAt() == null) user.setWhatsappUpdatesAt(java.time.OffsetDateTime.now());
+        }
         return view(users.save(user));
     }
 
@@ -94,7 +102,7 @@ public class AccountController {
         return new AccountView(u.getId(), u.getEmail(), u.getPhone(), u.getName(), u.getLastName(), u.getDisplayName(),
                 u.getTimezone(), u.getLocale(), Boolean.TRUE.equals(u.getMarketingOptIn()),
                 u.getLoyaltyPoints() == null ? 0 : u.getLoyaltyPoints(),
-                Boolean.TRUE.equals(u.getEmailVerified()), Boolean.TRUE.equals(u.getPhoneVerified()));
+                Boolean.TRUE.equals(u.getEmailVerified()), Boolean.TRUE.equals(u.getPhoneVerified()), u.getWhatsappUpdatesAt() != null);
     }
 
     private static String blankToNull(String value) {

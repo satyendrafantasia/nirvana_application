@@ -101,6 +101,9 @@ public class User extends BaseEntity {
     private String locale; // en_IN, en_US
     @Column(name = "preferred_contact_method")
     private String preferredContactMethod; // "phone","email","whatsapp"
+    /** When the guest agreed to booking updates on WhatsApp; null means they haven't. */
+    @Column(name = "whatsapp_updates_at")
+    private OffsetDateTime whatsappUpdatesAt;
     @Column(name = "marketing_opt_in", nullable = false)
     @Builder.Default
     private Boolean marketingOptIn = true;

@@ -14,6 +14,8 @@ export interface Account {
   loyaltyPoints: number;
   emailVerified: boolean;
   phoneVerified: boolean;
+  /** Booking updates on WhatsApp, which needs a verified mobile. */
+  whatsappUpdates?: boolean;
 }
 
 export interface ProfileInput {
@@ -23,6 +25,7 @@ export interface ProfileInput {
   timezone: string;
   locale?: string;
   marketingOptIn: boolean;
+  whatsappUpdates?: boolean;
 }
 
 export const getAccount = async (): Promise<Account> => (await client.get<Account>('/api/me/account')).data;

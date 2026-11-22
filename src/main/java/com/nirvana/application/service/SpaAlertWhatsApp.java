@@ -34,6 +34,7 @@ public class SpaAlertWhatsApp {
     private final String language;
     private final Map<SpaAlertSms.Kind, String> templates;
     private final boolean on;
+    private final boolean configured;
 
     public SpaAlertWhatsApp(RestTemplateBuilder builder,
                             @Value("${spa-alerts.channel:SMS}") String channel,
@@ -54,21 +55,37 @@ public class SpaAlertWhatsApp {
         this.language = language;
         this.templates = Map.of(SpaAlertSms.Kind.NEW, newTemplate, SpaAlertSms.Kind.REMINDER, reminderTemplate,
                 SpaAlertSms.Kind.CANCELLED, cancelledTemplate, SpaAlertSms.Kind.MOVED, movedTemplate);
-        this.on = "WHATSAPP".equalsIgnoreCase(channel) && StringUtils.hasText(phoneNumberId) && StringUtils.hasText(accessToken);
+        this.configured = StringUtils.hasText(phoneNumberId) && StringUtils.hasText(accessToken);
+        this.on = "WHATSAPP".equalsIgnoreCase(channel) && configured;
         if ("WHATSAPP".equalsIgnoreCase(channel) && !on)
             log.warn("Spa alerts are set to WhatsApp, but SPA_WHATSAPP_PHONE_NUMBER_ID or SPA_WHATSAPP_ACCESS_TOKEN is missing; using SMS");
     }
 
-    /** Whether alerts go out on WhatsApp. */
+    /** Whether spa alerts go out on WhatsApp. */
     public boolean enabled() {
         return on;
     }
 
+    /** Whether a WhatsApp business number is set up at all (guest messages use it too). */
+    public boolean configured() {
+        return configured;
+    }
+
     /**
-     * Sends one alert. {@code values} fill the template body in order; {@code linkToken}, if any,
+     * Sends one spa alert. {@code values} fill the template body in order; {@code linkToken}, if any,
      * completes the template's URL button (".../b/{{1}}").
      */
     public void send(String to, SpaAlertSms.Kind kind, List<String> values, String linkToken) {
+        sendTemplate(to, templates.get(kind), values, linkToken, kind.name());
+    }
+
+    /**
+     * Sends an approved template. {@code buttonValue}, if any, completes a dynamic URL button; a
+     * template whose button has a fixed URL takes none. Throws when WhatsApp doesn't accept it.
+     */
+    public void sendTemplate(String to, String template, List<String> values, String buttonValue, String what) {
+        String kind = what;
+        String linkToken = buttonValue;
         List<Object> components = new ArrayList<>();
         components.add(Map.of("type", "body", "parameters", values.stream().map(v -> Map.of("type", "text", "text", clean(v))).toList()));
         if (linkToken != null)
@@ -78,7 +95,7 @@ public class SpaAlertWhatsApp {
                 "messaging_product", "whatsapp",
                 "to", to.replaceAll("\\D", ""),
                 "type", "template",
-                "template", Map.of("name", templates.get(kind), "language", Map.of("code", language), "components", components));
+                "template", Map.of("name", template, "language", Map.of("code", language), "components", components));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(accessToken);

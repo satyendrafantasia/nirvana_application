@@ -71,6 +71,7 @@ public class RegistrationService {
                 .marketingOptIn(false)
                 .emailVerified(verification.getEmail() != null)
                 .phoneVerified(verification.getPhoneNumber() != null)
+                .whatsappUpdatesAt(request.isWhatsappUpdates() && verification.getPhoneNumber() != null ? OffsetDateTime.now() : null)
                 .build();
 
         user = userRepository.save(user);

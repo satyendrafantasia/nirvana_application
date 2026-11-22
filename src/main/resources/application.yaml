@@ -260,6 +260,17 @@ spa-alerts:
       cancelled: ${SPA_WHATSAPP_TEMPLATE_CANCELLED:nirvana_spa_booking_cancelled}
       moved: ${SPA_WHATSAPP_TEMPLATE_MOVED:nirvana_spa_booking_moved}
 
+# Booking updates to guests on WhatsApp, for guests who agreed to them. Uses the WhatsApp number set
+# up under spa-alerts.whatsapp; email updates continue as before.
+guest-alerts:
+  whatsapp:
+    enabled: ${GUEST_WHATSAPP_ENABLED:false}
+    templates:
+      confirmed: ${GUEST_WHATSAPP_TEMPLATE_CONFIRMED:nirvana_guest_booking_confirmed}
+      reminder: ${GUEST_WHATSAPP_TEMPLATE_REMINDER:nirvana_guest_booking_reminder}
+      moved: ${GUEST_WHATSAPP_TEMPLATE_MOVED:nirvana_guest_booking_moved}
+      cancelled: ${GUEST_WHATSAPP_TEMPLATE_CANCELLED:nirvana_guest_booking_cancelled}
+
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   scheduling:
