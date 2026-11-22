@@ -115,6 +115,9 @@ otp:
 sms:
   enabled: true
   provider: AWS_SNS
+  # DLT template ID for the OTP text "Your OTP is {#var#}. It is valid for {#var#} minutes."
+  # The sender ID and entity ID are the business-wide ones under spa-alerts.sms.
+  otp-template-id: ${SMS_TEMPLATE_OTP:}
 
 email:
   enabled: true
