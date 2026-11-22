@@ -90,4 +90,41 @@ class CityPlacesClientTest {
   ReflectionTestUtils.setField(client,"maxRequestsPerMinute",0);
   assertEquals(429,assertThrows(ResponseStatusException.class,()->client.search("Delhi","IN",null)).getStatusCode().value());
  }
+
+ /** Fields that move a request into Google's Enterprise (or Atmosphere) price tier. */
+ static final java.util.List<String> PRICEY = java.util.List.of("rating", "userRatingCount", "internationalPhoneNumber",
+   "websiteUri", "regularOpeningHours", "currentOpeningHours", "reviews", "editorialSummary");
+
+ /** Runs one call and returns the field mask it sent. */
+ private static String fieldsSentBy(String path, java.util.function.Consumer<CityPlacesClient> call) {
+  var sent = new java.util.concurrent.atomic.AtomicReference<String>();
+  var customizer=new MockServerRestTemplateCustomizer();
+  var client=new CityPlacesClient(new RestTemplateBuilder(template -> {
+   customizer.customize(template);
+   customizer.getServer(template).expect(requestTo(org.hamcrest.Matchers.containsString(path)))
+    .andExpect(request -> sent.set(request.getHeaders().getFirst("X-Goog-FieldMask")))
+    .andRespond(withSuccess("{\"places\":[]}",MediaType.APPLICATION_JSON));
+  }));
+  ReflectionTestUtils.setField(client,"apiKey","test-only");
+  ReflectionTestUtils.setField(client,"baseUrl","https://places.googleapis.com/v1");
+  call.accept(client);
+  return sent.get();
+ }
+
+ @Test void listsAndSpaPhotosStayOutOfGooglesExpensiveTiers() throws Exception {
+  var json = new com.fasterxml.jackson.databind.ObjectMapper();
+  var text = json.readValue("{\"mode\":\"TEXT\",\"countryCode\":\"IN\",\"city\":\"Pune\"}", com.nirvana.application.model.dto.PlaceDiscoveryRequest.class);
+  var nearby = json.readValue("{\"mode\":\"NEARBY\",\"countryCode\":\"IN\",\"latitude\":12.97,\"longitude\":77.59,\"radiusMeters\":3000}", com.nirvana.application.model.dto.PlaceDiscoveryRequest.class);
+  var masks = java.util.Map.of(
+    "text search", fieldsSentBy("places:searchText", c -> c.discover(text)),
+    "nearby search", fieldsSentBy("places:searchNearby", c -> c.discover(nearby)),
+    "signed-out nearby", fieldsSentBy("places:searchNearby", c -> c.publicNearby(12.97, 77.59)));
+  masks.forEach((what, mask) -> {
+   assertNotNull(mask, what);
+   assertTrue(mask.contains("places.displayName") && mask.contains("places.photos.name") || what.startsWith("signed-out"), what + ": " + mask);
+   for (String field : PRICEY) assertFalse(java.util.Arrays.asList(mask.replace("places.", "").split(",")).contains(field), what + " asks for " + field);
+  });
+  // Every spa page view: photos and credits only, Google's cheapest Place Details tier.
+  assertEquals("id,attributions,photos", fieldsSentBy("/places/ChIJabc", c -> c.photos("ChIJabc")));
+ }
 }

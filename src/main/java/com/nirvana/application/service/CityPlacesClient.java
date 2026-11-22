@@ -70,10 +70,14 @@ public class CityPlacesClient {
                 "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,googleMapsUri,rating,userRatingCount,businessStatus,attributions,photos,reviews,"
                         + "location,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.openNow");
     }
-    /** Just the listing's photos and the credits Google requires with them, for a Nirvana spa page. */
+    /**
+     * Just the listing's photos and the credits Google requires with them, for a Nirvana spa page.
+     * Photos and attributions are Essentials fields, Google's cheapest Place Details tier; the
+     * name and Maps link come from the spa's own record. This runs on every spa page view.
+     */
     public JsonNode photos(String placeId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Place ID.");
-        return call("/places/" + placeId, HttpMethod.GET, null, "id,displayName,googleMapsUri,attributions,photos");
+        return call("/places/" + placeId, HttpMethod.GET, null, PHOTO_FIELDS);
     }
     public JsonNode photo(String placeId, String photoId) {
         if (!placeId.matches("[A-Za-z0-9_-]{1,255}") || !photoId.matches("[A-Za-z0-9_-]{1,4096}"))
@@ -106,8 +110,10 @@ public class CityPlacesClient {
         }
     }
 
-    // Summary fields only. Phone/website are requested only when details are opened.
-    private static final String SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
+    // Google bills a request at the price of its most expensive field. Lists ask only for Pro
+    // fields: rating, review count, phone and website are Enterprise and come with the details
+    // page, where they are actually read.
+    private static final String SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
 
     public JsonNode discover(PlaceDiscoveryRequest request) {
         if (!request.isSearchValid() || !request.isBoundsValid())
@@ -137,10 +143,12 @@ public class CityPlacesClient {
         return call("/places:searchText", HttpMethod.POST, body, SUMMARY + ",nextPageToken");
     }
 
+    static final String PHOTO_FIELDS = "id,attributions,photos";
+
     public static final int PUBLIC_RADIUS_METERS = 5000;
     public static final int PUBLIC_RESULTS = 6;
     // No photos: each photo is a further paid call, and the photo endpoints need sign-in.
-    private static final String PUBLIC_SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.attributions";
+    private static final String PUBLIC_SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus,places.googleMapsUri,places.attributions";
     @Value("${google.places.public-requests-per-minute:20}") private int publicRequestsPerMinute = 20;
     private long publicWindow;
     private int publicRequests;

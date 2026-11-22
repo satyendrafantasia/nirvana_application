@@ -91,7 +91,8 @@ const SpaDetails = () => {
       media={
         googlePhotos.data?.photos?.length ? (
           <PlaceGallery
-            place={googlePhotos.data}
+            // Google sends only the photos (its cheapest tier); the name is the spa's own.
+            place={{ ...googlePhotos.data, displayName: { text: spa.data.name } }}
             imagePath={(photoId) =>
               `/api/spas/${encodeURIComponent(spaId)}/google-photos/${encodeURIComponent(photoId)}/image`
             }
