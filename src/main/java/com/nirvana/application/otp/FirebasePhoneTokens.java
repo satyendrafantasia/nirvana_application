@@ -68,6 +68,26 @@ public class FirebasePhoneTokens {
 
     /** The phone number (as +digits) that Google confirmed with this token; throws if the token is not a valid, fresh phone proof. */
     public String verifiedPhone(String idToken) {
+        String phone = verifiedClaims(idToken, "phone").get("phone_number", String.class);
+        if (e164(phone) == null) throw invalid();
+        return e164(phone);
+    }
+
+    public record GoogleIdentity(String project, String uid, String email) {}
+
+    public GoogleIdentity verifiedGoogle(String token) {
+        try {
+            Claims c = verifiedClaims(token, "google.com");
+            String email = c.get("email", String.class);
+            if (!Boolean.TRUE.equals(c.get("email_verified")) || !StringUtils.hasText(email))
+                throw invalid();
+            return new GoogleIdentity(projectId, c.getSubject(), email.strip().toLowerCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException | JwtException e) {
+            throw new IllegalArgumentException("Google sign-in could not be verified. Please try again.");
+        }
+    }
+
+    private Claims verifiedClaims(String idToken, String expectedProvider) {
         if (!configured()) throw new IllegalStateException("Phone verification by Google is not set up.");
         if (!StringUtils.hasText(idToken)) throw invalid();
         Claims claims;
@@ -96,12 +116,12 @@ public class FirebasePhoneTokens {
         Instant now = clock.instant();
         Object provider = claims.get("firebase") instanceof Map<?, ?> f ? f.get("sign_in_provider") : null;
         Number authTime = claims.get("auth_time", Number.class);
-        String phone = claims.get("phone_number", String.class);
-        if (!StringUtils.hasText(claims.getSubject()) || !"phone".equals(provider) || !StringUtils.hasText(phone)
+        if (claims.getExpiration() == null || claims.getIssuedAt() == null || claims.getIssuedAt().toInstant().isAfter(now.plusSeconds(60))) throw invalid();
+        if (!StringUtils.hasText(claims.getSubject()) || !expectedProvider.equals(provider) || claims.getSubject().length() > 128
                 || authTime == null || Instant.ofEpochSecond(authTime.longValue()).isBefore(now.minus(FRESH_FOR))
                 || Instant.ofEpochSecond(authTime.longValue()).isAfter(now.plusSeconds(60)))
             throw invalid();
-        return e164(phone);
+        return claims;
     }
 
     /** Whether the token proves this phone number; formatting differences ("+91 98765 43210") don't matter. */

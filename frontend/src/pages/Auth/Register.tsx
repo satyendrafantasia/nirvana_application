@@ -1,15 +1,18 @@
 import { returnPath } from '../../auth/returnPath';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import client, { errorMessage } from '../../api/client';
 import { authView } from '../../api/authApi';
 import { otpBody, toE164, usePhoneCode, usePhoneCodeMode } from '../../api/phoneCodes';
+import { sendEmailLink } from '../../api/emailLinks';
+import GoogleSignIn from './GoogleSignIn';
 import ContactChoice, { ContactKind } from '../../components/common/ContactChoice';
 export default function Register({ owner = false }: { owner?: boolean }) {
+  const location = useLocation();
   const [params] = useSearchParams();
   const destination = returnPath(params.get('redirect'), owner ? '/owner/onboarding' : '/', owner);
   const mode = usePhoneCodeMode();
@@ -17,12 +20,13 @@ export default function Register({ owner = false }: { owner?: boolean }) {
   const [kind, setKind] = useState<ContactKind>('email');
   const [email, setEmail] = useState(''),
     [verification, setVerification] = useState(''),
-    [registration, setRegistration] = useState('');
+    [registration, setRegistration] = useState<string>(location.state?.emailRegistrationToken ?? '');
+  const [sentTo, setSentTo] = useState('');
   const { acceptAuth } = useAuth();
   const navigate = useNavigate();
   const action = useMutation({
     mutationFn: async (form: FormData) => {
-      if (!verification) {
+      if (!registration && !verification) {
         if (kind === 'phone') {
           const number = toE164(email);
           if (!number) throw new Error('Enter a valid mobile number, for example 98765 43210.');
@@ -32,8 +36,8 @@ export default function Register({ owner = false }: { owner?: boolean }) {
           return;
         }
         phone.reset();
-        const { data } = await client.post('/api/auth/register/request-otp', { email: email.trim() });
-        setVerification(data.verificationId);
+        await sendEmailLink(email, owner ? 'owner-register' : 'register', destination);
+        setSentTo(email.trim());
         return;
       }
       if (!registration) {
@@ -89,7 +93,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
           action.mutate(new FormData(e.currentTarget));
         }}
       >
-        {!verification ? (
+        {!registration && !verification ? (
           <ContactChoice mode={mode} kind={kind} onKind={setKind} value={email} onChange={setEmail} />
         ) : !registration ? (
           <Input
@@ -128,9 +132,11 @@ export default function Register({ owner = false }: { owner?: boolean }) {
               ? 'Create account'
               : verification
                 ? 'Verify code'
-                : 'Send verification code'}
+                : kind === 'email' ? 'Send registration link' : 'Send verification code'}
         </Button>
       </form>
+      {sentTo && !registration && kind === 'email' && <p role="status">Open the registration link sent to {sentTo} to continue.</p>}
+      {!owner && !registration && !verification && <GoogleSignIn register />}
       <div ref={phone.slot} />
       {verification && !registration && (
         <button

@@ -8,12 +8,14 @@ import { toE164, usePhoneCode, usePhoneCodeMode } from '../../api/phoneCodes';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import { sendEmailLink } from '../../api/emailLinks';
 import ContactChoice, { ContactKind } from '../../components/common/ContactChoice';
 export default function OtpVerification() {
   const mode = usePhoneCodeMode();
   const phone = usePhoneCode();
   const [kind, setKind] = useState<ContactKind>('email');
   const [contact, setContact] = useState('');
+  const [sentTo, setSentTo] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(sessionStorage.getItem('nirvana_mfa') || '');
   const mfa = Boolean(sessionStorage.getItem('nirvana_mfa'));
@@ -30,11 +32,12 @@ export default function OtpVerification() {
         return r;
       }
       phone.reset();
-      return requestOtp({ email: contact.trim() });
+      await sendEmailLink(contact, 'login', returnPath(params.get('redirect'), '/me/bookings'));
+      setSentTo(contact.trim());
     },
     onSuccess: (r) => {
       setOtp('');
-      setVerificationId(r.verificationId);
+      setVerificationId(r?.verificationId ?? '');
     }
   });
   const verify = useMutation({
@@ -49,10 +52,11 @@ export default function OtpVerification() {
       className="card mx-auto my-10 max-w-md p-6 space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        verify.mutate();
+        if (verificationId) verify.mutate();
+        else if (contact.trim() && !request.isPending) request.mutate();
       }}
     >
-      <h1 className="text-2xl font-bold">Sign in with a code</h1>
+      <h1 className="text-2xl font-bold">{mfa ? 'Verify your sign-in code' : 'Sign in by email link or mobile code'}</h1>
       {!mfa && (
         <>
           <ContactChoice
@@ -70,10 +74,11 @@ export default function OtpVerification() {
             disabled={!contact.trim() || request.isPending}
             onClick={() => request.mutate()}
           >
-            {request.isPending ? 'Sending…' : verificationId ? 'Send a new code' : 'Send code'}
+            {request.isPending ? 'Sending…' : kind === 'email' ? 'Send sign-in link' : verificationId ? 'Send a new code' : 'Send code'}
           </Button>
         </>
       )}
+      {!mfa && sentTo && kind === 'email' && <p role="status">Open the sign-in link sent to {sentTo} to continue.</p>}
       <div ref={phone.slot} />
       {verificationId && (
         <>

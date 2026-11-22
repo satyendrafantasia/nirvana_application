@@ -55,7 +55,7 @@ export const firebaseMessage = (e: unknown): Error => {
 
 let firebaseAuth: Promise<{ auth: Auth; sdk: typeof import('firebase/auth') }> | undefined;
 /** Loads Firebase only when a phone code is needed, and keeps no Firebase session in the browser. */
-const loadFirebase = (config: NonNullable<PhoneCodeConfig['firebase']>) =>
+export const loadFirebase = (config: NonNullable<PhoneCodeConfig['firebase']>) =>
   (firebaseAuth ??= Promise.all([import('firebase/app'), import('firebase/auth')])
     .then(([app, sdk]) => {
       const instance =

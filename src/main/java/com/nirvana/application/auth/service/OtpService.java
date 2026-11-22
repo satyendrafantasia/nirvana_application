@@ -159,6 +159,21 @@ public class OtpService {
                 .build();
     }
 
+    /** Called only after Firebase redeems a single-use email link for this address. */
+    @Transactional
+    public RegistrationTokenResponse verifiedEmailRegistration(String email) {
+        enforceExistingUserChecks(null, email);
+        OffsetDateTime expires = OffsetDateTime.now().plusMinutes(15);
+        String ticket = UUID.randomUUID().toString();
+        otpVerificationRepository.save(OtpVerification.builder()
+                .verificationId(UUID.randomUUID().toString()).email(email)
+                .otpCode(generateOtpCode()).expiresAt(expires).attempts(0).maxAttempts(0)
+                .purpose(OtpPurpose.REGISTRATION).verified(true)
+                .registrationToken(ticket).registrationTokenExpiresAt(expires)
+                .registrationConsumed(false).loginConsumed(false).passwordResetConsumed(false).build());
+        return RegistrationTokenResponse.builder().registrationToken(ticket).build();
+    }
+
     private void enforceExistingUserChecks(String phone, String email) {
         if (phone != null && userRepository.existsByPhone(phone)) {
             throw new RegistrationException("USER_ALREADY_EXISTS", "User already exists with this phone number", HttpStatus.CONFLICT);

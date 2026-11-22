@@ -93,6 +93,20 @@ class FirebasePhoneTokensTest {
         assertThrows(IllegalArgumentException.class, () -> tokens().verifiedPhone(sign(noPhone, GOOGLE, "k1")));
     }
 
+    @Test void googleAndPhoneProofsAreNotInterchangeable() {
+        var c = claims();
+        c.put("firebase", Map.of("sign_in_provider", "google.com"));
+        c.put("email", "Customer@example.test");
+        c.put("email_verified", true);
+        String signed = sign(c, GOOGLE, "k1");
+        assertEquals(new FirebasePhoneTokens.GoogleIdentity(PROJECT, "firebase-user-1", "customer@example.test"),
+                tokens().verifiedGoogle(signed));
+        assertThrows(IllegalArgumentException.class, () -> tokens().verifiedPhone(signed));
+        assertThrows(IllegalArgumentException.class, () -> tokens().verifiedGoogle(sign(claims(), GOOGLE, "k1")));
+        c.put("email_verified", false);
+        assertThrows(IllegalArgumentException.class, () -> tokens().verifiedGoogle(sign(c, GOOGLE, "k1")));
+    }
+
     @Test void googlesKeysAreFetchedOnceAndUnknownKeysDoNotForceRefetches() {
         var t = tokens();
         String good = sign(claims(), GOOGLE, "k1");

@@ -1,3 +1,4 @@
+import ConnectGoogle from './ConnectGoogle';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +51,7 @@ export default function AccountSettings() {
         <>
           <Points account={account.data} />
           <Profile key={account.data.id} account={account.data} />
+          <ConnectGoogle key={account.data.id} account={account.data} />
           <Password />
           <section className="card space-y-2 p-6" aria-labelledby="benefits-heading">
             <h2 id="benefits-heading" className="text-xl font-semibold">

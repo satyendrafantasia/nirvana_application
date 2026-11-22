@@ -83,7 +83,12 @@ public class OtpAuthService {
 
     @Transactional
     public AuthResponse completeOtpLogin(OtpLoginCompleteRequest request) {
-        OtpVerification verification = otpVerificationRepository.findByLoginToken(request.getLoginToken())
+        return issueAuthResponse(consumeLoginProof(request.getLoginToken()));
+    }
+
+    @Transactional
+    public User consumeLoginProof(String loginToken) {
+        OtpVerification verification = otpVerificationRepository.findByLoginToken(loginToken)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid login token"));
         if (!OtpPurpose.LOGIN.equals(verification.getPurpose())) {
             throw new IllegalArgumentException("Login token does not belong to an OTP login session");
@@ -97,7 +102,7 @@ public class OtpAuthService {
         User user = resolveUserFromVerification(verification);
         verification.setLoginConsumed(true);
         otpVerificationRepository.save(verification);
-        return issueAuthResponse(user);
+        return user;
     }
 
     @Transactional

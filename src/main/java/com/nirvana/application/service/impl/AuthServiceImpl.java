@@ -101,6 +101,10 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + principal.getId()));
 
+        return finishSignIn(user);
+    }
+
+    public AuthResponse finishSignIn(User user) {
         if (Boolean.TRUE.equals(user.getMfaEnabled())) {
             var challenge = otpAuthService.startMfaChallenge(user);
             return AuthResponse.builder()
@@ -206,6 +210,15 @@ public class AuthServiceImpl implements AuthService {
         return Boolean.TRUE.equals(verified) || "true".equalsIgnoreCase(String.valueOf(verified));
     }
 
+    public User createGoogleCustomer(String email) {
+        var principal = new org.springframework.security.oauth2.core.user.DefaultOAuth2User(
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(USER)),
+                java.util.Map.of("email", email), "email");
+        User user = createSocialUser("firebase_google", principal, email, true);
+        user.setMarketingOptIn(false);
+        return user;
+    }
+
     private User createSocialUser(String provider, OAuth2User oauth2User, String email, boolean emailVerified) {
         RoleType roleType = RoleType.CUSTOMER;
         Role role = Optional.ofNullable(roleRepository.findByRoleType(roleType))
@@ -231,7 +244,7 @@ public class AuthServiceImpl implements AuthService {
                 .lastName(lastName)
                 .displayName(displayName)
                 .role(role)
-                .roles(resolveRoleNames(roleType))
+                .roles(new java.util.HashSet<>(resolveRoleNames(roleType)))
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .active(true)
                 .isActive(true)

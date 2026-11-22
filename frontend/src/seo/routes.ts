@@ -11,6 +11,7 @@ const paths = new Set([
   '/auth/login',
   '/auth/register',
   '/auth/otp',
+  '/auth/email-link',
   '/auth/password',
   '/auth/social/callback',
   '/me/bookings',

@@ -17,6 +17,7 @@ const SpaDetails = lazy(() => import('../pages/SpaDetails/SpaDetails'));
 const Booking = lazy(() => import('../pages/Booking/Booking'));
 const Login = lazy(() => import('../pages/Auth/Login'));
 const Register = lazy(() => import('../pages/Auth/Register'));
+const EmailLinkCallback = lazy(() => import('../pages/Auth/EmailLinkCallback'));
 const OtpVerification = lazy(() => import('../pages/Auth/OtpVerification'));
 const SocialLoginCallback = lazy(() => import('../pages/Auth/SocialLoginCallback'));
 const MyBookings = lazy(() => import('../pages/Profile/MyBookings'));
@@ -121,6 +122,7 @@ const AppRouter = () => {
       />
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/register" element={<Register />} />
+      <Route path="/auth/email-link" element={<EmailLinkCallback />} />
       <Route path="/auth/otp" element={<OtpVerification />} />
       <Route path="/auth/social/callback" element={<SocialLoginCallback />} />
       <Route

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { useGoogleAuth } from '../../api/googleAuth';
 import client from '../../api/client';
 export default function SocialLogin() {
+  const google = useGoogleAuth();
   const providers = useQuery({
     queryKey: ['social-providers'],
     queryFn: async () => (await client.get<string[]>('/api/auth/oauth2/providers')).data,
@@ -8,7 +10,7 @@ export default function SocialLogin() {
   });
   return (
     <div className="space-y-2">
-      {providers.data?.map((provider) => (
+      {providers.data?.filter(p => p.toLowerCase() !== 'google' || (google.isSuccess && !google.data)).map((provider) => (
         <a
           key={provider}
           className="block rounded-xl border p-3 text-center"
@@ -17,7 +19,7 @@ export default function SocialLogin() {
           Continue with {provider}
         </a>
       ))}
-      {providers.isSuccess && !providers.data.length && (
+      {!google.data && providers.isSuccess && !providers.data.length && (
         <p className="text-sm text-slate-500">Social sign-in is not enabled by this spa yet.</p>
       )}
       {providers.isError && (

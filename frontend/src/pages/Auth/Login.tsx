@@ -1,4 +1,5 @@
 import { returnPath } from '../../auth/returnPath';
+import GoogleSignIn from './GoogleSignIn';
 import SocialLogin from './SocialLogin';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -55,9 +56,9 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
           Forgot password?
         </Link>
         <Link to={'/auth/otp' + next}>
-          Sign in with OTP / verify MFA
+          Sign in by email link or mobile code
         </Link>
-        {!owner && <SocialLogin />}
+        {!owner && <><GoogleSignIn /><SocialLogin /></>}
         <p className="text-sm text-slate-600">
           New here?{' '}
           <Link to={(owner ? '/owner/signup' : '/auth/register') + (requested ? next : '')} className="text-primary-600">

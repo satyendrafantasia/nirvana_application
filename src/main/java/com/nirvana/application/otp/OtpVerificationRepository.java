@@ -13,6 +13,7 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
 
     Optional<OtpVerification> findByRegistrationToken(String registrationToken);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<OtpVerification> findByLoginToken(String loginToken);
 
     Optional<OtpVerification> findByPasswordResetToken(String passwordResetToken);

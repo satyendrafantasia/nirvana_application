@@ -27,6 +27,13 @@ public class PhoneCodeConfigController {
     @Value("${firebase.project-id:}")
     private String projectId;
 
+    @GetMapping("/api/auth/firebase/config")
+    public Map<String, String> webConfig() {
+        if (!firebase.configured() || apiKey.isBlank()) return Map.of();
+        return Map.of("apiKey", apiKey, "projectId", projectId, "authDomain",
+                authDomain.isBlank() ? projectId + ".firebaseapp.com" : authDomain);
+    }
+
     @GetMapping({"/api/auth/phone-codes", "/auth/phone-codes"})
     public Map<String, Object> phoneCodes() {
         if (sms.isFirebase())
