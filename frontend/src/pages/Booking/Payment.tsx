@@ -9,6 +9,86 @@ import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { getAccount, MAX_POINTS_PER_BOOKING } from '../../api/accountApi';
 import { BookingSummary } from '../../types/booking';
+
+type Mode = 'ONLINE' | 'OFFLINE';
+
+/**
+ * Two buttons: pay now with Razorpay, or pay at the spa. Razorpay is always shown; when the
+ * backend has no Razorpay keys it is shown as unavailable rather than failing at checkout.
+ */
+export function PaymentChoice({
+  value,
+  online,
+  byPackage = false,
+  onChange
+}: {
+  value: Mode;
+  /** Whether Razorpay is ready on the backend; undefined while that is still loading. */
+  online?: boolean;
+  byPackage?: boolean;
+  onChange: (mode: Mode) => void;
+}) {
+  const choices: { mode: Mode; title: string; note: string; available: boolean }[] = [
+    {
+      mode: 'ONLINE',
+      title: 'Pay now with Razorpay',
+      note:
+        online === false
+          ? 'Online payment isn’t available yet. Please pay at the spa.'
+          : 'UPI, cards, netbanking and wallets. Your slot is confirmed once paid.',
+      available: online === true
+    },
+    {
+      mode: 'OFFLINE',
+      title: 'Pay at spa',
+      note: 'Book now and pay the spa when you visit.',
+      available: true
+    }
+  ];
+  return (
+    <div role="radiogroup" aria-label="Payment method" className="space-y-2">
+      <p className="font-medium">Payment method</p>
+      {byPackage ? (
+        <p className="rounded-xl border border-primary-100 bg-primary-50 p-3 text-sm">
+          Paid with your package. Nothing to pay now or at the spa.
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {choices.map((c) => {
+            const selected = value === c.mode && c.available;
+            return (
+              <button
+                key={c.mode}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={!c.available}
+                onClick={() => onChange(c.mode)}
+                className={`rounded-xl border-2 p-4 text-left transition ${
+                  selected
+                    ? 'border-primary-700 bg-primary-50'
+                    : 'border-slate-200 bg-white hover:border-primary-300'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                <span className="flex items-center gap-2 font-semibold text-slate-900">
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block h-4 w-4 rounded-full border-2 ${
+                      selected ? 'border-primary-700 bg-primary-700' : 'border-slate-400'
+                    }`}
+                  />
+                  {c.title}
+                </span>
+                <span className="mt-1 block text-sm text-slate-600">{c.note}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Payment({
   onTimeConflict,onNext,
   onBack,
@@ -31,7 +111,8 @@ export default function Payment({
     queryKey: ['payment-options'],
     queryFn: async () => (await client.get<{online: boolean}>('/api/bookings/payment-options')).data
   });
-  const method = options.data?.online ? (state.paymentMode ?? 'OFFLINE') : 'OFFLINE';
+  // Razorpay first when it's switched on; pay at spa when it isn't, or when the guest chose it.
+  const method = options.data?.online ? (state.paymentMode ?? 'ONLINE') : 'OFFLINE';
   const points = account.data?.loyaltyPoints;
   const eligibility = useQuery({
     queryKey: ['booking-package-eligibility', state.spaId, useSpaPackage],
@@ -100,17 +181,12 @@ export default function Payment({
       <h2 className="text-2xl font-semibold">Complete your appointment</h2>
       <p>Final prices, discounts and eligibility are calculated by the spa before payment.</p>
       <fieldset disabled={!!created || mutation.isPending} className="space-y-4">
-        <label className="block">
-          Payment method
-          <select
-            className="block border rounded-xl p-3 w-full"
-            value={method}
-            onChange={(e) => setPaymentMode(e.target.value as 'ONLINE' | 'OFFLINE')}
-          >
-            {options.data?.online && <option value="ONLINE">Pay securely with Razorpay</option>}
-            <option value="OFFLINE">Pay at spa</option>
-          </select>
-        </label>
+        <PaymentChoice
+          value={method}
+          online={options.data?.online}
+          byPackage={usePackage || useSpaPackage}
+          onChange={setPaymentMode}
+        />
         <label className="block">
           Coupon code
           <input
