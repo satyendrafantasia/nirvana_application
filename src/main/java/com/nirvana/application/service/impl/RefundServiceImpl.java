@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class RefundServiceImpl implements RefundService {
 
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final PaymentService paymentService;
 
     @Override
@@ -25,14 +26,17 @@ public class RefundServiceImpl implements RefundService {
             throw new IllegalArgumentException("Payment and booking are required for refund");
         }
         if (payment.getPaymentStatus() != PaymentStatus.CAPTURED
+                && payment.getPaymentStatus() != PaymentStatus.PARTIALLY_REFUNDED
                 && payment.getPaymentStatus() != PaymentStatus.COMPLETED) {
-            log.info("Skipping refund because payment not successful for booking {}", booking.getId());
-            return;
+            throw new IllegalStateException("Payment is no longer eligible for a refund");
         }
 
         if (route == RefundRoute.WALLET_CREDIT) {
-            log.info("Queueing wallet credit for booking {} amount {}", booking.getId(), refundAmountCents);
-            booking.setRefundStatus(RefundStatus.PROCESSING);
+            jdbc.update("""
+                    INSERT INTO booking_wallet_credit (booking_id,user_id,currency,amount_cents)
+                    VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE booking_id=booking_id
+                    """, booking.getId(), booking.getUser().getId(), payment.getCurrency(), refundAmountCents);
+            booking.setRefundStatus(RefundStatus.COMPLETED);
             return;
         }
 

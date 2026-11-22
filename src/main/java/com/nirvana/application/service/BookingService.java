@@ -1,5 +1,6 @@
 package com.nirvana.application.service;
 
+import com.nirvana.application.model.dto.CancellationQuote;
 import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
@@ -15,7 +16,9 @@ public interface BookingService {
 
     BookingListResponse listUserBookings(Long userId, BookingStatus status, Pageable pageable);
 
-    BookingCancelResponse cancelBooking(Long bookingId, Long userId);
+    CancellationQuote cancellationQuote(Long bookingId, Long userId);
+    BookingCancelResponse cancelBooking(Long bookingId, Long userId, CancellationQuote accepted);
+    default BookingCancelResponse cancelBooking(Long bookingId, Long userId) { return cancelBooking(bookingId, userId, null); }
 
     /**
      * Cancellation by the spa (or an administrator). The customer is refunded in full and gets

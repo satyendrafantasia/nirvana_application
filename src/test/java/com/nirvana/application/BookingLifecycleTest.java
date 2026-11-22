@@ -94,6 +94,19 @@ class BookingLifecycleTest {
                 createdDaysAgo, booking);
     }
 
+    @Test void changingCancellationTermsRequiresReviewAndLeavesTheBookingIntact() throws Exception {
+        long booking = book(slot(10));
+        String url = "/api/bookings/" + booking;
+        var preview = call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url + "/cancellation-quote"), 3, "ROLE_USER", null);
+        assertEquals(200, preview.status());
+        assertEquals(0, preview.body().get("refundCents").asInt());
+        var stale = preview.body().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode)stale).put("refundCents", 100);
+        assertTrue(call(post(url + "/cancel"), 3, "ROLE_USER", stale).status() >= 400);
+        assertEquals("CONFIRMED", status(booking));
+        assertEquals(200, call(post(url + "/cancel"), 3, "ROLE_USER", preview.body()).status());
+    }
+
     @Test void futureAppointmentCannotBeCheckedInCompletedOrMarkedNoShow() throws Exception {
         long booking = book(slot(10));
         for (String name : List.of("arrive", "complete", "no-show"))

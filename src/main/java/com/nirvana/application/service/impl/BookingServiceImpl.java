@@ -6,6 +6,7 @@ import com.nirvana.application.model.Slot;
 import com.nirvana.application.model.Spa;
 import com.nirvana.application.model.Therapist;
 import com.nirvana.application.model.User;
+import com.nirvana.application.model.dto.CancellationQuote;
 import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
@@ -399,7 +400,31 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public BookingCancelResponse cancelBooking(Long bookingId, Long userId) {
+    public CancellationQuote cancellationQuote(Long bookingId, Long userId) {
+        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
+        var policy = CancellationEvaluator.evaluateCancellation(booking, OffsetDateTime.now(ZoneOffset.UTC), CANCELLATION_CUTOFF_MINUTES);
+        if (!policy.canCancel()) throw new IllegalStateException(policy.reason());
+        return quote(booking, policy, capturedPayment(booking).orElse(null));
+    }
+
+    private Optional<com.nirvana.application.model.Payment> capturedPayment(Booking booking) {
+        if (booking.getPaymentMode() != PaymentMode.ONLINE) return Optional.empty();
+        return paymentRepository.findFirstByBookingIdAndPaymentStatusIn(booking.getId(),
+                List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED, PaymentStatus.PARTIALLY_REFUNDED));
+    }
+
+    private CancellationQuote quote(Booking booking, CancellationEligibility policy, com.nirvana.application.model.Payment payment) {
+        return CancellationQuote.calculate(payment == null ? 0 : payment.getAmountCents(),
+                payment == null ? 0 : Optional.ofNullable(payment.getRefundedCents()).orElse(0),
+                Optional.ofNullable(policy.feePercent()).orElse(0), payment == null ? booking.getCurrency() : payment.getCurrency(),
+                Optional.ofNullable(policy.refundRoute()).orElse(RefundRoute.ORIGINAL_METHOD),
+                booking.getPaymentType() == BookingPaymentType.PAID_BY_PACKAGE);
+    }
+
+    @Override
+    @Transactional
+    public BookingCancelResponse cancelBooking(Long bookingId, Long userId, CancellationQuote accepted) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         Booking booking = bookingRepository.findOwnedForUpdate(bookingId, userId)
@@ -417,16 +442,22 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException(eligibility.reason());
         }
 
-        boolean refundInitiated = false;
-        Integer refundAmountCents = null;
-
-        booking.setRefundRoute(Optional.ofNullable(eligibility.refundRoute()).orElse(RefundRoute.ORIGINAL_METHOD));
-
-        if (booking.getPaymentMode() == PaymentMode.ONLINE) {
-            refundAmountCents = processRefundIfNeeded(booking, now,
-                    Optional.ofNullable(eligibility.feePercent()).orElse(0),
-                    booking.getRefundRoute());
-            refundInitiated = refundAmountCents != null && refundAmountCents > 0;
+        var payment = capturedPayment(booking).orElse(null);
+        var quote = quote(booking, eligibility, payment);
+        if (accepted != null && !accepted.equals(quote)) {
+            throw new IllegalStateException("Cancellation terms changed. Review the updated amounts before confirming.");
+        }
+        booking.setRefundRoute(quote.route());
+        Integer refundAmountCents = quote.refundCents();
+        boolean refundInitiated = refundAmountCents > 0;
+        if (refundInitiated) {
+            int total = Optional.ofNullable(payment.getRefundedCents()).orElse(0) + refundAmountCents;
+            refundService.processRefund(payment, booking, quote.route(), refundAmountCents);
+            payment.setRefundedCents(total);
+            payment.setPaymentStatus(total == payment.getAmountCents() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED);
+            payment.setRefundedAt(now);
+            paymentRepository.save(payment);
+            booking.setRefundStatus(quote.route() == RefundRoute.WALLET_CREDIT ? RefundStatus.COMPLETED : RefundStatus.PROCESSING);
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
@@ -536,28 +567,13 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    private Integer processRefundIfNeeded(Booking booking, OffsetDateTime now, int feePercent, RefundRoute route) {
-        return paymentRepository
-                .findFirstByBookingIdAndPaymentStatusIn(
-                        booking.getId(),
-                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED))
-                .map(payment -> {
-                    int feeCents = Math.max(0, (int) Math.round(payment.getAmountCents() * (feePercent / 100.0)));
-                    int refundable = Math.max(0, payment.getAmountCents() - feeCents);
-                    refundService.processRefund(payment, booking, route, refundable);
-                    payment.setPaymentStatus(PaymentStatus.REFUNDED);
-                    payment.setRefundedCents(refundable);
-                    payment.setRefundedAt(now);
-                    paymentRepository.save(payment);
-                    booking.setRefundStatus(RefundStatus.COMPLETED);
-                    bookingRepository.save(booking);
-                    return refundable;
-                })
-                .orElse(null);
-    }
-
     private BookingSummaryResponse toSummaryResponse(Booking booking, CancellationEligibility eligibility) {
-        return BookingSummaryResponse.builder().therapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()))
+        String mode = booking.getTherapistPreference();
+        String original = "";
+        if ((mode == null || "NAMED".equals(mode)) && booking.getTherapist() != null)
+            original = String.valueOf(booking.getTherapist().getId());
+        else if ("LABEL".equals(mode)) original = "type:" + booking.getTherapistType();
+        return BookingSummaryResponse.builder().originalPreference(original).therapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()))
                 .bookingId(booking.getId())
                 .bookingReference(booking.getBookingReference())
                 .spaId(booking.getSpa().getId())

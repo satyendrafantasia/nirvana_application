@@ -1,5 +1,6 @@
 package com.nirvana.application.controller;
 
+import com.nirvana.application.model.dto.CancellationQuote;
 import com.nirvana.application.model.dto.BookingCancelResponse;
 import com.nirvana.application.model.dto.BookingCreateRequest;
 import com.nirvana.application.model.dto.BookingCreateResponse;
@@ -40,6 +41,14 @@ public class BookingController {
 
     private final BookingService bookingService;
 
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @GetMapping("/me/wallet")
+    public java.util.List<java.util.Map<String,Object>> wallet() {
+        return jdbc.queryForList("SELECT currency,SUM(amount_cents) AS balance FROM booking_wallet_credit WHERE user_id=? GROUP BY currency",
+                SecurityUtils.getCurrentUserId());
+    }
+
     @PostMapping("/bookings")
     @Operation(
             summary = "Create booking",
@@ -75,6 +84,11 @@ public class BookingController {
         return bookingService.listUserBookings(userId, status, pageable);
     }
 
+    @GetMapping("/bookings/{bookingId}/cancellation-quote")
+    public CancellationQuote cancellationQuote(@PathVariable Long bookingId) {
+        return bookingService.cancellationQuote(bookingId, SecurityUtils.getCurrentUserId());
+    }
+
     @PostMapping("/bookings/{bookingId}/cancel")
     @Operation(
             summary = "Cancel booking",
@@ -84,9 +98,9 @@ public class BookingController {
             @ApiResponse(responseCode = "200", description = "Booking cancelled", content = @Content(mediaType = "application/json", schema = @Schema(implementation = BookingCancelResponse.class))),
             @ApiResponse(responseCode = "404", description = "Booking not found", content = @Content(schema = @Schema(implementation = com.nirvana.application.api.ApiErrorResponse.class)))
     })
-    public BookingCancelResponse cancelBooking(@Parameter(description = "Identifier of the booking") @PathVariable Long bookingId) {
+    public BookingCancelResponse cancelBooking(@Parameter(description = "Identifier of the booking") @PathVariable Long bookingId, @RequestBody(required = false) CancellationQuote accepted) {
         Long userId = SecurityUtils.getCurrentUserId();
-        return bookingService.cancelBooking(bookingId, userId);
+        return bookingService.cancelBooking(bookingId, userId, accepted);
     }
 
     @PostMapping("/bookings/{bookingId}/reschedule")

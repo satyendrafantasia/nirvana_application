@@ -56,11 +56,13 @@ public class SpaAlertSms {
     public void send(String to, Kind kind, String message) {
         if (!sms.isEnabled()) {
             if (logMessages) log.info("Spa SMS ({}) not sent, SMS is off. To {}: {}", kind, to, message);
+            if (kind != Kind.REMINDER) throw new BookingContactUnavailable("Booking SMS transport unavailable");
             return;
         }
         if (sms.getProvider() != null && !"AWS_SNS".equalsIgnoreCase(sms.getProvider())) {
             // Booking alerts have their own DLT templates on AWS SNS; another OTP provider doesn't send them.
             log.info("Spa SMS ({}) to {} not sent: booking alerts need AWS SNS, and SMS provider is {}", kind, to, sms.getProvider());
+            if (kind != Kind.REMINDER) throw new BookingContactUnavailable("Booking SMS transport unavailable");
             return;
         }
         Map<String, MessageAttributeValue> attributes = new HashMap<>();

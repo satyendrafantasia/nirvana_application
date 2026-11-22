@@ -16,3 +16,8 @@ export function uniqueAvailableTimes(slots: Slot[], therapist?: string) {
   }
   return [...times.values()];
 }
+
+/** A reschedule keeps the customer's original choice until they explicitly change it. */
+export function replacementTimes(slots: Slot[], choice: string, originalPreference?: string) {
+  return uniqueAvailableTimes(slots, choice === 'keep' ? originalPreference : choice);
+}

@@ -87,7 +87,8 @@ public class SendGridNotificationService implements NotificationService {
     private void toCustomer(Booking booking, Email email) {
         User user = booking.getUser();
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
-            log.warn("Skipping {} notification: customer email missing for booking ref {}", email.templateCode(), booking.getBookingReference());
+            if (!email.templateCode().equals("BOOKING_REMINDER"))
+                throw new com.nirvana.application.service.BookingContactUnavailable("No email address");
             return;
         }
         sendEmail(user.getEmail(), email.subject(), email.html(), email.templateCode());
@@ -98,7 +99,8 @@ public class SendGridNotificationService implements NotificationService {
         String to = spa != null && spa.getEmail() != null && !spa.getEmail().isBlank()
                 ? spa.getEmail() : properties.getOwnerFallbackEmail();
         if (to == null || to.isBlank()) {
-            log.warn("Skipping {} notification: no spa email for booking ref {}", email.templateCode(), booking.getBookingReference());
+            if (!email.templateCode().equals("BOOKING_REMINDER"))
+                throw new com.nirvana.application.service.BookingContactUnavailable("No email address");
             return;
         }
         sendEmail(to, email.subject(), email.html(), email.templateCode());
@@ -106,8 +108,7 @@ public class SendGridNotificationService implements NotificationService {
 
     private void sendEmail(String toEmail, String subject, String htmlContent, String templateCode) {
         if (properties.getFromEmail() == null || properties.getFromEmail().isBlank()) {
-            log.warn("Cannot send email: fromEmail not configured");
-            return;
+            throw new IllegalStateException("Sender email is missing");
         }
 
         var from = new com.sendgrid.helpers.mail.objects.Email(properties.getFromEmail(), properties.getFromName());
@@ -121,12 +122,12 @@ public class SendGridNotificationService implements NotificationService {
 
             Response response = sendGrid.api(request);
             if (response.getStatusCode() >= 400) {
-                log.error("{} notification delivery failed with status {}", templateCode, response.getStatusCode());
+                throw new IllegalStateException("Email delivery failed with status " + response.getStatusCode());
             } else {
                 log.debug("{} notification delivery processed", templateCode);
             }
         } catch (IOException e) {
-            log.error("{} notification delivery failed", templateCode);
+            throw new IllegalStateException("Email delivery failed", e);
         }
     }
 }

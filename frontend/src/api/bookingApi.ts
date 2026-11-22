@@ -59,6 +59,7 @@ export interface CreatedBooking {
 export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> =>
   (await client.post('/api/bookings', payload)).data;
 interface BookingWire {
+  originalPreference?: string;
   therapistName?: string;
   bookingId: number;
   bookingReference: string;
@@ -88,6 +89,7 @@ export const getUserBookings = async (
       id: String(b.bookingId),
       reference: b.bookingReference,
       therapistName: b.therapistName,
+      originalPreference: b.originalPreference,
       spaId: String(b.spaId),
       spaName: b.spaName,
       service: {
@@ -106,8 +108,17 @@ export const getUserBookings = async (
     }))
   };
 };
-export const cancelBooking = async (id: string) =>
-  (await client.post(`/api/bookings/${id}/cancel`)).data;
+export interface CancellationQuote {
+  feeCents: number;
+  refundCents: number;
+  currency: string;
+  route: 'WALLET_CREDIT' | 'ORIGINAL_METHOD';
+  packageSession: boolean;
+}
+export const getCancellationQuote = async (id: string) =>
+  (await client.get<CancellationQuote>(`/api/bookings/${id}/cancellation-quote`)).data;
+export const cancelBooking = async (id: string, quote: CancellationQuote) =>
+  (await client.post(`/api/bookings/${id}/cancel`, quote)).data;
 export const rescheduleBooking = async (id: string, targetSlotId: string, choice?: string) =>
   (await client.post(`/api/bookings/${id}/reschedule`, { targetSlotId,
     changeTherapistPreference: choice !== undefined,

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { cancelBooking, getUserBookings, getSlots, getTherapistDirectory, rescheduleBooking } from '../../api/bookingApi';
+import { cancelBooking, getCancellationQuote, getUserBookings, getSlots, getTherapistDirectory, rescheduleBooking } from '../../api/bookingApi';
 import { resumePayment } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
 import Button from '../../components/common/Button';
 import SlotGrid from '../../components/booking/SlotGrid';
-import { uniqueAvailableTimes } from '../Booking/availableTimes';
+import { replacementTimes } from '../Booking/availableTimes';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -19,6 +19,17 @@ export default function MyBookings() {
   const [date, setDate] = useState('');
   const [target, setTarget] = useState('');
   const [cancel, setCancel] = useState<BookingSummary>();
+  const quote = useQuery({
+    queryKey: ['cancellation-quote', cancel?.id],
+    enabled: !!cancel,
+    queryFn: () => getCancellationQuote(cancel!.id)
+  });
+  const wallet = useQuery({
+    queryKey: ['my-wallet'],
+    queryFn: async () => (await client.get<{currency: string; balance: number}[]>('/api/me/wallet')).data
+  });
+  const money = (cents: number, currency: string) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(cents / 100);
   const qc = useQueryClient();
   const bookings = useQuery({
     queryKey: ['my-bookings', page],
@@ -29,6 +40,7 @@ export default function MyBookings() {
     enabled: !!editing && !!date,
     queryFn: () => getSlots(editing!.spaId!, editing!.service.id, date)
   });
+  const eligibleSlots = replacementTimes(slots.data || [], preference, editing?.originalPreference);
   const action = useMutation({
     mutationFn: async ({ kind, b }: { kind: string; b: BookingSummary }) => {
       if (kind === 'invoice') {
@@ -39,11 +51,18 @@ export default function MyBookings() {
         link.download = `invoice-${b.reference}.pdf`;
         link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else if (kind === 'cancel') await cancelBooking(b.id);
+      } else if (kind === 'cancel') {
+        if (!quote.data) throw new Error('Review the cancellation amounts first.');
+        await cancelBooking(b.id, quote.data);
+      }
       else if (kind === 'move') await rescheduleBooking(b.id, target, preference === 'keep' ? undefined : preference);
       else await resumePayment(b.id);
     },
+    onError: (_error, variables) => {
+      if (variables.kind === 'cancel') void quote.refetch();
+    },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-wallet'] });
       setEditing(undefined);
       setCancel(undefined);
       void qc.invalidateQueries({ queryKey: ['my-bookings'] });
@@ -52,6 +71,7 @@ export default function MyBookings() {
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-5">
       <h1 className="text-3xl font-bold">My appointments</h1>
+      {wallet.data?.map(w => <p key={w.currency}>Wallet credit: {money(w.balance, w.currency)}</p>)}
       {bookings.isLoading && <p role="status">Loading appointments…</p>}
       {(bookings.isError || action.isError) && (
         <p role="alert" className="text-rose-700">
@@ -104,9 +124,17 @@ export default function MyBookings() {
           </div>
           {cancel?.id === b.id && (
             <div>
-              <p>Cancel this appointment? The spa’s cancellation and refund policy applies.</p>
+              <p>Cancel this appointment?</p>
+              {quote.isFetching && <p role="status">Checking cancellation terms…</p>}
+              {quote.isError && <p role="alert">{errorMessage(quote.error)}</p>}
+              {quote.data && <div>
+                <p>Cancellation fee: {money(quote.data.feeCents, quote.data.currency)}</p>
+                <p>Expected refund: {money(quote.data.refundCents, quote.data.currency)}
+                  {quote.data.refundCents > 0 && (quote.data.route === 'WALLET_CREDIT' ? ' to your Nirvana wallet' : ' to your original payment method')}</p>
+                {quote.data.packageSession && <p>Your package session will be returned.</p>}
+              </div>}
               <Button
-                disabled={action.isPending}
+                disabled={action.isPending || !quote.data || quote.isError || quote.isFetching}
                 onClick={() => action.mutate({ kind: 'cancel', b })}
               >
                 Confirm cancellation
@@ -141,15 +169,16 @@ export default function MyBookings() {
               </label>
               {slots.isLoading && <p>Loading times…</p>}
               {slots.isError && <p role="alert">{errorMessage(slots.error)}</p>}
+              {slots.data && !eligibleSlots.length && <p>No available times for this therapist preference on this date.</p>}
               {slots.data && (
                 <SlotGrid
-                  slots={preference === 'keep' ? slots.data : uniqueAvailableTimes(slots.data, preference)}
+                  slots={eligibleSlots}
                   selectedSlot={target}
                   onSelect={(s) => setTarget(s.id)}
                 />
               )}
               <Button
-                disabled={!target || action.isPending}
+                disabled={!eligibleSlots.some(s => s.id === target) || action.isPending}
                 onClick={() => action.mutate({ kind: 'move', b })}
               >
                 Confirm new time

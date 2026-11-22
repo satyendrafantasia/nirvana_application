@@ -67,7 +67,7 @@ describe('Owner entry and access boundaries', () => {
     const html = render(<Register owner />);
     expect(html).toContain('Create your spa owner account');
     expect(html).toContain('/owner/login');
-    expect(html).toContain('Send verification code');
+    expect(html).toContain('Send registration link');
     expect(html).not.toContain('value="ADMIN"');
   });
   it('links owner login to dedicated signup', () => {

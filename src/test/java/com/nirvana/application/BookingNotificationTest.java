@@ -11,46 +11,30 @@ import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.service.NotificationService;
 import com.nirvana.application.service.impl.BookingEmailContent;
 import com.nirvana.application.service.impl.NotificationSchedulingServiceImpl;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /** Booking emails: when they are sent, to whom, and what they say. No Spring context needed. */
 class BookingNotificationTest {
     NotificationService sender = mock(NotificationService.class);
     BookingRepository bookings = mock(BookingRepository.class);
-    TaskScheduler scheduler = mock(TaskScheduler.class);
-    com.nirvana.application.service.SpaBookingAlerts spaAlerts = mock(com.nirvana.application.service.SpaBookingAlerts.class);
-    NotificationSchedulingServiceImpl service =
-            new NotificationSchedulingServiceImpl(sender, scheduler, bookings, mock(PlatformTransactionManager.class), spaAlerts);
+    org.springframework.jdbc.core.JdbcTemplate jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
+    NotificationSchedulingServiceImpl service = new NotificationSchedulingServiceImpl(sender, jdbc, bookings,
+            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class));
     Booking booking;
 
     @BeforeEach void setUp() {
-        // Run queued work immediately so each test sees the outcome.
-        when(scheduler.schedule(any(Runnable.class), any(Instant.class))).thenAnswer(call -> {
-            ((Runnable) call.getArgument(0)).run();
-            return null;
-        });
         booking = booking(BookingStatus.CONFIRMED);
         when(bookings.findById(7L)).thenReturn(Optional.of(booking));
     }
-    @AfterEach void clearTransactionState() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) TransactionSynchronizationManager.clearSynchronization();
-    }
-
     static Booking booking(BookingStatus status) {
         Spa spa = mock(Spa.class);
         when(spa.getName()).thenReturn("Lotus & Stone");
@@ -73,52 +57,43 @@ class BookingNotificationTest {
         return b;
     }
 
-    @Test void confirmationGoesToCustomerAndSpaImmediately() {
+    @Test void confirmationQueuesEachRecipientWithoutSendingInsideBookingTransaction() {
         service.scheduleBookingNotifications(booking);
-        verify(sender).notifyCustomerBookingConfirmed(booking);
-        verify(sender).notifySpaOwnerBookingConfirmed(booking);
-    }
-
-    @Test void nothingIsSentUntilTheTransactionCommits() {
-        TransactionSynchronizationManager.initSynchronization();
-        service.scheduleBookingNotifications(booking);
-        verifyNoInteractions(sender);
-        // A rollback never calls afterCommit, so reaching here without a send covers that case too.
-        List<TransactionSynchronization> registered = TransactionSynchronizationManager.getSynchronizations();
-        assertEquals(1, registered.size());
-        registered.get(0).afterCommit();
-        verify(sender).notifyCustomerBookingConfirmed(booking);
-    }
-
-    @Test void confirmationIsDroppedIfTheBookingWasCancelledInTheMeantime() {
-        booking.setStatus(BookingStatus.CANCELLED);
-        service.scheduleBookingNotifications(booking);
+        for (String audience : List.of("CUSTOMER_EMAIL", "SPA_EMAIL", "SPA_MOBILE"))
+            verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq(audience), eq(0));
         verifyNoInteractions(sender);
     }
 
-    @Test void cancellationTellsBothSidesButAnUnpaidExpiryTellsOnlyTheCustomer() {
-        booking.setStatus(BookingStatus.CANCELLED);
-        service.bookingCancelled(booking);
-        verify(sender).notifyCustomerBookingCancelled(booking);
-        verify(sender).notifySpaOwnerBookingCancelled(booking);
-
-        clearInvocations(sender);
+    @Test void unpaidExpiryQueuesOnlyCustomer() {
         booking.setCancellationReasonCode("PAYMENT_TIMEOUT");
         service.bookingCancelled(booking);
-        verify(sender).notifyCustomerBookingCancelled(booking);
-        verify(sender, never()).notifySpaOwnerBookingCancelled(any());
+        verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CANCELLED"), eq("CUSTOMER_EMAIL"), eq(0));
+        verifyNoMoreInteractions(jdbc);
     }
 
-    @Test void rescheduleTellsBothSides() {
-        service.bookingRescheduled(booking);
-        verify(sender).notifyCustomerBookingRescheduled(booking);
-        verify(sender).notifySpaOwnerBookingRescheduled(booking);
+    private void pendingCustomerEmail() {
+        when(jdbc.queryForList(contains("SELECT id FROM booking_alert_job"), eq(Long.class))).thenReturn(List.of(12L));
+        when(jdbc.queryForList(contains("FOR UPDATE"), eq(12L))).thenReturn(List.of(java.util.Map.of(
+                "booking_id",7L,"revision",0,"event_kind","CONFIRMED","audience","CUSTOMER_EMAIL")));
     }
 
-    @Test void aFailingEmailNeverBreaksTheCallerAndTheOtherEmailStillGoes() {
-        doThrow(new IllegalStateException("smtp down")).when(sender).notifyCustomerBookingConfirmed(any());
-        assertDoesNotThrow(() -> service.scheduleBookingNotifications(booking));
-        verify(sender).notifySpaOwnerBookingConfirmed(booking);
+    @Test void transientFailureIsRetriedFromThePersistentJob() {
+        pendingCustomerEmail();
+        doThrow(new IllegalStateException("Temporary mail failure")).doNothing().when(sender).notifyCustomerBookingConfirmed(booking);
+        service.drain();
+        verify(jdbc).update(contains("attempts=attempts+1"), eq(12L));
+        service.drain();
+        verify(jdbc).update(contains("SET state=?"), eq("DONE"), eq(12L));
+        verify(sender, times(2)).notifyCustomerBookingConfirmed(booking);
+        verifyNoMoreInteractions(sender);
+    }
+
+    @Test void obsoleteConfirmationIsSuppressedAfterCancellation() {
+        pendingCustomerEmail();
+        booking.setStatus(BookingStatus.CANCELLED);
+        service.drain();
+        verify(jdbc).update(contains("SET state=?"), eq("OBSOLETE"), eq(12L));
+        verifyNoInteractions(sender);
     }
 
     @Test void emailsEscapeBookingDataAndUseTheSpaTimeZone() {

@@ -186,6 +186,7 @@ public class SpaBookingAlerts {
         try {
             sms.send(to, kind, message);
         } catch (RuntimeException e) {
+            if (kind != SpaAlertSms.Kind.REMINDER) throw e;
             log.warn("{} SMS to the spa for booking {} failed: {}", kind, reference, e.getMessage());
         }
     }

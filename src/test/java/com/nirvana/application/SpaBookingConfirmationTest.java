@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Spas confirm or decline each booking from an SMS link; one last reminder, then it stands. */
 @SpringBootTest @AutoConfigureMockMvc @Transactional
 class SpaBookingConfirmationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean SpaAlertSms sms;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired BookingRepository bookings;
@@ -53,6 +54,18 @@ class SpaBookingConfirmationTest {
 
     private String state(long bookingId) {
         return jdbc.queryForObject("SELECT status FROM spa_booking_confirmation WHERE booking_id=?", String.class, bookingId);
+    }
+
+    @Autowired com.nirvana.application.service.RefundService refunds;
+
+    @Test void retryingAWalletRefundLeavesOneCreditForTheCustomer() {
+        var b = booking("9876543210");
+        var p = new com.nirvana.application.model.Payment();
+        p.setPaymentStatus(com.nirvana.application.model.enums.PaymentStatus.CAPTURED);
+        p.setCurrency("INR");
+        for (int i = 0; i < 2; i++) refunds.processRefund(p, b, com.nirvana.application.model.enums.RefundRoute.WALLET_CREDIT, 150000);
+        assertEquals(150000, jdbc.queryForObject("SELECT SUM(amount_cents) FROM booking_wallet_credit WHERE booking_id=? AND user_id=?",
+                Integer.class, b.getId(), b.getUser().getId()));
     }
 
     @Test void onlyIndianMobilesGetSms() {

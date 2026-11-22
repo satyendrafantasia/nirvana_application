@@ -262,7 +262,7 @@ public class PaymentService {
             payment.setRefundedAt(OffsetDateTime.now(ZoneOffset.UTC));
             payment.setPaymentStatus(refunded == payment.getAmountCents() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED);
             paymentRepository.save(payment);
-            if (refunded == payment.getAmountCents()) {booking.setRefundStatus(RefundStatus.COMPLETED);bookingRepository.save(booking);}
+            if (refunded == payment.getAmountCents() || (booking.getStatus() == BookingStatus.CANCELLED && booking.getRefundStatus() == RefundStatus.PROCESSING)) {booking.setRefundStatus(RefundStatus.COMPLETED);bookingRepository.save(booking);}
         } catch (RazorpayException ex) { throw new IllegalStateException("Refund verification unavailable", ex); }
     }
 
@@ -377,7 +377,7 @@ public class PaymentService {
         Payment payment = paymentRepository
                 .findFirstByBookingIdAndPaymentStatusIn(
                         bookingId,
-                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED))
+                        List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED, PaymentStatus.PARTIALLY_REFUNDED))
                 .orElseThrow(() -> new IllegalStateException(
                         "No successful payment to refund for booking " + bookingId));
 

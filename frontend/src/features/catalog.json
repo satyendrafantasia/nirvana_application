@@ -1571,6 +1571,14 @@
       "description": "Review operations, verification, refunds and support requests.",
       "actions": [
         {
+          "title": "Booking alerts needing attention",
+          "method": "GET",
+          "path": "/api/admin/operations/booking-alerts",
+          "parameters": [],
+          "body": null,
+          "multipart": false
+        },
+        {
           "title": "Operations overview",
           "method": "GET",
           "path": "/api/admin/operations/dashboard",

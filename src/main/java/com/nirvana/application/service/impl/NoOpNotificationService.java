@@ -97,6 +97,8 @@ public class NoOpNotificationService implements NotificationService {
 
     private void deliver(User recipient, String destination, Email email, String context) {
         if (destination == null || destination.isBlank()) {
+            if (email.templateCode().startsWith("BOOKING_") && !email.templateCode().equals("BOOKING_REMINDER"))
+                throw new com.nirvana.application.service.BookingContactUnavailable("No email address");
             log.warn("Skipping {} notification: no destination ({})", email.templateCode(), context);
             return;
         }
@@ -120,6 +122,8 @@ public class NoOpNotificationService implements NotificationService {
             String reason = e.getMessage();
             logEntry.setErrorMessage(reason != null && reason.length() > 1000 ? reason.substring(0, 1000) : reason);
             log.error("{} notification delivery failed ({})", email.templateCode(), context);
+            if (email.templateCode().startsWith("BOOKING_") && !email.templateCode().equals("BOOKING_REMINDER"))
+                throw new IllegalStateException("Booking email delivery failed", e);
         } finally {
             notificationLogRepository.save(logEntry);
         }

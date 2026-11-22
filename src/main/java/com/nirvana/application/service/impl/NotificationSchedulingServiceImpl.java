@@ -7,17 +7,13 @@ import com.nirvana.application.service.NotificationSchedulingService;
 import com.nirvana.application.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
-import java.util.function.Consumer;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationSchedulingServiceImpl implements NotificationSchedulingService {
@@ -25,105 +21,111 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     enum Event { CONFIRMED, CANCELLED, RESCHEDULED }
 
     private final NotificationService notificationService;
-    private final TaskScheduler taskScheduler;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final BookingRepository bookingRepository;
     private final PlatformTransactionManager transactionManager;
     private final com.nirvana.application.service.SpaBookingAlerts spaAlerts;
 
-    @Override
-    public void scheduleBookingNotifications(Booking booking) {
-        afterCommit(booking, Event.CONFIRMED);
-    }
+    @Override public void scheduleBookingNotifications(Booking booking) { enqueue(booking, Event.CONFIRMED); }
+    @Override public void bookingCancelled(Booking booking) { enqueue(booking, Event.CANCELLED); }
+    @Override public void bookingRescheduled(Booking booking) { enqueue(booking, Event.RESCHEDULED); }
 
-    @Override
-    public void bookingCancelled(Booking booking) {
-        afterCommit(booking, Event.CANCELLED);
-    }
+    enum Audience { CUSTOMER_EMAIL, SPA_EMAIL, SPA_MOBILE }
 
-    @Override
-    public void bookingRescheduled(Booking booking) {
-        afterCommit(booking, Event.RESCHEDULED);
-    }
-
-    /**
-     * Email is slow and can fail, so it never runs inside the booking transaction (which holds
-     * schedule locks) and never for a change that ends up rolled back.
-     */
-    private void afterCommit(Booking booking, Event event) {
-        Long bookingId = booking.getId();
-        if (bookingId == null) {
-            return;
-        }
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    submit(bookingId, event);
-                }
-            });
-        } else {
-            submit(bookingId, event);
+    private void enqueue(Booking booking, Event event) {
+        int revision = booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount();
+        for (Audience audience : Audience.values()) {
+            if (event == Event.CANCELLED && audience != Audience.CUSTOMER_EMAIL &&
+                    BookingLifecycleService.PAYMENT_TIMEOUT.equals(booking.getCancellationReasonCode())) continue;
+            jdbc.update("""
+                    INSERT INTO booking_alert_job (booking_id,event_kind,audience,revision)
+                    VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    """, booking.getId(), event.name(), audience.name(), revision);
         }
     }
 
-    private void submit(Long bookingId, Event event) {
-        try {
-            taskScheduler.schedule(() -> deliver(bookingId, event), Instant.now());
-        } catch (RuntimeException ex) {
-            log.warn("Could not queue {} notification for booking {}: {}", event, bookingId, ex.getMessage());
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${booking.alerts.poll-ms:5000}")
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public void drain() {
+        var due = jdbc.queryForList("""
+                SELECT id FROM booking_alert_job WHERE state='PENDING' AND next_attempt<=CURRENT_TIMESTAMP
+                ORDER BY next_attempt,id LIMIT 60
+                """, Long.class);
+        var tx = new TransactionTemplate(transactionManager);
+        for (long id : due) {
+            try {
+                tx.executeWithoutResult(status -> process(id));
+            } catch (RuntimeException failure) {
+                // The delivery transaction rolled back, including any new spa confirmation token.
+                jdbc.update("""
+                        UPDATE booking_alert_job SET state=CASE WHEN attempts>=5 THEN 'FAILED' ELSE 'PENDING' END,
+                        next_attempt=TIMESTAMPADD(SECOND,30 * POWER(2,attempts),CURRENT_TIMESTAMP), attempts=attempts+1
+                        WHERE id=? AND state='PENDING' AND next_attempt<=CURRENT_TIMESTAMP
+                        """, id);
+                log.warn("Booking alert job {} failed ({})", id, failure.getClass().getSimpleName());
+            }
         }
     }
 
-    /** Loads the committed booking and sends both emails. A failure never reaches the caller. */
-    void deliver(Long bookingId, Event event) {
-        try {
-            new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
-                Booking booking = bookingRepository.findById(bookingId).orElse(null);
-                if (booking == null || !stillApplies(booking, event)) {
-                    return;
-                }
-                switch (event) {
-                    case CONFIRMED -> {
-                        attempt(booking, notificationService::notifyCustomerBookingConfirmed);
-                        attempt(booking, notificationService::notifySpaOwnerBookingConfirmed);
-                        // Most spas have no email but do have a mobile: they confirm by SMS link.
-                        attempt(booking, spaAlerts::bookingConfirmed);
-                    }
-                    case CANCELLED -> {
-                        attempt(booking, notificationService::notifyCustomerBookingCancelled);
-                        // The spa was never told about a booking that expired unpaid.
-                        if (!BookingLifecycleService.PAYMENT_TIMEOUT.equals(booking.getCancellationReasonCode())) {
-                            attempt(booking, notificationService::notifySpaOwnerBookingCancelled);
-                            attempt(booking, spaAlerts::bookingCancelled);
-                        }
-                    }
-                    case RESCHEDULED -> {
-                        attempt(booking, notificationService::notifyCustomerBookingRescheduled);
-                        attempt(booking, notificationService::notifySpaOwnerBookingRescheduled);
-                        if (booking.getStatus() == BookingStatus.CONFIRMED) attempt(booking, spaAlerts::bookingRescheduled);
-                    }
-                }
-            });
-        } catch (RuntimeException ex) {
-            log.warn("{} notification for booking {} was not sent: {}", event, bookingId, ex.getMessage());
-        }
-    }
-
-    /** Skip a message that the booking's current state has already made untrue. */
-    private boolean stillApplies(Booking booking, Event event) {
-        BookingStatus status = booking.getStatus();
-        return switch (event) {
-            case CONFIRMED -> status == BookingStatus.CONFIRMED || status == BookingStatus.ARRIVED;
-            case CANCELLED -> status == BookingStatus.CANCELLED;
-            case RESCHEDULED -> status == BookingStatus.CONFIRMED || status == BookingStatus.PENDING_PAYMENT;
+    private void process(long id) {
+        var rows = jdbc.queryForList("""
+                SELECT booking_id,event_kind,audience,revision FROM booking_alert_job
+                WHERE id=? AND state='PENDING' AND next_attempt<=CURRENT_TIMESTAMP FOR UPDATE
+                """, id);
+        if (rows.isEmpty()) return;
+        var row = rows.get(0);
+        var booking = bookingRepository.findById(((Number)row.get("booking_id")).longValue()).orElse(null);
+        var event = Event.valueOf((String)row.get("event_kind"));
+        var audience = Audience.valueOf((String)row.get("audience"));
+        boolean current = booking != null && switch (event) {
+            case CANCELLED -> booking.getStatus() == BookingStatus.CANCELLED;
+            case CONFIRMED -> (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.ARRIVED)
+                    && sameRevision(booking, row);
+            case RESCHEDULED -> (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.PENDING_PAYMENT)
+                    && sameRevision(booking, row);
         };
+        String state = "OBSOLETE";
+        if (current) {
+            try {
+                dispatch(booking, event, audience);
+                state = "DONE";
+                if (audience == Audience.SPA_MOBILE && event != Event.CANCELLED
+                        && com.nirvana.application.service.SpaAlertSms.mobile(booking.getSpa().getPhone()).isEmpty())
+                    state = "NEEDS_CONTACT";
+            } catch (com.nirvana.application.service.BookingContactUnavailable unavailable) {
+                state = "NEEDS_CONTACT";
+            }
+        }
+        jdbc.update("UPDATE booking_alert_job SET state=? WHERE id=?", state, id);
     }
 
-    private void attempt(Booking booking, Consumer<Booking> send) {
-        try {
-            send.accept(booking);
-        } catch (RuntimeException ex) {
-            log.warn("A notification for booking {} failed: {}", booking.getId(), ex.getMessage());
+    private boolean sameRevision(Booking booking, java.util.Map<String,Object> row) {
+        return ((Number)row.get("revision")).intValue() == (booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount());
+    }
+
+    private void dispatch(Booking booking, Event event, Audience audience) {
+        switch (audience) {
+            case CUSTOMER_EMAIL -> {
+                switch (event) {
+                    case CONFIRMED -> notificationService.notifyCustomerBookingConfirmed(booking);
+                    case RESCHEDULED -> notificationService.notifyCustomerBookingRescheduled(booking);
+                    case CANCELLED -> notificationService.notifyCustomerBookingCancelled(booking);
+                }
+            }
+            case SPA_EMAIL -> {
+                switch (event) {
+                    case CONFIRMED -> notificationService.notifySpaOwnerBookingConfirmed(booking);
+                    case RESCHEDULED -> notificationService.notifySpaOwnerBookingRescheduled(booking);
+                    case CANCELLED -> notificationService.notifySpaOwnerBookingCancelled(booking);
+                }
+            }
+            case SPA_MOBILE -> {
+                switch (event) {
+                    case CONFIRMED -> spaAlerts.bookingConfirmed(booking);
+                    case RESCHEDULED -> { if (booking.getStatus() == BookingStatus.CONFIRMED) spaAlerts.bookingRescheduled(booking); }
+                    case CANCELLED -> spaAlerts.bookingCancelled(booking);
+                }
+            }
         }
     }
 }

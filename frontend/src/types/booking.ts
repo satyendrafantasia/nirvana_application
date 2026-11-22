@@ -43,6 +43,7 @@ export interface BookingSummary {
   spaName: string;
   service: Service;
   slot: string;
+  originalPreference?: string;
   therapistName?: string;
   paymentMode: 'ONLINE' | 'OFFLINE';
   status: string;
