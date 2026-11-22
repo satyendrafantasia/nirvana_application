@@ -1,5 +1,6 @@
 import client from './client';
 import { AuthResponse, LoginPayload, RegisterPayload } from '../types/auth';
+import { otpBody, PhoneProof } from './phoneCodes';
 export interface AuthWire {
   accessToken?: string;
   refreshToken?: string;
@@ -40,15 +41,24 @@ export const register = async (p: RegisterPayload) =>
       })
     ).data
   );
-export const requestOtp = async (email: string): Promise<{ verificationId: string }> =>
-  (await client.post('/api/auth/login/otp/request', { email })).data;
-export const verifyOtp = async (verificationId: string, otp: string): Promise<AuthResponse> => {
+/** Where a sign-in code goes: an email address, or a mobile number in +country form. */
+export type CodeContact = string | { email: string } | { phoneNumber: string };
+const contactBody = (c: CodeContact) => (typeof c === 'string' ? { email: c } : c);
+
+export const requestOtp = async (contact: CodeContact): Promise<{ verificationId: string }> =>
+  (await client.post('/api/auth/login/otp/request', contactBody(contact))).data;
+/** `proof` is the code typed, or Google's proof of the phone when Firebase checked the code. */
+export const verifyOtp = async (
+  verificationId: string,
+  proof: string | PhoneProof
+): Promise<AuthResponse> => {
+  const body = { verificationId, ...otpBody(typeof proof === 'string' ? { code: proof } : proof) };
   if (sessionStorage.getItem('nirvana_mfa')) {
-    const r = await client.post('/api/auth/login/mfa/verify', { verificationId, otp });
+    const r = await client.post('/api/auth/login/mfa/verify', body);
     sessionStorage.removeItem('nirvana_mfa');
     return authView(r.data);
   }
-  const { data } = await client.post('/api/auth/login/otp/verify', { verificationId, otp });
+  const { data } = await client.post('/api/auth/login/otp/verify', body);
   return authView(
     (await client.post('/api/auth/login/otp/complete', { loginToken: data.loginToken })).data
   );

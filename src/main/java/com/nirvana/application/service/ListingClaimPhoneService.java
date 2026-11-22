@@ -45,6 +45,7 @@ public class ListingClaimPhoneService {
     private final OtpGenerator generator;
     private final SmsSender sms;
     private final SmsProperties smsProperties;
+    private final com.nirvana.application.otp.FirebasePhoneTokens phoneTokens;
 
     /** Local development only: write codes to the log when SMS is switched off. */
     @Value("${listing-claims.log-codes:false}")
@@ -56,7 +57,7 @@ public class ListingClaimPhoneService {
 
     @Transactional
     public Map<String, Object> send(Long userId, String placeId) {
-        if (!smsProperties.isEnabled() && !logCodes)
+        if (!smsProperties.phoneCodesAvailable() && !logCodes)
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Text messages are not available right now. Submit without verifying and our team will call the spa.");
         // Text only spas that can still be claimed, so this cannot be used to message any business on Google.
@@ -93,6 +94,11 @@ public class ListingClaimPhoneService {
         if (name.length() > 40) name = name.substring(0, 40);
         String message = "Nirvana: " + code + " is your code to claim " + name + " on Nirvana. It expires in "
                 + CODE_TTL.toMinutes() + " minutes. If you did not ask for this, ignore this message.";
+        if (smsProperties.isFirebase()) {
+            // Firebase texts the listing's number from the browser; the number is public on Google Maps.
+            return Map.of("verificationId", verificationId, "phone", mask(display), "phoneNumber", phone,
+                    "expiresInMinutes", CODE_TTL.toMinutes(), "resendAfterSeconds", RESEND_AFTER.toSeconds());
+        }
         if (smsProperties.isEnabled()) {
             try {
                 sms.sendOtpSms(phone, message);
@@ -109,7 +115,7 @@ public class ListingClaimPhoneService {
 
     /** A wrong code is not rolled back, so it still counts as an attempt. */
     @Transactional(noRollbackFor = ResponseStatusException.class)
-    public Map<String, Object> verify(Long userId, String verificationId, String code) {
+    public Map<String, Object> verify(Long userId, String verificationId, String code, String firebaseIdToken) {
         var rows = jdbc.queryForList("SELECT * FROM listing_claim_phone_check WHERE verification_id=? AND user_id=? FOR UPDATE", verificationId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ask for a new code.");
         var row = rows.get(0);
@@ -119,7 +125,9 @@ public class ListingClaimPhoneService {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many wrong codes. Ask for a new code.");
         if (time(row.get("expires_at")).isBefore(now()))
             throw new ResponseStatusException(HttpStatus.GONE, "This code has expired. Ask for a new code.");
-        boolean match = code != null && code.matches("\\d{6}") && MessageDigest.isEqual(
+        boolean match = firebaseIdToken != null && !firebaseIdToken.isBlank()
+                ? provesListingPhone(firebaseIdToken, String.valueOf(row.get("phone_number")))
+                : code != null && code.matches("\\d{6}") && MessageDigest.isEqual(
                 hash(verificationId, code).getBytes(StandardCharsets.US_ASCII),
                 String.valueOf(row.get("code_hash")).getBytes(StandardCharsets.US_ASCII));
         if (!match) {
@@ -142,6 +150,14 @@ public class ListingClaimPhoneService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Your phone verification has expired. Verify again, or submit without it.");
         jdbc.update("UPDATE listing_claim_phone_check SET consumed_at=? WHERE id=?", now(), rows.get(0).get("id"));
         return time(rows.get(0).get("verified_at"));
+    }
+
+    private boolean provesListingPhone(String firebaseIdToken, String phone) {
+        try {
+            return smsProperties.isFirebase() && phoneTokens.proves(firebaseIdToken, phone);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return false;
+        }
     }
 
     private static LocalDateTime time(Object value) {

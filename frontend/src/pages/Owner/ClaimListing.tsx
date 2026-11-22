@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
+import { usePhoneCode } from '../../api/phoneCodes';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -36,7 +37,13 @@ export type ClaimForm = {
   listingHasPhone?: boolean;
 };
 
-type CodeSent = { verificationId: string; phone: string; expiresInMinutes: number };
+/** `phoneNumber` comes back only with Firebase, which texts the listing's (public) number from the browser. */
+type CodeSent = {
+  verificationId: string;
+  phone: string;
+  phoneNumber?: string;
+  expiresInMinutes: number;
+};
 
 /** Texts a code to the phone on the Google listing to show the owner can answer it. */
 export function PhoneCheck({
@@ -56,13 +63,16 @@ export function PhoneCheck({
 }) {
   const [sent, setSent] = useState<CodeSent>();
   const [code, setCode] = useState('');
+  const phone = usePhoneCode();
   const send = useMutation({
-    mutationFn: async () =>
-      (
-        await client.post<CodeSent>(
-          `/api/owner/claims/places/${encodeURIComponent(placeId)}/phone-code`
-        )
-      ).data,
+    mutationFn: async () => {
+      const { data } = await client.post<CodeSent>(
+        `/api/owner/claims/places/${encodeURIComponent(placeId)}/phone-code`
+      );
+      if (data.phoneNumber) await phone.start(data.phoneNumber);
+      else phone.reset();
+      return data;
+    },
     onSuccess: (data) => {
       setSent(data);
       setCode('');
@@ -72,7 +82,7 @@ export function PhoneCheck({
     mutationFn: async () =>
       client.post('/api/owner/claims/phone-code/verify', {
         verificationId: sent!.verificationId,
-        code
+        ...(await phone.proof(code))
       }),
     onSuccess: () => onVerified(sent!.verificationId)
   });
@@ -157,6 +167,7 @@ export function PhoneCheck({
           I can’t get texts on that number
         </button>
       </div>
+      <div ref={phone.slot} />
     </div>
   );
 }

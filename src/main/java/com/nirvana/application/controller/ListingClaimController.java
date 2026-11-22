@@ -44,8 +44,16 @@ public class ListingClaimController {
         return live(claims.prefill(placeId));
     }
 
+    /** The code typed, or with Firebase, Google's signed proof of the listing's phone instead. */
     public record VerifyCodeRequest(@NotBlank @Size(max = 64) String verificationId,
-                                    @NotBlank @Pattern(regexp = "\\d{6}", message = "Enter the 6-digit code") String code) {}
+                                    @Pattern(regexp = "\\d{6}", message = "Enter the 6-digit code") String code,
+                                    @Size(max = 4096) String firebaseIdToken) {
+        @jakarta.validation.constraints.AssertTrue(message = "Enter the 6-digit code")
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public boolean isCodeOrPhoneProof() {
+            return (code != null && !code.isBlank()) || (firebaseIdToken != null && !firebaseIdToken.isBlank());
+        }
+    }
 
     /** Texts a code to the phone number on the Google listing, not one the owner typed. */
     @PostMapping("/api/owner/claims/places/{placeId}/phone-code")
@@ -58,7 +66,7 @@ public class ListingClaimController {
     @PostMapping("/api/owner/claims/phone-code/verify")
     @PreAuthorize("@staffAccess.staff()")
     public Map<String, Object> verifyPhoneCode(@Valid @RequestBody VerifyCodeRequest request) {
-        return phoneChecks.verify(SecurityUtils.getCurrentUserId(), request.verificationId(), request.code());
+        return phoneChecks.verify(SecurityUtils.getCurrentUserId(), request.verificationId(), request.code(), request.firebaseIdToken());
     }
 
     @PostMapping("/api/owner/claims")

@@ -41,6 +41,7 @@ public class OtpService {
     private final SmsSender smsSender;
     private final EmailSender emailSender;
     private final SmsProperties smsProperties;
+    private final com.nirvana.application.otp.FirebasePhoneTokens phoneTokens;
     private final EmailProperties emailProperties;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -75,7 +76,7 @@ public class OtpService {
         otpVerificationRepository.save(verification);
 
 
-        boolean smsEnabled = phone != null && smsProperties.isEnabled();
+        boolean smsEnabled = phone != null && smsProperties.phoneCodesAvailable();
         boolean emailEnabled = email != null && emailProperties.isEnabled();
 
         if (!smsEnabled && !emailEnabled) {
@@ -126,7 +127,20 @@ public class OtpService {
 
         verification.setAttempts(verification.getAttempts() + 1);
 
-        if (!verification.getOtpCode().equals(request.getOtp())) {
+        if (request.getFirebaseIdToken() != null && !request.getFirebaseIdToken().isBlank()) {
+            boolean proven;
+            try {
+                proven = smsProperties.isFirebase() && verification.getPhoneNumber() != null
+                        && phoneTokens.proves(request.getFirebaseIdToken(), verification.getPhoneNumber());
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                proven = false;
+            }
+            if (!proven) {
+                otpVerificationRepository.save(verification);
+                throw new RegistrationException("INVALID_PHONE_PROOF",
+                        "That phone verification didn't work. Ask for a new code and try again.", HttpStatus.BAD_REQUEST);
+            }
+        } else if (!verification.getOtpCode().equals(request.getOtp())) {
             otpVerificationRepository.save(verification);
             String code = verification.getAttempts() >= verification.getMaxAttempts()
                     ? "MAX_ATTEMPTS_EXCEEDED"

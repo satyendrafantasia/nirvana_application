@@ -51,6 +51,7 @@ public class OtpAuthService {
     private final SmsSender smsSender;
     private final EmailSender emailSender;
     private final SmsProperties smsProperties;
+    private final com.nirvana.application.otp.FirebasePhoneTokens phoneTokens;
     private final EmailProperties emailProperties;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
@@ -72,7 +73,7 @@ public class OtpAuthService {
     @Transactional
     public OtpLoginTokenResponse verifyLoginOtp(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.LOGIN);
-        validateOtp(verification, request.getOtp());
+        validateOtp(verification, request);
         verification.setVerified(true);
         verification.setLoginToken(UUID.randomUUID().toString());
         verification.setLoginTokenExpiresAt(OffsetDateTime.now().plus(LOGIN_TOKEN_TTL));
@@ -113,7 +114,7 @@ public class OtpAuthService {
     @Transactional
     public PasswordResetTokenResponse verifyPasswordResetOtp(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.PASSWORD_RESET);
-        validateOtp(verification, request.getOtp());
+        validateOtp(verification, request);
         verification.setVerified(true);
         verification.setPasswordResetToken(UUID.randomUUID().toString());
         verification.setPasswordResetTokenExpiresAt(OffsetDateTime.now().plus(LOGIN_TOKEN_TTL));
@@ -159,7 +160,7 @@ public class OtpAuthService {
     @Transactional
     public AuthResponse completeMfa(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.MFA);
-        validateOtp(verification, request.getOtp());
+        validateOtp(verification, request);
         verification.setVerified(true);
         verification.setLoginConsumed(true);
         otpVerificationRepository.save(verification);
@@ -191,7 +192,7 @@ public class OtpAuthService {
     }
 
     private void deliverOtp(String phone, String email, String otp, String verificationId) {
-        boolean smsEnabled = phone != null && smsProperties.isEnabled();
+        boolean smsEnabled = phone != null && smsProperties.phoneCodesAvailable();
         boolean emailEnabled = email != null && emailProperties.isEnabled();
         if (!smsEnabled && !emailEnabled) {
             throw new IllegalStateException("OTP delivery is disabled");
@@ -219,7 +220,7 @@ public class OtpAuthService {
         return verification;
     }
 
-    private void validateOtp(OtpVerification verification, String otp) {
+    private void validateOtp(OtpVerification verification, VerifyOtpRequest request) {
         if (verification.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new IllegalStateException("OTP has expired");
         }
@@ -227,7 +228,15 @@ public class OtpAuthService {
             throw new IllegalStateException("Maximum OTP attempts exceeded");
         }
         verification.setAttempts(verification.getAttempts() + 1);
-        if (!verification.getOtpCode().equals(otp)) {
+        if (request.getFirebaseIdToken() != null && !request.getFirebaseIdToken().isBlank()) {
+            if (!smsProperties.isFirebase() || verification.getPhoneNumber() == null
+                    || !phoneTokens.proves(request.getFirebaseIdToken(), verification.getPhoneNumber())) {
+                otpVerificationRepository.save(verification);
+                throw new IllegalArgumentException("That phone verification is for a different number. Ask for a new code.");
+            }
+            return;
+        }
+        if (!verification.getOtpCode().equals(request.getOtp())) {
             otpVerificationRepository.save(verification);
             Map<String, Object> metadata = Map.of("attempts", verification.getAttempts(), "maxAttempts", verification.getMaxAttempts());
             throw new IllegalArgumentException("Invalid OTP: " + metadata);

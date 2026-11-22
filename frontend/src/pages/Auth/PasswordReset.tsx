@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
+import { otpBody, toE164, usePhoneCode, usePhoneCodeMode } from '../../api/phoneCodes';
+import ContactChoice, { ContactKind } from '../../components/common/ContactChoice';
 export default function PasswordReset() {
+  const mode = usePhoneCodeMode();
+  const phone = usePhoneCode();
+  const [kind, setKind] = useState<ContactKind>('email');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
@@ -14,12 +19,25 @@ export default function PasswordReset() {
   const action = useMutation({
     mutationFn: async () => {
       if (!verificationId) {
-        const { data } = await client.post('/api/auth/password/request-otp', { email });
-        setVerificationId(data.verificationId);
+        if (kind === 'phone') {
+          const number = toE164(email);
+          if (!number) throw new Error('Enter a valid mobile number, for example 98765 43210.');
+          const { data } = await client.post('/api/auth/password/request-otp', {
+            phoneNumber: number
+          });
+          await phone.start(number);
+          setVerificationId(data.verificationId);
+        } else {
+          phone.reset();
+          const { data } = await client.post('/api/auth/password/request-otp', {
+            email: email.trim()
+          });
+          setVerificationId(data.verificationId);
+        }
       } else if (!resetToken) {
         const { data } = await client.post('/api/auth/password/verify-otp', {
           verificationId,
-          otp
+          ...otpBody(await phone.proof(otp))
         });
         setResetToken(data.passwordResetToken);
       } else {
@@ -54,17 +72,14 @@ export default function PasswordReset() {
           }}
         >
           {!verificationId ? (
-            <label className="block">
-              Account email
-              <input
-                className="block w-full border rounded-lg p-3"
-                required
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
+            <ContactChoice
+              mode={mode}
+              kind={kind}
+              onKind={setKind}
+              value={email}
+              onChange={setEmail}
+              emailLabel="Account email"
+            />
           ) : !resetToken ? (
             <label className="block">
               Verification code
@@ -72,9 +87,11 @@ export default function PasswordReset() {
                 className="block w-full border rounded-lg p-3"
                 required
                 pattern="[0-9]{6}"
+                inputMode="numeric"
+                maxLength={6}
                 autoComplete="one-time-code"
                 value={otp}
-                onChange={(e) => setOtp(e.target.value)}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
               />
             </label>
           ) : (
@@ -121,6 +138,7 @@ export default function PasswordReset() {
           </Button>
         </form>
       )}
+      <div ref={phone.slot} />
     </div>
   );
 }

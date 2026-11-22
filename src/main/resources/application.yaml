@@ -114,7 +114,8 @@ otp:
 
 sms:
   enabled: true
-  # AWS_SNS, or TWOFACTOR to send OTP codes through 2Factor.in. Spa booking alerts use AWS SNS only.
+  # AWS_SNS, TWOFACTOR (2Factor.in) or FIREBASE (Google texts and checks the code in the browser;
+  # needs the firebase settings below). Spa booking alerts use AWS SNS only.
   provider: ${SMS_PROVIDER:AWS_SNS}
   twofactor:
     api-key: ${TWOFACTOR_API_KEY:}
@@ -123,6 +124,12 @@ sms:
   # DLT template ID for the OTP text "Your OTP is {#var#}. It is valid for {#var#} minutes."
   # The sender ID and entity ID are the business-wide ones under spa-alerts.sms.
   otp-template-id: ${SMS_TEMPLATE_OTP:}
+
+# Firebase web app settings (Project settings > General > Your apps). Only used with sms.provider FIREBASE.
+firebase:
+  project-id: ${FIREBASE_PROJECT_ID:}
+  web-api-key: ${FIREBASE_WEB_API_KEY:}
+  auth-domain: ${FIREBASE_AUTH_DOMAIN:}
 
 email:
   enabled: true

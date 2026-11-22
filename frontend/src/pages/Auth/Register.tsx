@@ -7,9 +7,14 @@ import Button from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import client, { errorMessage } from '../../api/client';
 import { authView } from '../../api/authApi';
+import { otpBody, toE164, usePhoneCode, usePhoneCodeMode } from '../../api/phoneCodes';
+import ContactChoice, { ContactKind } from '../../components/common/ContactChoice';
 export default function Register({ owner = false }: { owner?: boolean }) {
   const [params] = useSearchParams();
   const destination = returnPath(params.get('redirect'), owner ? '/owner/onboarding' : '/', owner);
+  const mode = usePhoneCodeMode();
+  const phone = usePhoneCode();
+  const [kind, setKind] = useState<ContactKind>('email');
   const [email, setEmail] = useState(''),
     [verification, setVerification] = useState(''),
     [registration, setRegistration] = useState('');
@@ -18,14 +23,23 @@ export default function Register({ owner = false }: { owner?: boolean }) {
   const action = useMutation({
     mutationFn: async (form: FormData) => {
       if (!verification) {
-        const { data } = await client.post('/api/auth/register/request-otp', { email });
+        if (kind === 'phone') {
+          const number = toE164(email);
+          if (!number) throw new Error('Enter a valid mobile number, for example 98765 43210.');
+          const { data } = await client.post('/api/auth/register/request-otp', { phoneNumber: number });
+          await phone.start(number);
+          setVerification(data.verificationId);
+          return;
+        }
+        phone.reset();
+        const { data } = await client.post('/api/auth/register/request-otp', { email: email.trim() });
         setVerification(data.verificationId);
         return;
       }
       if (!registration) {
         const { data } = await client.post('/api/auth/register/verify-otp', {
           verificationId: verification,
-          otp: String(form.get('otp'))
+          ...otpBody(await phone.proof(String(form.get('otp'))))
         });
         setRegistration(data.registrationToken);
         return;
@@ -63,8 +77,10 @@ export default function Register({ owner = false }: { owner?: boolean }) {
         {registration
           ? 'Complete your verified account.'
           : verification
-            ? `Enter the code sent to ${email}.`
-            : 'Verify your email to create your account.'}
+            ? `Enter the code sent to ${kind === 'phone' ? toE164(email) : email.trim()}.`
+            : mode === 'FIREBASE' || mode === 'SMS'
+              ? 'Verify your email or mobile number to create your account.'
+              : 'Verify your email to create your account.'}
       </p>
       <form
         className="space-y-4"
@@ -74,15 +90,17 @@ export default function Register({ owner = false }: { owner?: boolean }) {
         }}
       >
         {!verification ? (
-          <Input
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <ContactChoice mode={mode} kind={kind} onKind={setKind} value={email} onChange={setEmail} />
         ) : !registration ? (
-          <Input label="Verification code" name="otp" required autoComplete="one-time-code" />
+          <Input
+            label="Verification code"
+            name="otp"
+            required
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            autoComplete="one-time-code"
+          />
         ) : (
           <>
             <Input label="Full name" name="fullName" required minLength={2} />
@@ -113,6 +131,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
                 : 'Send verification code'}
         </Button>
       </form>
+      <div ref={phone.slot} />
       {verification && !registration && (
         <button
           className="text-primary-700 underline"
@@ -121,7 +140,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
             action.reset();
           }}
         >
-          Change email or request another code
+          {kind === 'phone' ? 'Change number' : 'Change email'} or request another code
         </button>
       )}
       {action.isError && (
