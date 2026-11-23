@@ -17,6 +17,15 @@ export const sessionClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
   withCredentials: true
 });
+// Group requests and retries from this page load. No persistent browser identifier.
+const pageCorrelationId = globalThis.crypto?.randomUUID?.();
+for (const api of [client, sessionClient]) {
+  api.interceptors.request.use((config) => {
+    if (pageCorrelationId) config.headers.set('X-Correlation-ID', pageCorrelationId);
+    return config;
+  });
+}
+
 let renewal: Promise<string> | undefined;
 export function renewSession(): Promise<string> {
   if (renewal) return renewal;

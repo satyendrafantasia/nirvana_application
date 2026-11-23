@@ -23,7 +23,7 @@ public class RazorpayConfig {
             log.warn("Razorpay disabled via config");
             return null;
         }
-        log.info("Initializing RazorpayClient for key {}", props.getKeyId());
+        log.info("event=payment.gateway_initialized gateway=razorpay");
         return new RazorpayClient(props.getKeyId(), props.getKeySecret());
     }
 }

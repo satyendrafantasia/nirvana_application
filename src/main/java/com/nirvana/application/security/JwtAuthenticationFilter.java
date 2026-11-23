@@ -57,6 +57,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    if (userDetails instanceof UserPrincipal principal) {
+                        request.setAttribute(com.nirvana.application.api.RequestLogFilter.USER_ATTRIBUTE, principal.getId());
+                        if (org.slf4j.MDC.get("correlationId") != null) {
+                            org.slf4j.MDC.put("userId", principal.getId().toString());
+                        }
+                    }
                 }
             } catch (Exception ex) {
                 // Token parsing/validation failed, proceed without authentication so Spring can return 401 where needed

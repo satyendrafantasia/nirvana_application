@@ -98,6 +98,7 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalArgumentException("guests must be > 0");
         }
 
+        log.info("event=booking.validate_spa");
         Spa spa = spaRepository.lockSchedule(request.getSpaId())
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + request.getSpaId()));
         if (Boolean.FALSE.equals(spa.getIsActive())) {
@@ -122,6 +123,7 @@ public class BookingServiceImpl implements BookingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
 
+        log.info("event=booking.lock_slot");
         Slot slot = slotRepository.findByIdForUpdate(request.getSlotId())
                 .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + request.getSlotId()));
 
@@ -152,6 +154,7 @@ public class BookingServiceImpl implements BookingService {
         int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
         validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
 
+        log.info("event=booking.allocate_therapist");
         Long preferred = request.getTherapistId();
         String label=request.getTherapistType();
         if (hold != null && preferred == null && label == null) {
@@ -255,6 +258,7 @@ public class BookingServiceImpl implements BookingService {
             booking.setStatus(BookingStatus.PENDING_PAYMENT);
         }
 
+        log.info("event=booking.persist");
         Booking saved = bookingRepository.save(booking);
 
         if (hold != null) {

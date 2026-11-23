@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.UUID;
+
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,8 +35,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(NotFoundException ex,
                                                            HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
-        log.info("[{}] NotFound: {}", cid, ex.getMessage());
+        String cid = org.slf4j.MDC.get("correlationId");
+        log.info("event=request.rejected reason=not_found");
         ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), cid)
                 .fieldErrors(null)
                 .build();
@@ -46,8 +46,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiErrorResponse> handleBusiness(BusinessException ex,
                                                            HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
-        log.info("[{}] Business error: {}", cid, ex.getMessage());
+        String cid = org.slf4j.MDC.get("correlationId");
+        log.info("event=request.rejected reason=business_rule type={}", ex.getClass().getSimpleName());
         ApiErrorResponse body = base(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI(), cid)
                 .fieldErrors(null)
                 .build();
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
                                                                          HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
+        String cid = org.slf4j.MDC.get("correlationId");
         List<ApiErrorResponse.FieldErrorDetails> fieldErrors = ex.getBindingResult()
                 .getAllErrors()
                 .stream()
@@ -82,7 +82,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex,
                                                                       HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
+        String cid = org.slf4j.MDC.get("correlationId");
         List<ApiErrorResponse.FieldErrorDetails> fieldErrors = ex.getConstraintViolations()
                 .stream()
                 .map(v -> ApiErrorResponse.FieldErrorDetails.builder()
@@ -100,7 +100,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({CorporateNotFoundException.class, CorporateDealNotFoundException.class, CorporateEmployeeNotFoundException.class, CorporateCouponNotFoundException.class})
     public ResponseEntity<ApiErrorResponse> handleCorporateNotFound(RuntimeException ex, HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
+        String cid = org.slf4j.MDC.get("correlationId");
         ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), cid)
                 .fieldErrors(null)
                 .build();
@@ -109,7 +109,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({CorporateCouponExpiredException.class, CorporateCouponExhaustedException.class, NoActiveCorporateCouponException.class, CorporateOnboardingParseException.class, CorporatePaymentPendingException.class})
     public ResponseEntity<ApiErrorResponse> handleCorporateValidation(RuntimeException ex, HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
+        String cid = org.slf4j.MDC.get("correlationId");
         ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), cid)
                 .fieldErrors(null)
                 .build();
@@ -119,8 +119,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticLock(OptimisticLockingFailureException ex,
                                                                  HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
-        log.warn("[{}] Optimistic lock failure: {}", cid, ex.getMessage());
+        String cid = org.slf4j.MDC.get("correlationId");
+        log.warn("event=request.rejected reason=concurrent_update");
         ApiErrorResponse body = base(HttpStatus.CONFLICT, "Conflict: resource was modified by another request",
                 request.getRequestURI(), cid)
                 .fieldErrors(null)
@@ -164,8 +164,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex,
                                                           HttpServletRequest request) {
-        String cid = UUID.randomUUID().toString();
-        log.error("[{}] Unhandled exception at {}: ", cid, request.getRequestURI(), ex);
+        String cid = org.slf4j.MDC.get("correlationId");
+        log.error("event=request.failed type={} origin={}", ex.getClass().getSimpleName(),
+                ex.getStackTrace().length == 0 ? "unknown" : ex.getStackTrace()[0]);
         ApiErrorResponse body = base(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error",
                 request.getRequestURI(), cid)
                 .fieldErrors(null)

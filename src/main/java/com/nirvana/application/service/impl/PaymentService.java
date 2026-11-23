@@ -89,6 +89,7 @@ public class PaymentService {
     @Transactional
     public PaymentInitResponse initiateRazorpayPayment(Long bookingId, String idempotencyKey) {
         ensureRazorpayEnabled();
+        log.info("event=payment.verify_challenge");
         paymentMfaVerifier.verifyPaymentChallenge();
 
         Booking booking = ownedBooking(bookingId);
@@ -182,6 +183,7 @@ public class PaymentService {
 
     @Transactional
     public void confirmRazorpayPayment(Long bookingId, RazorpayConfirmRequest request) {
+        log.info("event=payment.verify_challenge");
         paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = ownedBooking(bookingId);
         Payment payment = paymentRepository.findByIntentId(request.getRazorpayOrderId())
@@ -195,6 +197,7 @@ public class PaymentService {
             if (!Utils.verifyPaymentSignature(options, razorpayProps.getKeySecret())) {
                 throw new IllegalArgumentException("Invalid payment signature");
             }
+            log.info("event=payment.signature_verified");
             settleCapturedPayment(booking, payment, request.getRazorpayPaymentId());
         } catch (RazorpayException e) {
             throw new IllegalStateException("Unable to verify payment with Razorpay. Please retry.", e);
@@ -341,6 +344,7 @@ public class PaymentService {
      */
     @Transactional
     public PaymentInitResponse retryRazorpayPayment(Long bookingId, String idempotencyKey) {
+        log.info("event=payment.verify_challenge");
         paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = ownedBooking(bookingId);
 

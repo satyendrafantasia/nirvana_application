@@ -110,7 +110,7 @@ public class FirebasePhoneTokens {
                     .parseClaimsJws(idToken)
                     .getBody();
         } catch (JwtException | IllegalArgumentException e) {
-            log.info("Rejected a Firebase phone token: {}", e.getMessage());
+            log.info("event=auth.firebase_token_rejected");
             throw invalid();
         }
         Instant now = clock.instant();
