@@ -9,7 +9,15 @@ export interface CatalogPackage {
   currency: string;
   sessions: number;
   validityDays: number | null;
-  eligibleSpas: { id: number; name: string; city?: string | null }[];
+  /** Published spas where the package can be used; search them with `searchPackageSpas`. */
+  eligibleSpaCount: number;
+}
+/** A published spa that takes Nirvana packages, and which ones. */
+export interface PackageSpa {
+  id: number;
+  name: string;
+  city?: string | null;
+  packageIds: number[];
 }
 export interface OwnedPackage {
   subscriptionId: number;
@@ -30,8 +38,23 @@ export interface PackageCheckout {
   amountCents: number;
   currency: string;
 }
-export const listPackages = async () =>
-  (await client.get<CatalogPackage[]>('/api/packages/catalog')).data;
+/** All packages for sale, or with `spaId` only those that can be used at that spa. */
+export const listPackages = async (spaId?: string | number) =>
+  (await client.get<CatalogPackage[]>('/api/packages/catalog', { params: spaId ? { spaId } : undefined }))
+    .data;
+/** Spas that take packages, matching every word of `q` in their name or city (best matches first). */
+export const searchPackageSpas = async (
+  q: string,
+  packageId?: number,
+  limit = 50,
+  signal?: AbortSignal
+) =>
+  (
+    await client.get<{ total: number; spas: PackageSpa[] }>('/api/packages/spas', {
+      params: { q: q.trim() || undefined, packageId, limit },
+      signal
+    })
+  ).data;
 /** A package one spa sells for its own visits. The price is in the spa's own currency. */
 export interface SpaPackage {
   id: number;

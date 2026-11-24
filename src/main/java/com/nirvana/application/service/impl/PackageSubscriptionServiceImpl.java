@@ -205,7 +205,7 @@ public class PackageSubscriptionServiceImpl implements PackageSubscriptionServic
     }
 
     private boolean isSpaEligible(ServicePackage servicePackage, Long spaId) {
-        return servicePackage.getEligibleSpas().stream().anyMatch(spa -> spa.getId().equals(spaId));
+        return spaId != null && servicePackageRepository.countEligible(servicePackage.getId(), spaId) > 0;
     }
 
     private OffsetDateTime resolveExpiry(OffsetDateTime purchaseDate, Integer validityDays) {

@@ -89,6 +89,7 @@ public class SecurityConfig {
                                 "/api/spas/{id:\\d+}/google-photos",
                                 "/api/spas/{id:\\d+}/google-photos/{photoId}/image",
                                 "/api/packages/catalog",
+                                "/api/packages/spas",
                                 "/api/v1/spa/{id:\\d+}/packages/available",
                                 "/api/faqs"
                         ).permitAll()

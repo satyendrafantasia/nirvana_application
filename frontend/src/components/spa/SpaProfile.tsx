@@ -191,12 +191,21 @@ export function SpaPackages({ spaId }: { spaId: string }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const spa = useQuery({ queryKey: ['spa', spaId], queryFn: () => getSpaDetails(spaId) });
+  const spa = useQuery({
+    queryKey: ['spa', spaId],
+    queryFn: () => getSpaDetails(spaId),
+    staleTime: 60_000
+  });
   const own = useQuery({
     queryKey: ['spa-packages', spaId],
     queryFn: () => listSpaPackages(spaId)
   });
-  const catalog = useQuery({ queryKey: ['packages'], queryFn: listPackages });
+  // Only the Nirvana packages usable here, not the whole catalog with every spa.
+  const catalog = useQuery({
+    queryKey: ['packages', 'spa', spaId],
+    queryFn: () => listPackages(spaId),
+    staleTime: 5 * 60_000
+  });
   const [bought, setBought] = useState<{ key: string; message: string }>();
   const buy = useMutation({
     mutationFn: async (offer: Offer) => payForPackage(await offer.start(), offer.mine),
@@ -218,15 +227,13 @@ export function SpaPackages({ spaId }: { spaId: string }) {
     mine: true,
     start: () => startSpaPackage(spaId, p.id)
   }));
-  const nirvanaOffers: Offer[] = (catalog.data || [])
-    .filter((p) => p.eligibleSpas.some((s) => String(s.id) === spaId))
-    .map((p) => ({
+  const nirvanaOffers: Offer[] = (catalog.data || []).map((p) => ({
       key: `nirvana-${p.id}`,
       title: packageName(p.packageType),
       price: packagePrice(p.amountCents, p.currency),
       sessions: p.sessions,
       note:
-        `Use the sessions here or at ${p.eligibleSpas.length - 1} other Nirvana spas` +
+        `Use the sessions here or at ${Math.max(0, p.eligibleSpaCount - 1)} other Nirvana spas` +
         (p.validityDays ? ` · valid ${p.validityDays} days` : ''),
       mine: false,
       start: () => startPackage(p.id)

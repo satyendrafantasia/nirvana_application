@@ -24,11 +24,12 @@ public interface UserPackageSubscriptionRepository extends JpaRepository<UserPac
     @Query("select s from UserPackageSubscription s where s.id = :id and s.user.id = :userId")
     Optional<UserPackageSubscription> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
 
-    @EntityGraph(attributePaths = {"servicePackage", "servicePackage.eligibleSpas"})
+    @EntityGraph(attributePaths = {"servicePackage"})
     Optional<UserPackageSubscription> findByUserIdAndStatus(Long userId, PackageStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from UserPackageSubscription s join fetch s.servicePackage p left join fetch p.eligibleSpas where s.user.id = :userId and s.status = :status")
+    // Locks only the subscription and its package: joining the eligible spas here locked thousands of spa rows.
+    @Query("select s from UserPackageSubscription s join fetch s.servicePackage p where s.user.id = :userId and s.status = :status")
     Optional<UserPackageSubscription> findByUserIdAndStatusForUpdate(@Param("userId") Long userId,
                                                                      @Param("status") PackageStatus status);
 }

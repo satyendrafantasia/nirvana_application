@@ -39,7 +39,8 @@ describe('spa page packages', () => {
     qc.setQueryData(['spa', '7'], { id: '7', name: 'Lotus Day Spa', defaultCurrency: 'INR' });
     qc.setQueryData(['spa-packages', '7'], spaPackages);
     qc.setQueryData(
-      ['packages'],
+      // The server returns only the packages usable at spa 7.
+      ['packages', 'spa', '7'],
       [
         {
           id: 2,
@@ -49,10 +50,7 @@ describe('spa page packages', () => {
           currency: 'INR',
           sessions: 5,
           validityDays: 90,
-          eligibleSpas: [
-            { id: 7, name: 'Lotus Day Spa' },
-            { id: 8, name: 'Other Spa' }
-          ]
+          eligibleSpaCount: 2
         }
       ]
     );

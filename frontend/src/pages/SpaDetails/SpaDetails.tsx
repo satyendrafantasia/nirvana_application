@@ -48,7 +48,8 @@ const SpaDetails = () => {
   const spa = useQuery({
     queryKey: ['spa', spaId],
     queryFn: () => getSpaDetails(spaId),
-    enabled: Boolean(spaId)
+    enabled: Boolean(spaId),
+    staleTime: 60_000
   });
   const reviews = useQuery({
     queryKey: ['reviews', spaId],

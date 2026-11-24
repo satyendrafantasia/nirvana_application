@@ -3,6 +3,7 @@ import { Spa } from '../../types/spa';
 import RatingBadge from './RatingBadge';
 import LocationChip from './LocationChip';
 import Button from '../common/Button';
+import { responsiveImage } from '../../api/responsiveImage';
 
 interface SpaCardProps {
   spa: Spa;
@@ -38,10 +39,11 @@ const SpaCard = ({ spa }: SpaCardProps) => {
     // No reviews yet: show no stars rather than "0.0".
     <SpaCardLayout name={spa.name} address={spa.address} rating={spa.reviewCount ? spa.rating : undefined} count={spa.reviewCount}
       cover={<img
-          src={
+          {...responsiveImage(
             spa.coverImage ||
-            'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
-          }
+              'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
+          )}
+          sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 400px"
           loading="lazy" decoding="async" width={800} height={480} alt={spa.coverImage ? spa.name : ''}
           className="h-full w-full object-cover"
         />}>

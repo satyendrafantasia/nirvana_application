@@ -1,59 +1,19 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
-import { EligibleSpas, PackageSpaSearch, matchSpas } from './Packages';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { EligibleSpas, SpaMatches } from './Packages';
 import type { CatalogPackage } from '../../api/packageApi';
 
 const render = (node: React.ReactNode) =>
-  renderToStaticMarkup(<StaticRouter location="/packages">{node}</StaticRouter>);
+  renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <StaticRouter location="/packages">{node}</StaticRouter>
+    </QueryClientProvider>
+  );
 
-describe('where a package can be used', () => {
-  it('shows a count and a button instead of every spa name', () => {
-    const spas = Array.from({ length: 36 }, (_, i) => ({ id: i + 1, name: `Spa number ${i + 1}` }));
-    const html = render(<EligibleSpas packageId={7} spas={spas} />);
-    expect(html).toContain('Available at 36 spas');
-    expect(html).toContain('View spas');
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).not.toContain('Spa number 1');
-  });
-  it('names a single spa directly and links to it', () => {
-    const html = render(
-      <EligibleSpas packageId={7} spas={[{ id: 4, name: 'Nirvana Marylebone' }]} />
-    );
-    expect(html).toContain('Nirvana Marylebone');
-    expect(html).toContain('/spas/4');
-    expect(html).not.toContain('View spas');
-  });
-  it('says so when no spa is configured', () => {
-    expect(render(<EligibleSpas packageId={7} spas={[]} />)).toContain(
-      'No eligible spas configured yet'
-    );
-  });
-  it('opens as a searchable list with the city, capped for long lists', () => {
-    const spas = Array.from({ length: 120 }, (_, i) => ({
-      id: i + 1,
-      name: `Spa ${i + 1}`,
-      city: 'Pune'
-    }));
-    const html = render(<EligibleSpas packageId={7} spas={spas} initiallyOpen />);
-    expect(html).toContain('Search spas for this package');
-    expect(html).toContain('· Pune');
-    expect(html).toContain('and 70 more');
-  });
-});
-
-const spas = {
-  fern: { id: 1, name: 'The Fern House', city: 'Lucknow' },
-  cafe: { id: 2, name: 'Café Zen Spa', city: 'Pune' },
-  ferns: { id: 3, name: 'Ferns & Petals Day Spa', city: 'Bengaluru' },
-  lotus: { id: 4, name: 'Lotus Wellness', city: 'Lucknow' }
-};
-const pkg = (
-  id: number,
-  packageType: string,
-  eligibleSpas: CatalogPackage['eligibleSpas']
-): CatalogPackage => ({
+const pkg = (id: number, packageType: string, eligibleSpaCount = 3182): CatalogPackage => ({
   id,
   packageType,
   description: '',
@@ -61,33 +21,72 @@ const pkg = (
   currency: 'INR',
   sessions: 5,
   validityDays: 90,
-  eligibleSpas
+  eligibleSpaCount
 });
 
-describe('finding a spa', () => {
-  const all = Object.values(spas);
-  it('matches names and cities, ignoring case and accents', () => {
-    expect(matchSpas('cafe', all)).toEqual([spas.cafe]);
-    expect(matchSpas('LUCKNOW', all).map((s) => s.id)).toEqual([4, 1]);
-    expect(matchSpas('fern lucknow', all)).toEqual([spas.fern]);
-    expect(matchSpas('kolkata', all)).toEqual([]);
+describe('where a package can be used', () => {
+  it('shows a count and a button, not a list of every spa', () => {
+    const html = render(<EligibleSpas packageId={7} spaCount={3182} />);
+    expect(html).toContain('Available at 3,182 spas');
+    expect(html).toContain('View spas');
+    expect(html).toContain('aria-expanded="false"');
   });
-  it('lists names that start with the search first', () => {
-    expect(matchSpas('fern', all).map((s) => s.id)).toEqual([3, 1]);
+  it('says so when no spa is configured', () => {
+    expect(render(<EligibleSpas packageId={7} spaCount={0} />)).toContain(
+      'No eligible spas configured yet'
+    );
   });
-  it('shows which packages can be used at each matching spa', () => {
-    const packages = [pkg(10, 'SILVER', all), pkg(11, 'GOLD', [spas.fern, spas.lotus])];
-    const html = render(<PackageSpaSearch packages={packages} initialQuery="cafe" />);
-    expect(html).toContain('Packages can be used at 4 spas');
+  it('opens with a search box and loads spas from the server', () => {
+    const html = render(<EligibleSpas packageId={7} spaCount={1} initiallyOpen />);
+    expect(html).toContain('Available at 1 spa');
+    expect(html).toContain('Search spas for this package');
+    expect(html).toContain('Loading spas…');
+  });
+});
+
+describe('spas found by a search', () => {
+  const packages = [pkg(10, 'SILVER'), pkg(11, 'GOLD')];
+  it('lists each spa with the packages usable there', () => {
+    const html = render(
+      <SpaMatches
+        packages={packages}
+        total={1}
+        query="cafe"
+        spas={[{ id: 2, name: 'Café Zen Spa', city: 'Pune', packageIds: [10] }]}
+      />
+    );
     expect(html).toContain('1 spa found');
     expect(html).toContain('Café Zen Spa');
+    expect(html).toContain('· Pune');
     expect(html).toContain('✓ silver');
     expect(html).toContain('Not available: </span>gold');
   });
-  it('says when no spa matches', () => {
-    const html = render(
-      <PackageSpaSearch packages={[pkg(10, 'SILVER', [spas.fern])]} initialQuery="Kolkata" />
+  it('says how many more there are when the list is cut short', () => {
+    const spas = Array.from({ length: 50 }, (_, i) => ({ id: i, name: `Spa ${i}`, packageIds: [10] }));
+    expect(render(<SpaMatches packages={packages} total={462} query="spa" spas={spas} />)).toContain(
+      '462 spas found, showing the first 50.'
     );
-    expect(html).toContain('No spa matching “Kolkata” takes Nirvana packages yet.');
+  });
+  it('says when no spa matches', () => {
+    expect(render(<SpaMatches packages={packages} total={0} query="Kolkata" spas={[]} />)).toContain(
+      'No spa matching “Kolkata” takes Nirvana packages yet.'
+    );
+  });
+});
+
+describe('asking the server', () => {
+  it('searches by words, package and limit, and filters the catalog by spa', async () => {
+    vi.resetModules();
+    const get = vi.fn(async () => ({ data: { total: 0, spas: [] } }));
+    vi.doMock('../../api/client', () => ({ default: { get } }));
+    const api = await import('../../api/packageApi');
+    await api.searchPackageSpas('  fern  ', 4, 20);
+    expect(get).toHaveBeenCalledWith('/api/packages/spas', {
+      params: { q: 'fern', packageId: 4, limit: 20 },
+      signal: undefined
+    });
+    await api.listPackages(127);
+    expect(get).toHaveBeenCalledWith('/api/packages/catalog', { params: { spaId: 127 } });
+    vi.doUnmock('../../api/client');
   });
 });

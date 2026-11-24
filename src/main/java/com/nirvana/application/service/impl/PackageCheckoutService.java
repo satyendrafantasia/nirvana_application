@@ -26,17 +26,60 @@ public class PackageCheckoutService {
    EntityManager em, RazorpayProperties props, @Nullable RazorpayClient gateway) {
   this.packages=packages; this.subscriptions=subscriptions; this.em=em; this.props=props; this.gateway=gateway;
  }
- public record SpaItem(Long id,String name,String city) {}
+ /** A Nirvana package for sale and how many published spas take it; the spas themselves come from {@link #findSpas}. */
  public record CatalogItem(Long id,String packageType,String description,int amountCents,String currency,
-   int sessions,Integer validityDays,List<SpaItem> eligibleSpas) {}
+   int sessions,Integer validityDays,long eligibleSpaCount) {}
+ /** A published spa that takes Nirvana packages, and which ones. */
+ public record SpaMatch(Long id,String name,String city,List<Long> packageIds) {}
+ public record SpaMatches(long total,List<SpaMatch> spas) {}
+ /** Guests only ever see published spas. */
+ private static final String PUBLISHED="s.is_active=1 AND s.is_verified=1";
  public record Purchase(Long subscriptionId,String packageType,String status,String paymentStatus,int remainingSessions,
    Integer sessions,Integer amountCents,String currency,OffsetDateTime expiryDate,Long packageId) {}
  public record Checkout(Purchase purchase,String razorpayKeyId,String razorpayOrderId,Integer amountCents,String currency) {}
+ /**
+  * Active packages with a count of published spas each, rather than every spa (3,000+ of them made
+  * this response 800 KB). With {@code spaId}, only the packages that can be used at that spa.
+  */
  @Transactional(readOnly=true)
- public List<CatalogItem> catalog() {
-  return packages.findAll().stream().filter(p->Boolean.TRUE.equals(p.getActive())).map(p->new CatalogItem(
-   p.getId(),p.getPackageType().name(),p.getDescription(),p.getPriceCents(),props.getCurrency(),p.getSessionCount(),
-   p.getValidityDays(),p.getEligibleSpas().stream().map(s->new SpaItem(s.getId(),s.getName(),s.getAddress()==null?null:s.getAddress().getCity())).toList())).toList();
+ public List<CatalogItem> catalog(@Nullable Long spaId) {
+  Map<Long,Long> counts=new HashMap<>();
+  for(Object row:em.createNativeQuery("SELECT ps.package_id, COUNT(*) FROM service_package_spa ps JOIN spa s ON s.id=ps.spa_id WHERE "
+    +PUBLISHED+" GROUP BY ps.package_id").getResultList()){Object[] r=(Object[])row;counts.put(((Number)r[0]).longValue(),((Number)r[1]).longValue());}
+  Set<Long> atSpa=spaId==null?null:new HashSet<>(((List<?>)em.createNativeQuery("SELECT ps.package_id FROM service_package_spa ps JOIN spa s ON s.id=ps.spa_id WHERE ps.spa_id=?1 AND "+PUBLISHED)
+    .setParameter(1,spaId).getResultList()).stream().map(v->((Number)v).longValue()).toList());
+  return packages.findAll().stream().filter(p->Boolean.TRUE.equals(p.getActive())).filter(p->atSpa==null||atSpa.contains(p.getId()))
+   .sorted(Comparator.comparing(ServicePackage::getPriceCents,Comparator.nullsLast(Comparator.naturalOrder())))
+   .map(p->new CatalogItem(p.getId(),p.getPackageType().name(),p.getDescription(),p.getPriceCents(),props.getCurrency(),p.getSessionCount(),
+   p.getValidityDays(),counts.getOrDefault(p.getId(),0L))).toList();
+ }
+
+ /**
+  * Published spas that take Nirvana packages whose name or city contains every word searched,
+  * names starting with the search first; optionally only spas for one package. At most {@code limit}.
+  */
+ @Transactional(readOnly=true)
+ public SpaMatches findSpas(@Nullable String query,@Nullable Long packageId,int limit) {
+  List<String> words=Arrays.stream((query==null?"":query.length()>100?query.substring(0,100):query).toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
+    .filter(w->!w.isBlank()).limit(5).toList();
+  StringBuilder where=new StringBuilder(" WHERE "+PUBLISHED+" AND p.is_active=1");
+  List<Object> args=new ArrayList<>();
+  if(packageId!=null){where.append(" AND ps.package_id=?");args.add(packageId);}
+  for(String w:words){where.append(" AND LOWER(CONCAT(s.name,' ',COALESCE(s.city,''))) LIKE ?");args.add("%"+w.replace("\\","").replace("%","").replace("_","")+"%");}
+  String from=" FROM service_package_spa ps JOIN spa s ON s.id=ps.spa_id JOIN packages p ON p.id=ps.package_id";
+  var count=em.createNativeQuery("SELECT COUNT(DISTINCT s.id)"+from+where);
+  for(int i=0;i<args.size();i++)count.setParameter(i+1,args.get(i));
+  long total=((Number)count.getSingleResult()).longValue();
+  String first=words.isEmpty()?"":"CASE WHEN LOWER(s.name) LIKE ? THEN 0 ELSE 1 END, ";
+  var q=em.createNativeQuery("SELECT s.id, s.name, s.city, GROUP_CONCAT(ps.package_id ORDER BY ps.package_id)"+from+where
+    +" GROUP BY s.id, s.name, s.city ORDER BY "+first+"s.name LIMIT "+Math.max(1,Math.min(limit,100)));
+  int i=1;for(Object a:args)q.setParameter(i++,a);
+  if(!words.isEmpty())q.setParameter(i,String.join(" ",words)+"%");
+  List<SpaMatch> spas=new ArrayList<>();
+  for(Object row:q.getResultList()){Object[] r=(Object[])row;
+   spas.add(new SpaMatch(((Number)r[0]).longValue(),(String)r[1],(String)r[2],
+     Arrays.stream(String.valueOf(r[3]).split(",")).filter(v->!v.isBlank()).map(Long::valueOf).toList()));}
+  return new SpaMatches(total,spas);
  }
  @Transactional(readOnly=true)
  public List<Purchase> mine(Long userId) {
