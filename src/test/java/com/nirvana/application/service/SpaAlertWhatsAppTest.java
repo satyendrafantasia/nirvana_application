@@ -92,6 +92,13 @@ class SpaAlertWhatsAppTest {
         assertFalse(whatsApp("WHATSAPP", "").enabled());
     }
 
+    @Test void storedTimesReadTheSameWhicheverTypeTheDriverReturns() {
+        var at = java.time.Instant.parse("2026-11-25T13:30:00Z");
+        assertEquals(at, SpaBookingAlerts.fromUtc(java.sql.Timestamp.valueOf("2026-11-25 13:30:00")));
+        assertEquals(at, SpaBookingAlerts.fromUtc(java.time.LocalDateTime.parse("2026-11-25T13:30:00")));
+        assertThrows(IllegalArgumentException.class, () -> SpaBookingAlerts.fromUtc(null));
+    }
+
     @Test void templateValuesHaveNoLineBreaksOrLongGaps() {
         assertEquals("Spa A Line two", SpaAlertWhatsApp.clean("Spa A\nLine two"));
         assertEquals("a   b", SpaAlertWhatsApp.clean("a        b"));

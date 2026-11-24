@@ -117,8 +117,8 @@ public class SpaBookingAlerts {
             // Same link as the first SMS, so either one works.
             String token = (String) row.get("token");
             ZoneId zone = zone((String) row.get("timezone"));
-            String deadline = fromUtc((Timestamp) row.get("deadline_at")).atZone(zone).format(TIME);
-            OffsetDateTime start = fromUtc((Timestamp) row.get("start_ts")).atOffset(ZoneOffset.UTC);
+            String deadline = fromUtc(row.get("deadline_at")).atZone(zone).format(TIME);
+            OffsetDateTime start = fromUtc(row.get("start_ts")).atOffset(ZoneOffset.UTC);
             String reference = (String) row.get("booking_reference");
             String startsAt = start.atZoneSameInstant(zone).format(WHEN);
             send((String) row.get("phone"), SpaAlertSms.Kind.REMINDER, "Last reminder: Nirvana booking " + reference
@@ -220,7 +220,14 @@ public class SpaBookingAlerts {
         return Timestamp.valueOf(LocalDateTime.ofInstant(at, ZoneOffset.UTC));
     }
 
-    static Instant fromUtc(Timestamp stored) {
-        return stored.toLocalDateTime().toInstant(ZoneOffset.UTC);
+    /**
+     * A stored UTC wall-clock time as an instant. Drivers hand DATETIME columns back as Timestamp
+     * or as LocalDateTime depending on version and settings, so both are accepted.
+     */
+    static Instant fromUtc(Object stored) {
+        if (stored instanceof Timestamp t) return t.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        if (stored instanceof LocalDateTime t) return t.toInstant(ZoneOffset.UTC);
+        if (stored instanceof OffsetDateTime t) return t.toInstant();
+        throw new IllegalArgumentException("Not a stored time: " + (stored == null ? "null" : stored.getClass().getName()));
     }
 }
