@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cancelBooking, getCancellationQuote, getUserBookings, getSlots, getTherapistDirectory, rescheduleBooking } from '../../api/bookingApi';
-import { resumePayment } from '../../api/paymentApi';
+import { payAtSpa, resumePayment } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { BookingSummary } from '../../types/booking';
 import Button from '../../components/common/Button';
@@ -56,6 +56,7 @@ export default function MyBookings() {
         await cancelBooking(b.id, quote.data);
       }
       else if (kind === 'move') await rescheduleBooking(b.id, target, preference === 'keep' ? undefined : preference);
+      else if (kind === 'offline') await payAtSpa(b.id);
       else await resumePayment(b.id);
     },
     onError: (_error, variables) => {
@@ -99,9 +100,14 @@ export default function MyBookings() {
             {b.invoiceAvailable &&
               <Button variant="secondary" disabled={action.isPending} onClick={() => action.mutate({kind: 'invoice', b})}>Download invoice</Button>}
             {b.status === 'PENDING_PAYMENT' && b.paymentMode === 'ONLINE' && (
+              <>
               <Button disabled={action.isPending} onClick={() => action.mutate({ kind: 'pay', b })}>
-                Complete payment
+                Retry online payment
               </Button>
+              <Button variant="secondary" disabled={action.isPending} onClick={() => action.mutate({kind: 'offline', b})}>
+                Confirm pay at spa
+              </Button>
+              </>
             )}
             {b.status === 'CONFIRMED' && (
               <Button

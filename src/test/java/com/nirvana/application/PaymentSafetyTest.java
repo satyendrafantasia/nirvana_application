@@ -103,6 +103,43 @@ class PaymentSafetyTest {
     @Test void anotherCustomerCannotReadTimeline(){signIn(2);assertThrows(AccessDeniedException.class,()->service.getPaymentTimelineForBooking(10L));}
     @Test void anotherCustomerCannotCreateOrder(){signIn(2);assertThrows(AccessDeniedException.class,()->service.initiateRazorpayPayment(10L,"key"));}
     @Test void anotherCustomerCannotConfirm() throws Exception {signIn(2);var r=signed();assertThrows(AccessDeniedException.class,()->service.confirmRazorpayPayment(10L,r));verify(gateway.payments,never()).fetch(anyString());}
+    private void pendingForSwitch() {
+        booking.setStartTs(java.time.OffsetDateTime.now().plusDays(1));
+        org.springframework.test.util.ReflectionTestUtils.setField(booking,"createdAt",java.time.OffsetDateTime.now().minusMinutes(1));
+        gateway.orders=mock(com.razorpay.OrderClient.class);
+        when(payments.findByBookingId(10L)).thenReturn(List.of(payment));
+    }
+    @Test void switchKeepsBookingAndNotifiesOnlyOnce() {
+        pendingForSwitch();
+        assertEquals(PaymentMode.OFFLINE,service.payAtSpa(10L).paymentMode());
+        assertEquals(BookingStatus.CONFIRMED,service.payAtSpa(10L).status());
+        verify(notifications,times(1)).scheduleBookingNotifications(booking);
+    }
+    @Test void cannotSwitchAnotherCustomersBooking() {
+        signIn(2);assertThrows(AccessDeniedException.class,()->service.payAtSpa(10L));
+    }
+    @Test void expiredPendingBookingCannotSwitch() {
+        pendingForSwitch();
+        org.springframework.test.util.ReflectionTestUtils.setField(booking,"createdAt",java.time.OffsetDateTime.now().minusHours(1));
+        assertThrows(IllegalStateException.class,()->service.payAtSpa(10L));
+        verifyNoInteractions(notifications);
+    }
+    @Test void lateCaptureCreditsSameFutureBooking() {
+        pendingForSwitch();
+        service.payAtSpa(10L);
+        service.reconcileCapturedPayment("order_test","pay_test");
+        assertEquals(PaymentMode.ONLINE,booking.getPaymentMode());
+        assertEquals(PaymentStatus.CAPTURED,payment.getPaymentStatus());
+        verify(notifications,times(1)).scheduleBookingNotifications(booking);
+    }
+    @Test void authorizedAttemptPreventsPayAtSpa() throws Exception {
+        pendingForSwitch();
+        var pending=mock(com.razorpay.Payment.class);
+        when(pending.get("status")).thenReturn("authorized");
+        when(gateway.orders.fetchPayments("order_test")).thenReturn(List.of(pending));
+        assertThrows(IllegalStateException.class,()->service.payAtSpa(10L));
+        assertEquals(BookingStatus.PENDING_PAYMENT,booking.getStatus());
+    }
     @Test void anotherCustomerCannotRefund(){signIn(2);assertThrows(AccessDeniedException.class,()->service.refundBookingPayment(10L,100,"test"));}
     @Test void directUpiNeverConfirms(){assertThrows(IllegalStateException.class,()->service.confirmUpiPayment(10L,new UpiPaymentConfirmRequest()));assertEquals(BookingStatus.PENDING_PAYMENT,booking.getStatus());verifyNoInteractions(payments);}
     @Test void invalidSignatureCannotConfirm() throws Exception {var r=signed();r.setRazorpaySignature("bad");assertThrows(Exception.class,()->service.confirmRazorpayPayment(10L,r));assertEquals(PaymentStatus.INIT,payment.getPaymentStatus());verify(gateway.payments,never()).fetch(anyString());}

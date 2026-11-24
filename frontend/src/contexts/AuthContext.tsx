@@ -44,6 +44,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    const pushToken = localStorage.getItem('owner-push-token');
+    const bearer = localStorage.getItem(TOKEN_KEY);
+    if (pushToken && bearer) {
+      void client.post('/api/owner/push/unsubscribe', { token: pushToken },
+        { headers: { Authorization: 'Bearer ' + bearer } }).catch(() => {});
+    }
+    localStorage.removeItem('owner-push-token');
+    localStorage.removeItem('owner-push-user');
     const refreshToken = localStorage.getItem('nirvana_refresh');
     if (refreshToken) void client.post('/api/auth/logout', { refreshToken }).catch(() => {});
     localStorage.removeItem('nirvana_refresh');

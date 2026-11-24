@@ -16,6 +16,13 @@ export const confirmPayment = async (id: string, result: RazorpayResult) => {
     )
   ).data;
 };
+export async function payAtSpa(id: string) {
+  const { data } = await client.post<{ status: string; paymentMode: 'ONLINE' | 'OFFLINE' }>(
+    `/api/bookings/${id}/payments/razorpay/pay-at-spa`
+  );
+  sessionStorage.removeItem(`nirvana_payment_${id}`);
+  return data;
+}
 export const resumePayment = async (id: string) => {
   const saved = sessionStorage.getItem(`nirvana_payment_${id}`);
   if (saved) {
@@ -76,8 +83,8 @@ export const payWithRazorpay = async (
           reject(
             new Error(
               lastFailure
-                ? `Payment failed: ${lastFailure} Your booking is saved; retry payment here or in My bookings.`
-                : 'Payment was not completed. Your booking is saved; retry payment here or in My bookings.'
+                ? `Payment failed: ${lastFailure} Your booking is saved; retry online or choose Pay at spa.`
+                : 'Payment was not completed. Your booking is saved; retry online or choose Pay at spa.'
             )
           )
       }

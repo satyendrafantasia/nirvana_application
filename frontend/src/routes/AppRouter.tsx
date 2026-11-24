@@ -63,6 +63,9 @@ const AppRouter = () => {
           </RequireAuth>
         }
       />
+      <Route path="/owner/booking-alerts/:bookingId" element={
+        <RequireAuth redirectTo="/owner/login"><SpaBookingReply owner /></RequireAuth>
+      } />
       <Route path="/owner/login" element={<Login owner />} />
       <Route path="/owner/signup" element={<Register owner />} />
       <Route

@@ -65,6 +65,11 @@ public class PaymentController {
      * Retry a payment â€” regenerate order_id.
      * POST /api/bookings/{bookingId}/payments/razorpay/retry
      */
+    @PostMapping("/pay-at-spa")
+    public PaymentService.CheckoutState payAtSpa(@PathVariable Long bookingId) {
+        return paymentService.payAtSpa(bookingId);
+    }
+
     @PostMapping("/retry")
     @Operation(summary = "Retry payment", description = "Regenerate Razorpay order for a booking that failed payment.")
     @ApiResponses({

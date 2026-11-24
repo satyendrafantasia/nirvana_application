@@ -26,10 +26,11 @@ import static org.mockito.Mockito.*;
 class BookingNotificationTest {
     NotificationService sender = mock(NotificationService.class);
     com.nirvana.application.service.GuestWhatsApp guestWhatsApp = mock(com.nirvana.application.service.GuestWhatsApp.class);
+    com.nirvana.application.service.OwnerPush push = mock(com.nirvana.application.service.OwnerPush.class);
     BookingRepository bookings = mock(BookingRepository.class);
     org.springframework.jdbc.core.JdbcTemplate jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
     NotificationSchedulingServiceImpl service = new NotificationSchedulingServiceImpl(sender, jdbc, bookings,
-            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class), guestWhatsApp);
+            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class), guestWhatsApp, push);
     Booking booking;
 
     @BeforeEach void setUp() {
@@ -60,9 +61,18 @@ class BookingNotificationTest {
 
     @Test void confirmationQueuesEachRecipientWithoutSendingInsideBookingTransaction() {
         service.scheduleBookingNotifications(booking);
+        verify(push).enqueue(7L, 0L, 0);
         for (String audience : List.of("CUSTOMER_EMAIL", "SPA_EMAIL", "SPA_MOBILE"))
             verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq(audience), eq(0));
         verifyNoInteractions(sender);
+    }
+
+    @Test void confirmedPaymentPushTargetsTheQueuedDevice() {
+        when(jdbc.queryForList(contains("SELECT id FROM booking_alert_job"), eq(Long.class))).thenReturn(List.of(12L));
+        when(jdbc.queryForList(contains("FOR UPDATE"), eq(12L))).thenReturn(List.of(java.util.Map.of(
+                "booking_id",7L,"revision",0,"event_kind","CONFIRMED","audience","SPA_PUSH","device_id",42L)));
+        service.drain();
+        verify(push).send(42L,7L,0L);
     }
 
     @Test void guestsWhoAgreedGetAWhatsAppJobToo() {

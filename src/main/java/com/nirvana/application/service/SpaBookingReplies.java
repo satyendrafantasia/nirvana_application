@@ -22,6 +22,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class SpaBookingReplies {
+    private final OwnerPush push;
     private final JdbcTemplate jdbc;
     private final BookingRepository bookings;
     private final BookingService bookingService;
@@ -33,12 +34,16 @@ public class SpaBookingReplies {
     public View view(String token) {
         Map<String, Object> row = row(token, false);
         Booking b = booking(row);
+        return describe(b,(String) row.get("status"));
+    }
+
+    private View describe(Booking b,String status) {
         String guest = Optional.ofNullable(b.getUser()).map(u -> u.getName()).filter(n -> !n.isBlank())
                 .map(n -> n.strip().split("\\s+")[0]).orElse("Guest");
         String summary = SpaBookingAlerts.summary(b);
         return new View(b.getBookingReference(), b.getSpa().getName(), b.getService() != null ? b.getService().getName() : null,
                 SpaBookingAlerts.when(b.getStartTs(), b), Optional.ofNullable(b.getGuestCount()).orElse(1), guest,
-                summary.substring(summary.lastIndexOf(", ") + 2), (String) row.get("status"), b.getStatus().name());
+                summary.substring(summary.lastIndexOf(", ") + 2), status, b.getStatus().name());
     }
 
     @Transactional
@@ -70,6 +75,28 @@ public class SpaBookingReplies {
                 UPDATE spa_booking_confirmation SET status='DECLINED', decline_reason=?, responded_at=UTC_TIMESTAMP(6), updated_at=UTC_TIMESTAMP(6)
                 WHERE booking_id=?""", why, b.getId());
         return view(token);
+    }
+
+    @Transactional
+    public View ownerReview(long bookingId,long userId,String action,String reason) {
+        Booking b = bookings.findById(bookingId).orElseThrow(this::notFound);
+        if (!push.claimed(b.getSpa().getId(), userId)) throw notFound();
+        if (b.getEndTs() != null && b.getEndTs().isBefore(OffsetDateTime.now()))
+            throw new ResponseStatusException(HttpStatus.GONE, "This appointment is over.");
+        if (action == null) {
+            var statuses = jdbc.queryForList("SELECT status FROM spa_booking_confirmation WHERE booking_id=?",
+                    String.class,bookingId);
+            return describe(b,statuses.isEmpty() ? "PENDING" : statuses.get(0));
+        }
+        if (b.getStatus() != com.nirvana.application.model.enums.BookingStatus.CONFIRMED)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"This booking can no longer be answered.");
+        // An owner may answer before the SMS job runs, even for a spa without a mobile number.
+        jdbc.update("INSERT INTO spa_booking_confirmation(booking_id,spa_id,token,status,created_at,updated_at) "
+                + "VALUES (?,?,?,'PENDING',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE booking_id=booking_id",
+                bookingId,b.getSpa().getId(),SpaBookingAlerts.token());
+        String token = jdbc.queryForObject("SELECT token FROM spa_booking_confirmation WHERE booking_id=? FOR UPDATE",
+                String.class,bookingId);
+        return "confirm".equals(action) ? confirm(token) : decline(token,reason);
     }
 
     private Map<String, Object> row(String token, boolean lock) {

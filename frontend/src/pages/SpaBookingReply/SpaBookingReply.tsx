@@ -37,14 +37,16 @@ const answerable = (b: SpaBookingView) =>
   b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING_PAYMENT';
 
 /** The page a spa opens from its booking SMS: no sign-in, just confirm or decline. */
-const SpaBookingReply = () => {
-  const { token = '' } = useParams();
+const SpaBookingReply = ({ owner = false }: { owner?: boolean }) => {
+  const { token = '', bookingId = '' } = useParams();
+  const path = owner ? '/api/owner/push/bookings/' + encodeURIComponent(bookingId)
+    : '/api/public/spa-bookings/' + encodeURIComponent(token);
   const qc = useQueryClient();
-  const key = ['spa-booking-reply', token];
+  const key = owner ? ['owner-booking-reply', bookingId] : ['spa-booking-reply', token];
   const booking = useQuery({
     queryKey: key,
     queryFn: async () =>
-      (await client.get<SpaBookingView>(`/api/public/spa-bookings/${encodeURIComponent(token)}`)).data,
+      (await client.get<SpaBookingView>(path)).data,
     retry: false
   });
   const [declining, setDeclining] = useState(false);
@@ -54,7 +56,7 @@ const SpaBookingReply = () => {
     mutationFn: async (action: 'confirm' | 'decline') =>
       (
         await client.post<SpaBookingView>(
-          `/api/public/spa-bookings/${encodeURIComponent(token)}/${action}`,
+          `${path}/${action}`,
           action === 'decline' ? { reason: reason === 'Other' ? other.trim() || 'Other' : reason } : undefined
         )
       ).data,

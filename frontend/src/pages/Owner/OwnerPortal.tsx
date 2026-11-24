@@ -85,6 +85,8 @@ function Tabs({ section }: { section: string }) {
     </div>
   );
 }
+import PushAlerts from './PushAlerts';
+
 export default function OwnerPortal() {
   const { user } = useAuth();
   if (!isStaff(user?.roles))
@@ -174,6 +176,7 @@ function Portal() {
               </p>
             )}
           </div>
+          {section === 'overview' && user && <PushAlerts key={user.id} user={String(user.id)} spa={id} />}
           {section === 'overview' && <Overview key={id} id={id} />}
           {section === 'bookings' && <Bookings key={id} id={id} />}
           {section === 'availability' && (

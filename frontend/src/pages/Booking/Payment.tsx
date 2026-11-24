@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { createBooking, CreatedBooking } from '../../api/bookingApi';
-import { resumePayment, payWithRazorpay } from '../../api/paymentApi';
+import { resumePayment, payAtSpa, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { getAccount, MAX_POINTS_PER_BOOKING } from '../../api/accountApi';
 import { BookingSummary } from '../../types/booking';
@@ -152,14 +152,18 @@ export default function Payment({
       if (!created && coupon.trim() && !usePackage && !useSpaPackage) track('coupon_applied');
       setCreated(booking);
       let status = booking.status;
-      if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
+      let paymentMode = booking.paymentMode;
+      if (created && method === 'OFFLINE' && booking.status === 'PENDING_PAYMENT') {
+        ({ status, paymentMode } = await payAtSpa(String(booking.bookingId)));
+      } else if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
         status = (
-          await (booking.razorpay
+          await (!created && booking.razorpay
             ? payWithRazorpay(booking.razorpay)
             : resumePayment(String(booking.bookingId)))
         ).status;
       return {
         ...booking,
+        paymentMode,
         id: String(booking.bookingId),
         reference: booking.bookingReference,
         spaName: state.spaName || '',
@@ -170,6 +174,7 @@ export default function Payment({
     },
     onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && axios.isAxiosError(err) && err.response?.status === 409){setSlot(undefined);onTimeConflict();}},
     onSuccess: (b) => {
+      void qc.invalidateQueries({ queryKey: ['my-bookings'] });
       if (loyalty) void qc.invalidateQueries({ queryKey: ['account'] }); // the balance changed
       if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);
@@ -180,13 +185,15 @@ export default function Payment({
     <div className="space-y-5">
       <h2 className="text-2xl font-semibold">Complete your appointment</h2>
       <p>Final prices, discounts and eligibility are calculated by the spa before payment.</p>
-      <fieldset disabled={!!created || mutation.isPending} className="space-y-4">
+      <fieldset disabled={mutation.isPending}>
         <PaymentChoice
           value={method}
           online={options.data?.online}
           byPackage={usePackage || useSpaPackage}
           onChange={setPaymentMode}
         />
+      </fieldset>
+      <fieldset disabled={!!created || mutation.isPending} className="space-y-4">
         <label className="block">
           Coupon code
           <input
@@ -283,7 +290,7 @@ export default function Payment({
             mutation.mutate(undefined, { onSettled: () => { submitting.current = false; } });
           }}
         >
-          {mutation.isPending ? 'Processing…' : created ? 'Retry payment' : 'Book appointment'}
+          {mutation.isPending ? 'Processing…' : created ? (method === 'OFFLINE' ? 'Confirm pay at spa' : 'Retry payment') : 'Book appointment'}
         </Button>
       </div>
     </div>

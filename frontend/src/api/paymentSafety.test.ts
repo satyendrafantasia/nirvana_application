@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import client from './client';
-import { payWithRazorpay, resumePayment } from './paymentApi';
+import { payWithRazorpay, resumePayment, payAtSpa } from './paymentApi';
 import { PaymentIntent, RazorpayResult } from '../types/payment';
 const intent: PaymentIntent = {
   bookingId: 1,
@@ -101,6 +101,19 @@ it('keeps waiting after a failed attempt, so a later success in the same window 
   listeners['payment.failed']({ error: { description: 'This business accepts domestic (Indian) card payments only.' } });
   callback(result);
   expect(await pending).toEqual({ status: 'CONFIRMED', refundStatus: 'NONE' });
+});
+it('switches the saved reservation after dismissal without opening another Razorpay order', async () => {
+  const pending = payWithRazorpay(intent);
+  await Promise.resolve();
+  (options.modal as { ondismiss: () => void }).ondismiss();
+  await expect(pending).rejects.toThrow('choose Pay at spa');
+  const requests: string[] = [];
+  client.defaults.adapter = async config => {
+    requests.push(config.url || '');
+    return { data: { status: 'CONFIRMED', paymentMode: 'OFFLINE' }, status: 200, statusText: 'OK', headers: {}, config };
+  };
+  expect(await payAtSpa('1')).toEqual({ status: 'CONFIRMED', paymentMode: 'OFFLINE' });
+  expect(requests).toEqual(['/api/bookings/1/payments/razorpay/pay-at-spa']);
 });
 it('says why it failed when the guest gives up after a failed attempt', async () => {
   const pending = payWithRazorpay(intent);

@@ -84,6 +84,69 @@ public class PaymentService {
     private static final String GATEWAY_UPI = "UPI";
     private static final int UPI_EXPIRY_MINUTES = 30;
 
+    @org.springframework.beans.factory.annotation.Value("${reliability.bookings.pending-payment-expiry-minutes:30}")
+    private int expiryMinutes = 30;
+
+    public record CheckoutState(BookingStatus status, PaymentMode paymentMode) {}
+
+    @Transactional
+    public CheckoutState payAtSpa(Long bookingId) {
+        Booking booking = ownedBooking(bookingId);
+        if (booking.getStatus() == BookingStatus.CONFIRMED)
+            return new CheckoutState(booking.getStatus(), booking.getPaymentMode());
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getPaymentMode() != PaymentMode.ONLINE)
+            throw new IllegalStateException("This reservation is no longer pending. Check My bookings before booking again.");
+
+        List<Payment> attempts = paymentRepository.findByBookingId(bookingId);
+        boolean hasLink = attempts.stream().anyMatch(p -> p.getPaymentLinkId() != null);
+        for (Payment payment : attempts) {
+            verifyBeforeSwitch(booking, payment);
+            if (booking.getStatus() == BookingStatus.CONFIRMED)
+                return new CheckoutState(booking.getStatus(), booking.getPaymentMode());
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        if (!booking.getStartTs().isAfter(now) ||
+                !BookingLifecycleService.paymentDeadline(booking, hasLink, expiryMinutes).isAfter(now))
+            throw new IllegalStateException("This reservation expired. Choose a new appointment time.");
+        // Pending bookings already reserve the room, therapist and slot.
+        booking.setPaymentMode(PaymentMode.OFFLINE);
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setLastStatusChangedAt(now);
+        bookingRepository.save(booking);
+        notificationSchedulingService.scheduleBookingNotifications(booking);
+        return new CheckoutState(booking.getStatus(), booking.getPaymentMode());
+    }
+
+    private void verifyBeforeSwitch(Booking booking, Payment payment) {
+        if (!GATEWAY_RAZORPAY.equals(payment.getGateway()) || payment.getTransactionId() != null ||
+                payment.getPaymentStatus() == PaymentStatus.AUTHORIZED)
+            throw new IllegalStateException("A payment is already recorded. Check its status before switching.");
+        ensureRazorpayEnabled();
+        try {
+            for (com.razorpay.Payment attempt : razorpayClient.orders.fetchPayments(payment.getIntentId())) {
+                String status = attempt.get("status");
+                if ("captured".equals(status)) {
+                    settleCapturedPayment(booking, payment, attempt.get("id"));
+                    return;
+                }
+                if (!"failed".equals(status))
+                    throw new IllegalStateException("Razorpay is still processing this payment. Please check again shortly.");
+            }
+            if (payment.getPaymentLinkId() != null) {
+                PaymentLink link = razorpayClient.paymentLink.fetch(payment.getPaymentLinkId());
+                String status = link.get("status");
+                if ("paid".equals(status)) reconcilePaidLink(payment, booking, link);
+                else if ("created".equals(status)) {
+                    PaymentLink cancelled = razorpayClient.paymentLink.cancel(payment.getPaymentLinkId());
+                    if (!"cancelled".equals(cancelled.get("status"))) throw new IllegalStateException("Payment link is still active.");
+                } else if (!"cancelled".equals(status) && !"expired".equals(status))
+                    throw new IllegalStateException("Payment link is still processing. Please check again shortly.");
+            }
+        } catch (RazorpayException ex) {
+            throw new IllegalStateException("Could not verify the online payment. Please try again shortly.", ex);
+        }
+    }
+
     // ------------------ ORDER-BASED CHECKOUT ------------------
 
     @Transactional
@@ -274,7 +337,7 @@ public class PaymentService {
     }
     private void settleCapturedPayment(Booking booking, Payment payment, String paymentId, String expectedOrderId) {
         ensureRazorpayEnabled();
-        if (booking.getPaymentMode() != PaymentMode.ONLINE || !GATEWAY_RAZORPAY.equals(payment.getGateway())) {
+        if (!GATEWAY_RAZORPAY.equals(payment.getGateway())) {
             throw new IllegalArgumentException("Not an online Razorpay booking");
         }
         try {
@@ -300,7 +363,16 @@ public class PaymentService {
             payment.setPaymentStatus(PaymentStatus.CAPTURED);
             if (payment.getCapturedAt() == null) payment.setCapturedAt(OffsetDateTime.now(ZoneOffset.UTC));
             paymentRepository.save(payment);
-            if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.NO_SHOW) {
+            // A previously opened checkout can capture after the customer switches.
+            // Credit a future appointment online; send a possible double collection at the spa for refund review.
+            boolean lateAtSpa = booking.getPaymentMode() == PaymentMode.OFFLINE;
+            if (lateAtSpa && booking.getStatus() == BookingStatus.CONFIRMED
+                    && booking.getStartTs().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+                booking.setPaymentMode(PaymentMode.ONLINE);
+                bookingRepository.save(booking);
+                lateAtSpa = false;
+            }
+            if (lateAtSpa || booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.NO_SHOW) {
                 // Keep released capacity released; record this capture for the existing refund workflow.
                 if (booking.getRefundStatus() == RefundStatus.NONE) booking.setRefundStatus(RefundStatus.REQUESTED);
                 bookingRepository.save(booking);

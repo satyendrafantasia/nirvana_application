@@ -31,11 +31,17 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     @Override public void bookingCancelled(Booking booking) { enqueue(booking, Event.CANCELLED); }
     @Override public void bookingRescheduled(Booking booking) { enqueue(booking, Event.RESCHEDULED); }
 
-    enum Audience { CUSTOMER_EMAIL, CUSTOMER_WHATSAPP, SPA_EMAIL, SPA_MOBILE }
+    private final com.nirvana.application.service.OwnerPush ownerPush;
+
+    enum Audience { CUSTOMER_EMAIL, CUSTOMER_WHATSAPP, SPA_EMAIL, SPA_MOBILE, SPA_PUSH }
 
     private void enqueue(Booking booking, Event event) {
         int revision = booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount();
         for (Audience audience : Audience.values()) {
+            if (audience == Audience.SPA_PUSH) {
+                if (event == Event.CONFIRMED) ownerPush.enqueue(booking.getId(), booking.getSpa().getId(), revision);
+                continue;
+            }
             if (event == Event.CANCELLED && (audience == Audience.SPA_EMAIL || audience == Audience.SPA_MOBILE) &&
                     BookingLifecycleService.PAYMENT_TIMEOUT.equals(booking.getCancellationReasonCode())) continue;
             // Only guests who agreed to WhatsApp updates get a WhatsApp job.
@@ -72,7 +78,7 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
 
     private void process(long id) {
         var rows = jdbc.queryForList("""
-                SELECT booking_id,event_kind,audience,revision FROM booking_alert_job
+                SELECT booking_id,event_kind,audience,revision,device_id FROM booking_alert_job
                 WHERE id=? AND state='PENDING' AND next_attempt<=CURRENT_TIMESTAMP FOR UPDATE
                 """, id);
         if (rows.isEmpty()) return;
@@ -90,7 +96,9 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
         String state = "OBSOLETE";
         if (current) {
             try {
-                dispatch(booking, event, audience);
+                if (audience == Audience.SPA_PUSH) {
+                    ownerPush.send(((Number)row.get("device_id")).longValue(), booking.getId(), booking.getSpa().getId());
+                } else dispatch(booking, event, audience);
                 state = "DONE";
                 if (audience == Audience.SPA_MOBILE && event != Event.CANCELLED
                         && com.nirvana.application.service.SpaAlertSms.mobile(booking.getSpa().getPhone()).isEmpty())

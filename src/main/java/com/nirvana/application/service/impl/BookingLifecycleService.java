@@ -50,6 +50,11 @@ public class BookingLifecycleService {
     @Value("${reliability.bookings.arrival-window-minutes:120}")
     private int arrivalWindowMinutes;
 
+    static OffsetDateTime paymentDeadline(Booking booking, boolean hasLink, int expiryMinutes) {
+        return hasLink ? booking.getStartTs().minusMinutes(PAYMENT_LINK_CUTOFF_MINUTES)
+                : booking.getCreatedAt().plusMinutes(expiryMinutes);
+    }
+
     public record StatusChange(Long bookingId, String bookingReference, BookingStatus status) {
     }
 
@@ -77,9 +82,7 @@ public class BookingLifecycleService {
 
         boolean started = !booking.getStartTs().isAfter(now);
         boolean hasPaymentLink = payments.stream().anyMatch(p -> p.getPaymentLinkId() != null);
-        OffsetDateTime deadline = hasPaymentLink
-                ? booking.getStartTs().minusMinutes(PAYMENT_LINK_CUTOFF_MINUTES)
-                : booking.getCreatedAt().plusMinutes(pendingPaymentExpiryMinutes);
+        OffsetDateTime deadline = paymentDeadline(booking, hasPaymentLink, pendingPaymentExpiryMinutes);
         if (!started && deadline.isAfter(now)) {
             return false;
         }
