@@ -1,3 +1,4 @@
+import { Requests } from '../Owner/AppointmentOperations';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cancelBooking, getCancellationQuote, getUserBookings, getSlots, getTherapistDirectory, rescheduleBooking } from '../../api/bookingApi';
@@ -72,6 +73,7 @@ export default function MyBookings() {
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-5">
       <h1 className="text-3xl font-bold">My appointments</h1>
+      <Requests/>
       {wallet.data?.map(w => <p key={w.currency}>Wallet credit: {money(w.balance, w.currency)}</p>)}
       {bookings.isLoading && <p role="status">Loading appointments…</p>}
       {(bookings.isError || action.isError) && (

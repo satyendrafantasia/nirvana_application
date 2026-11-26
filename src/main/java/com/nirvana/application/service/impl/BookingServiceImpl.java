@@ -65,6 +65,8 @@ public class BookingServiceImpl implements BookingService {
     private static final int SAME_DAY_RESCHEDULE_CUTOFF_MINUTES = 60;
     private static final int MAX_RESCHEDULES = 2;
 
+    private final org.springframework.jdbc.core.JdbcTemplate operationsDb;
+    private final com.fasterxml.jackson.databind.ObjectMapper json;
     private final SpaRepository spaRepository;
     private final ServiceRepository serviceRepository;
     private final SlotRepository slotRepository;
@@ -90,6 +92,16 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BookingCreateResponse createBooking(Long userId, BookingCreateRequest request) {
+        return create(userId, request, false);
+    }
+
+    /** Desk controller checks spa authority and constructs an offline, single-guest request. */
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public BookingCreateResponse createFromDesk(Long userId, BookingCreateRequest request) {
+        return create(userId, request, true);
+    }
+
+    private BookingCreateResponse create(Long userId, BookingCreateRequest request, boolean desk) {
         if (request == null) {
             throw new IllegalArgumentException("Request must not be null");
         }
@@ -101,6 +113,22 @@ public class BookingServiceImpl implements BookingService {
         log.info("event=booking.validate_spa");
         Spa spa = spaRepository.lockSchedule(request.getSpaId())
                 .orElseThrow(() -> new EntityNotFoundException("Spa not found: " + request.getSpaId()));
+        String key = request.getRequestKey();
+        String fingerprint = null;
+        if (key != null) {
+            var fields = (com.fasterxml.jackson.databind.node.ObjectNode) json.valueToTree(request);
+            fields.remove("holdToken");
+            fingerprint = org.apache.commons.codec.digest.DigestUtils.sha256Hex(fields.toString());
+            var attempts = operationsDb.queryForList("SELECT booking_id,fingerprint FROM checkout_attempt WHERE spa_id=? AND user_id=? AND request_key=?",spa.getId(),userId,key);
+            if (!attempts.isEmpty()) {
+                var attempt=attempts.get(0);
+                if (!fingerprint.equals(attempt.get("fingerprint"))) throw new IllegalStateException("Checkout key already used for different booking details");
+                var existing=bookingRepository.findById(((Number)attempt.get("booking_id")).longValue()).orElseThrow();
+                var response=buildResponse(existing,existing.getRemainderCents());
+                return response;
+            }
+        }
+        if (!desk && !"INSTANT".equals(spa.getBookingMode())) throw new IllegalStateException("Contact the spa or request acceptance before booking");
         if (Boolean.FALSE.equals(spa.getIsActive())) {
             throw new IllegalStateException("Spa is inactive");
         }
@@ -162,7 +190,9 @@ public class BookingServiceImpl implements BookingService {
             label=hold.getRequestedLabel();
         }
         String mode=SessionAllocation.preference(preferred,label);
-        allocation.validatePreference(spa,preferred,label);
+        // Public naming preferences do not constrain a receptionist assigning their own team.
+        // allocation.choose still enforces spa, service, shift and overlapping appointments.
+        if (!desk) allocation.validatePreference(spa,preferred,label);
         if(hold!=null && hold.getTherapistPreference()!=null){
             if(!mode.equals(hold.getTherapistPreference()) || !java.util.Objects.equals(label,hold.getRequestedLabel()))
                 throw new IllegalStateException(SessionAllocation.TAKEN+"; reserve your updated preference first");
@@ -242,7 +272,7 @@ public class BookingServiceImpl implements BookingService {
                 : "{\"defaultCutoffMinutes\":" + CANCELLATION_CUTOFF_MINUTES + ",\"defaultFeePercent\":0,\"defaultRoute\":\"ORIGINAL_METHOD\"}");
         booking.setStartTs(slot.getStartTs());
         booking.setEndTs(TherapistRoster.end(slot));
-        booking.setScheduledBy(CancellationActor.USER);
+        booking.setScheduledBy(desk ? CancellationActor.SPA : CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
         booking.setPaymentType(payWithPackage ? BookingPaymentType.PAID_BY_PACKAGE : BookingPaymentType.STANDARD);
@@ -260,6 +290,10 @@ public class BookingServiceImpl implements BookingService {
 
         log.info("event=booking.persist");
         Booking saved = bookingRepository.save(booking);
+        if (desk) {
+            operationsDb.update("INSERT INTO spa_booking_confirmation(booking_id,spa_id,token,status,responded_at,created_at,updated_at) VALUES(?,?,?,'CONFIRMED',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())",
+                    saved.getId(),spa.getId(),UUID.randomUUID().toString().replace("-",""));
+        }
 
         if (hold != null) {
             hold.setConvertedToBooking(true);
@@ -307,6 +341,8 @@ public class BookingServiceImpl implements BookingService {
         }
 
         BookingCreateResponse response = buildResponse(saved, payableCents);
+        if (key != null) operationsDb.update("INSERT INTO checkout_attempt(spa_id,user_id,request_key,fingerprint,booking_id) VALUES(?,?,?,?,?)",
+                spa.getId(),userId,key,fingerprint,saved.getId());
         response.setRazorpay(razorpayInit);
         response.setUpi(upiInit);
         return response;

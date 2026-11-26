@@ -9,7 +9,7 @@ export default function SearchSource({ value, onChange }: {
       {(['nirvana', 'google'] as const).map((source) => (
         <button key={source} type="button" aria-pressed={value === source}
           onClick={() => onChange(source)}>
-          {source === 'nirvana' ? 'Bookable on Nirvana' : 'Google Places'}
+          {source === 'nirvana' ? 'Nirvana spas' : 'Google Places'}
         </button>
       ))}
     </div>

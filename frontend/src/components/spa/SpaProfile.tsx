@@ -1,3 +1,4 @@
+import { AppointmentForm, usePolicy, modeText } from '../../pages/Owner/AppointmentOperations';
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -362,6 +363,8 @@ export function SpaPackages({ spaId }: { spaId: string }) {
 
 /** The full page for one spa: the same layout whether the facts come from Google or from Nirvana. */
 export default function SpaProfile(p: SpaProfileProps) {
+  const policy=usePolicy(p.spaId);
+  const mode=policy.data?.mode;
   const [more, setMore] = useState(false);
   const directions = directionsUrl(p.mapQuery, p.googlePlaceId);
   const map = embedUrl(p.mapQuery, p.googlePlaceId, import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY);
@@ -387,7 +390,7 @@ export default function SpaProfile(p: SpaProfileProps) {
               </span>
             )}
             {p.notice && <span className="spa-chip spa-chip-warn">{p.notice}</span>}
-            {p.spaId && <span className="spa-chip spa-chip-open">Bookable on Nirvana</span>}
+            {p.spaId && mode && <span className="spa-chip spa-chip-open">{modeText[mode]}</span>}
           </div>
           <div className="flex flex-wrap gap-3 border-t border-primary-100 pt-5">
             <Button as="a" href="#services">
@@ -491,14 +494,17 @@ export default function SpaProfile(p: SpaProfileProps) {
 
       <Section id="services" eyebrow="THE MENU" title="Services and prices">
         {p.spaId ? (
-          <SpaServices spaId={p.spaId} spaName={p.name} />
+          mode==='INSTANT' ? <SpaServices spaId={p.spaId} spaName={p.name} /> :
+          mode==='REQUEST' ? <AppointmentForm key={p.spaId} spa={p.spaId}/> :
+          mode==='ENQUIRY' ? <p>Contact the spa to check prices and availability. {p.phone && <a href={'tel:'+p.phone}>{p.phone}</a>} {p.email && <a href={'mailto:'+p.email}>{p.email}</a>}</p> :
+          <p role="status">{policy.isError?'Unable to load booking options.':'Loading booking options…'}</p>
         ) : (
           <NotListed what="treatments and prices" website={p.website} placeId={p.googlePlaceId} />
         )}
       </Section>
 
       <Section id="packages" eyebrow="SAVE ON REGULAR VISITS" title="Packages">
-        {p.spaId ? (
+        {p.spaId && mode==='INSTANT' ? (
           <SpaPackages spaId={p.spaId} />
         ) : (
           <NotListed what="packages" placeId={p.googlePlaceId} />

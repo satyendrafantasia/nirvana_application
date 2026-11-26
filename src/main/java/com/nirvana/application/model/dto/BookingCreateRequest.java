@@ -12,6 +12,9 @@ public class BookingCreateRequest {
     @Schema(description = "Spa identifier where booking is being created", example = "101")
     private Long spaId;
 
+    @jakarta.validation.constraints.Pattern(regexp="[A-Za-z0-9_-]{8,64}")
+    @lombok.Getter @lombok.Setter private String requestKey;
+
     @NotNull
     @Schema(description = "Service identifier for the booking", example = "501")
     private Long serviceId;

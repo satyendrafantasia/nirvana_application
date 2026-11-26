@@ -33,7 +33,7 @@ public class PlaceSummaryService {
         if (!unique.isEmpty()) {
             String slots = String.join(",", Collections.nCopies(unique.size(), "?"));
             // Return only approved, active catalogue matches. Never expose drafts or owner data.
-            var matches = jdbc.queryForList("SELECT s.id, s.google_place_id AS place_id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.google_place_id IN (" + slots + ") ORDER BY s.id", unique.keySet().toArray());
+            var matches = jdbc.queryForList("SELECT s.id, s.google_place_id AS place_id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.booking_mode='INSTANT' AND s.google_place_id IN (" + slots + ") ORDER BY s.id", unique.keySet().toArray());
             for (var match : matches) {
                 ObjectNode place = unique.get(String.valueOf(match.get("place_id")));
                 if (place != null && !place.has("nirvanaSpaId") && "OPERATIONAL".equals(place.path("businessStatus").asText()))
@@ -46,7 +46,7 @@ public class PlaceSummaryService {
     /** Marks one place's details with the bookable Nirvana spa it belongs to, if any. */
     public JsonNode withBookableSpa(JsonNode place) {
         if (place instanceof ObjectNode object && "OPERATIONAL".equals(place.path("businessStatus").asText())) {
-            var ids = jdbc.queryForList("SELECT s.id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.google_place_id=? ORDER BY s.id LIMIT 1",
+            var ids = jdbc.queryForList("SELECT s.id FROM spa s WHERE s.is_active=true AND s.is_verified=true AND s.booking_mode='INSTANT' AND s.google_place_id=? ORDER BY s.id LIMIT 1",
                     Long.class, place.path("id").asText());
             if (!ids.isEmpty()) object.put("nirvanaSpaId", ids.get(0));
         }

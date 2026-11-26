@@ -57,6 +57,7 @@ type Summary = {
   access?: 'OWNER' | 'DESK';
 };
 type Row = {
+  deskSource?: string;
   eventUtc: string;
   source: string;
   collected: number;
@@ -1085,7 +1086,7 @@ function Appointment({
     <article className="border-t py-4 space-y-2">
       <div className="flex flex-wrap justify-between gap-2">
         <div>
-          <strong>{b.service}</strong> · {when(b.startUtc, zone)}
+          <strong>{b.service}</strong>{b.deskSource && <span> · {b.deskSource==='PHONE'?'Phone':'Walk-in'}</span>} · {when(b.startUtc, zone)}
           <p className="text-sm text-slate-600">
             {b.customer || 'Guest'} · {b.therapist || 'Any therapist'}
             {b.room && ' · ' + b.room}

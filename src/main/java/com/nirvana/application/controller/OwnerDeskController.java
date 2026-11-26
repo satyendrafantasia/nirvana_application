@@ -191,7 +191,7 @@ public class OwnerDeskController {
         String sql=switch(view) {
             case TRANSACTIONS -> "";
             case APPOINTMENTS -> "SELECT b.id,b.booking_reference AS reference,"+CUSTOMER+" AS customer,s.name AS service,"
-                + " b.service_id AS serviceId,b.therapist_id AS therapistId,b.therapist_preference AS preference,b.therapist_type AS therapistType,"
+                + " (SELECT o.channel FROM desk_origin o WHERE o.booking_id=b.id) AS deskSource, b.service_id AS serviceId,b.therapist_id AS therapistId,b.therapist_preference AS preference,b.therapist_type AS therapistType,"
                 + " b.guest_count AS guests,t.name AS therapist,r.name AS room,b.status,c.status AS confirmation,"
                 + " b.start_ts AS startUtc,b.end_ts AS endUtc,b.currency,"+OUTSTANDING+" AS payable,COALESCE(d.paid,0) AS deskPaid,COALESCE(d.tips,0) AS deskTips,"
                 + " d.method AS deskMethod,d.collected_at AS deskCollectedUtc,COALESCE(d.returned,0) AS deskReturned,p.payment_status AS gatewayStatus,"
@@ -243,6 +243,7 @@ public class OwnerDeskController {
     @PreAuthorize(OWNER)
     @Transactional
     public void recordReturn(@PathVariable long spa,@PathVariable long id){
+        requireOpenShift(spa,id);
         var booking=bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         if(!"CANCELLED".equals(booking.getStatus().name()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Only a cancelled appointment can have a desk return");
@@ -263,6 +264,7 @@ public class OwnerDeskController {
     @PreAuthorize(OWNER)
     @Transactional
     public void voidReceipt(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody VoidInput input){
+        requireOpenShift(spa,id);
         bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         var args=Map.<String,Object>of("spa",spa,"id",id);
@@ -343,6 +345,13 @@ public class OwnerDeskController {
         if(input.accept)replies.confirm(tokens.get(0));else replies.decline(tokens.get(0),input.reason);
         audit.record(AdminActionType.STATUS_CHANGE,"BOOKING",id,SecurityUtils.getCurrentUserId(),null,Map.of("accepted",input.accept),input.reason);
     }
+    private void requireOpenShift(long spa,long booking){
+        var args=Map.of("spa",spa,"id",booking);
+        var tz=db.queryForObject("SELECT timezone FROM spa WHERE id=:spa FOR UPDATE",args,String.class);
+        var day=LocalDate.now(ZoneId.of(Objects.toString(tz,"Asia/Kolkata")));
+        var states=db.queryForList("SELECT state FROM spa_financial_report WHERE spa_id=:spa AND business_date=:day AND currency=(SELECT currency FROM booking WHERE id=:id AND spa_id=:spa) AND kind='SHIFT' ORDER BY revision DESC LIMIT 1",Map.of("spa",spa,"id",booking,"day",day),String.class);
+        if(!states.isEmpty() && !"REOPENED".equals(states.get(0)))throw new IllegalStateException("Daily shift is closed. Ask the owner to reopen it before changing receipts.");
+    }
     public enum Method { CASH, UPI, CARD }
     /**
      * Money taken at the desk. Without amountCents it is the whole balance; a part payment (an advance)
@@ -355,10 +364,12 @@ public class OwnerDeskController {
     @PostMapping("/bookings/{id}/collect")
     @Transactional
     public void collect(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody Collection input) {
+        db.queryForObject("SELECT id FROM spa WHERE id=:spa FOR UPDATE",Map.of("spa",spa),Long.class);
         var booking=bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         var args=new HashMap<String,Object>(); args.put("id",id); args.put("spa",spa); args.put("key",input.requestKey);
         if(input.requestKey!=null && db.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE spa_id=:spa AND request_key=:key",args,Integer.class)>0) return;
+        requireOpenShift(spa,id);
         var row=db.queryForMap("SELECT "+STATE+" AS state,"+OUTSTANDING+" AS outstanding,COALESCE(d.receipts,0) AS receipts "+JOINS+" WHERE b.id=:id AND b.spa_id=:spa",args);
         long outstanding=((Number)row.get("outstanding")).longValue();
         if(!"DUE_AT_SPA".equals(row.get("state"))){

@@ -9,4 +9,4 @@ public record SpaSummaryResponse(
         Integer ratingCount,
         String thumbnailImageUrl,
         Integer startingPriceCents, // you can wire this later
-        Double distanceKm) {}
+        Double distanceKm, String bookingMode) {}

@@ -38,6 +38,9 @@ class OwnerFinance {
         WHERE x.spa_id=:spa AND f.recorded_at>=:start AND f.recorded_at<:end
         """;
     private static final String FILTER=" WHERE (reference LIKE :term ESCAPE '!' OR receipt LIKE :term ESCAPE '!') ";
+    List<Map<String,Object>> reportLines(Map<String,Object> args){
+        return db.queryForList("SELECT * FROM ("+EVENTS+") events WHERE currency=:currency AND channel=:channel ORDER BY eventUtc,reference",args);
+    }
     /** Totals per currency and channel. */
     List<Map<String,Object>> totals(Map<String,Object> args){
         return db.queryForList("SELECT currency,channel,SUM(collected) AS collected,SUM(refunded) AS refunds,SUM(tip) AS tips FROM ("+EVENTS+") events GROUP BY currency,channel ORDER BY currency,channel",args);

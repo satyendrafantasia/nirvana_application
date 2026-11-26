@@ -137,6 +137,51 @@ class OwnerScheduleTest {
             .param("from",day.toString()).param("to",day.toString()),null));
         assertTrue(java.util.stream.StreamSupport.stream(visitors.get("items").spliterator(),false).anyMatch(v->v.get("id").asLong()==3));
     }
+    @Test @Transactional void checkoutRetriesAndDeskBookingsShareInventory() throws Exception {
+        ok(hours(List.of(interval("WORK",10,18))));
+        long first=slot(11,0,1), second=slot(14,0,1);
+        var payload=new HashMap<String,Object>(Map.of("slotId",first,"spaId",1,"serviceId",1,"guests",1,"paymentMode","OFFLINE","requestKey","checkout-test"));
+        long id=ok(call(post("/api/bookings"),3,"ROLE_USER",payload)).get("bookingId").asLong();
+        assertEquals(id,ok(call(post("/api/bookings"),3,"ROLE_USER",payload)).get("bookingId").asLong());
+        payload.put("slotId",second);
+        assertEquals(409,call(post("/api/bookings"),3,"ROLE_USER",payload).status());
+        var choices=ok(owner(get("/api/owner/spas/1/desk-rooms").param("service","1").param("date",day.toString()),null));
+        assertTrue(choices.findValues("id").stream().anyMatch(v->v.asLong()==second));
+        var team=ok(owner(get("/api/owner/spas/1/desk-slots/"+second+"/therapists"),null));
+        assertFalse(team.isEmpty());
+        var desk=Map.of("therapistId",team.get(0).get("id").asLong(),"slotId",second,"name","Reception guest","contact","demo","channel","PHONE","requestKey","phone-test");
+        long walk=ok(owner(post("/api/owner/spas/1/desk-appointments"),desk)).asLong();
+        assertEquals(walk,ok(owner(post("/api/owner/spas/1/desk-appointments"),desk)).asLong());
+        assertEquals(409,book(second,false).status());
+    }
+
+    @Test @Transactional void importedModesRequireOwnerAcceptance() throws Exception {
+        ok(hours(List.of(interval("WORK",10,18))));
+        long target=slot(13,0,1);
+        var spa=entityManager.find(com.nirvana.application.model.Spa.class,1L);
+        spa.setBookingMode("ENQUIRY"); entityManager.flush();
+        assertEquals(409,book(target,false).status());
+        spa.setBookingMode("REQUEST");entityManager.flush();
+        long id=ok(call(post("/api/spas/1/appointment-requests"),3,"ROLE_USER",Map.of("slotId",target))).get("id").asLong();
+        assertEquals(0,jdbc.queryForObject("SELECT booked_units FROM slot WHERE id=?",Integer.class,target));
+        ok(owner(post("/api/owner/spas/1/appointment-requests/"+id),Map.of("accept",true)));
+        assertEquals("ACCEPTED",jdbc.queryForObject("select state from appointment_request where id=?",String.class,id));
+        assertEquals(409,owner(post("/api/owner/spas/1/appointment-requests/"+id),Map.of("accept",true)).status());
+    }
+
+    @Test @Transactional void dailyCloseAndTransferHistory() throws Exception {
+        String path="/api/owner/spas/1/finance/";
+        var input=new HashMap<String,Object>(Map.of("date",LocalDate.now(ZONE).minusDays(1).toString(),"currency","EUR","cash",100,"reason","Drawer count"));
+        ok(owner(post(path+"SHIFT"),input));
+        long id=ok(owner(get(path+"SHIFT"),null)).get(0).get("id").asLong();
+        ok(owner(post(path+"shift/"+id+"/approve"),null));
+        assertEquals("APPROVED",ok(owner(get(path+"SHIFT"),null)).get(0).get("state").asText());
+        input.put("reference","qa-transfer");input.put("transferDate",input.get("date"));input.put("transferred",100);
+        assertEquals(403,owner(post(path+"PAYOUT"),input).status());
+        ok(call(post(path+"PAYOUT"),2,"ROLE_ADMIN",input));
+        assertEquals("EXCEPTION",ok(owner(get(path+"PAYOUT"),null)).get(0).get("state").asText());
+    }
+
     @Test @Transactional void lunchAndLaterBookingUseEntireDuration() throws Exception {
         ok(hours(List.of(interval("WORK",10,18),interval("BREAK",13,14))));
         long noon=slot(12,0,3), lunch=slot(12,30,3), after=slot(14,0,3), earlier=slot(13,30,3);

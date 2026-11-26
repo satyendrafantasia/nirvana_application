@@ -56,8 +56,19 @@ export interface CreatedBooking {
   currency: string;
   razorpay?: PaymentIntent;
 }
-export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> =>
-  (await client.post('/api/bookings', payload)).data;
+export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> => {
+  // Store only a digest and a random key. A renewed slot hold belongs to the same attempt.
+  const signature = JSON.stringify({ ...payload, holdToken: undefined });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+  const storageKey = 'nirvana.checkout.' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2,'0')).join('');
+  const requestKey = localStorage.getItem(storageKey) || crypto.randomUUID();
+  localStorage.setItem(storageKey, requestKey);
+  localStorage.setItem('nirvana.pendingCheckout',JSON.stringify({key:requestKey,spa:payload.spaId}));
+  const response = await client.post<CreatedBooking>('/api/bookings', { ...payload, requestKey });
+  localStorage.removeItem('nirvana.pendingCheckout');
+  localStorage.removeItem(storageKey);
+  return response.data;
+};
 interface BookingWire {
   originalPreference?: string;
   therapistName?: string;

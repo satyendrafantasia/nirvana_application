@@ -9,7 +9,7 @@ import { spaProfile } from '../../pages/SpaDetails/SpaDetails';
 import { AuthContext } from '../../contexts/AuthContext';
 
 const render = (node: React.ReactNode) =>
-  renderToStaticMarkup(<StaticRouter location="/discover/places/abc">{node}</StaticRouter>);
+  renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><StaticRouter location="/discover/places/abc">{node}</StaticRouter></QueryClientProvider>);
 
 const place = {
   id: 'ChIJ_test-1',

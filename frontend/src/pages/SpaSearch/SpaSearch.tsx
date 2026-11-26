@@ -79,8 +79,8 @@ const SpaSearch = () => {
               <section className="card space-y-4 p-6 md:col-span-3">
                 <p role="status" className="font-semibold">
                   {narrowed
-                    ? `No bookable spas${city ? ' in ' + city : ''} match your filters.`
-                    : `No spas are bookable on Nirvana${city ? ' in ' + city : ''} yet.`}
+                    ? `No listed spas${city ? ' in ' + city : ''} match your filters.`
+                    : `No spas are listed on Nirvana${city ? ' in ' + city : ''} yet.`}
                 </p>
                 {city && (
                   <Button onClick={() => {

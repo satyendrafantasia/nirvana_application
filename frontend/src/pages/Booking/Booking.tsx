@@ -1,4 +1,6 @@
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import {useQuery} from '@tanstack/react-query';
+import client from '../../api/client';
 import { track } from '../../telemetry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import StepIndicator from '../../components/booking/StepIndicator';
@@ -20,6 +22,11 @@ const Booking = () => {
   const [timeConflict,setTimeConflict]=useState(false);
   const [summary, setSummary] = useState<BookingSummary | null>(null);
 
+  const pending=typeof localStorage==='undefined'?null:localStorage.getItem('nirvana.pendingCheckout');
+  const recovered=useQuery({queryKey:['checkout-recovery',pending],enabled:!!pending,queryFn:async()=>{
+    const attempt=JSON.parse(pending!) as {key:string;spa:string};
+    return (await client.get<{reference?:string;status:string}>('/api/me/checkout-attempts/'+encodeURIComponent(attempt.key),{params:{spa:attempt.spa}})).data;
+  }});
   const entered = useRef(false);
   useEffect(() => {
     if (!entered.current && pathname !== '/booking/receipt') track('begin_booking');
@@ -45,6 +52,7 @@ const Booking = () => {
   if (pathname === '/booking/receipt' && !summary) return <Navigate replace to="/me/bookings" />;
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+      {recovered.data?.reference && <p className="card p-4" role="status">Your previous checkout created booking {recovered.data.reference} · {recovered.data.status}. <a href="/me/bookings">Open My bookings</a></p>}
       <StepIndicator currentStep={currentStep>2?currentStep-1:currentStep} steps={steps} />
       <div className="mt-6 rounded-3xl bg-white p-6 shadow-card">
         {currentStep === 1 && <SelectService onNext={() => setCurrentStep(2)} />}

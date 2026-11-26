@@ -1,3 +1,7 @@
+import { AppointmentForm, Requests, BookingPolicy } from './AppointmentOperations';
+import FinancialReports from './FinancialReports';
+import { isAdmin } from '../../auth/roles';
+import {useState} from 'react';
 import OwnerDesk from './OwnerDesk';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -123,10 +127,12 @@ function Portal() {
   const section = full || deskSections.includes(path) ? path : 'overview';
   const [params, setParams] = useSearchParams();
   const selected = params.get('spa');
+  const admin=isAdmin(user?.roles);
+  const [spaSearch,setSpaSearch]=useState('');
   const spas = useQuery({
-    queryKey: ['owner-spas', user?.id, full],
+    queryKey: ['owner-spas', user?.id, full, admin, spaSearch],
     queryFn: async () =>
-      (await client.get<Spa[]>(full ? '/api/onboarding/spas' : '/api/owner/desk-spas')).data
+      (await client.get<Spa[]>(admin ? '/api/admin/finance/spas' : full ? '/api/onboarding/spas' : '/api/owner/desk-spas',{params:admin?{search:spaSearch}:undefined})).data
   });
   const spa = spas.data?.find((s) => String(s.id) === selected) || spas.data?.[0];
   const id = spa ? String(spa.id) : '';
@@ -142,6 +148,7 @@ function Portal() {
             </p>
           )}
         </div>
+        {admin && <label>Find spa by name or ID<input value={spaSearch} onChange={e=>setSpaSearch(e.target.value)} className="block text-slate-900"/></label>}
         {!!spas.data?.length && (
           <label className="grid gap-1 text-sm">
             Your spa
@@ -201,6 +208,10 @@ function Portal() {
                     <OwnerDesk key={id + view} id={id} section={view} owner={full} />
                   )
               )}
+              {section==='overview' && <Requests key={id} spa={id}/>}
+              {section==='bookings' && <div key={id}><AppointmentForm spa={id} desk/><Requests spa={id}/></div>}
+              {section==='settings' && <BookingPolicy key={id} spa={id}/>}
+              {section==='payments' && <FinancialReports key={id} spa={id} owner={full} finance={isAdmin(user?.roles)}/>}
               {section === 'availability' && (
                 <div className="space-y-6" key={id}>
                   <Schedule spaId={id} />

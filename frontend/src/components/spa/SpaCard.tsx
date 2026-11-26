@@ -56,7 +56,7 @@ const SpaCard = ({ spa }: SpaCardProps) => {
           {spa.distanceKm && <LocationChip distanceKm={spa.distanceKm} city={spa.city} />}
         </div>
         <div className="mt-auto flex flex-wrap gap-2 items-center justify-between">
-          <p className="text-sm text-slate-500">Explore treatments & availability</p>
+          <p className="text-sm text-slate-500">{spa.bookingMode==='ENQUIRY'?'Enquiry only':spa.bookingMode==='REQUEST'?'Request to book':'Instant booking'}</p>
           <Button as={Link} to={`/spas/${spa.id}`} size="sm">
             View details
           </Button>

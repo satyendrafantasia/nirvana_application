@@ -30,6 +30,10 @@ public class Spa extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    @lombok.Builder.Default
+    @Column(name="booking_mode", nullable=false)
+    private String bookingMode = "INSTANT";
+
     @Column(length = 2000)
     private String description;
 

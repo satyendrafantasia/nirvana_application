@@ -100,12 +100,25 @@ describe('Spring API contracts', () => {
       paymentMode: 'OFFLINE'
     });
     expect(requests[0].data).toEqual({
+      requestKey: expect.stringMatching(/^[a-f0-9-]{36}$/),
       spaId: '1',
       serviceId: '3',
       slotId: '9',
       guests: 1,
       paymentMode: 'OFFLINE'
     });
+  });
+  it('reuses the checkout key after a lost response and a renewed hold', async () => {
+    const keys:string[]=[];
+    client.defaults.adapter=async config=>{
+      keys.push(JSON.parse(config.data).requestKey);
+      if(keys.length===1)throw new Error('Lost response');
+      return {data:{bookingId:8},status:200,statusText:'OK',headers:{},config};
+    };
+    const payload={spaId:'1',serviceId:'3',slotId:'9',guests:1,paymentMode:'OFFLINE' as const};
+    await expect(createBooking({...payload,holdToken:'first'})).rejects.toThrow('Lost response');
+    await createBooking({...payload,holdToken:'renewed'});
+    expect(keys[0]).toEqual(keys[1]);
   });
   it('unwraps nested bookings pagination and preserves cancellation eligibility', async () => {
     response = {

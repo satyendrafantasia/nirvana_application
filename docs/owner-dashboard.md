@@ -49,3 +49,19 @@ All routes below are relative to `/api/owner/spas/{spaId}/desk`. Routes marked *
 Front-desk team (owner): `GET`, `POST {contact}` and `DELETE /{userId}` on `/api/owner/spas/{spaId}/staff`. Front-desk staff list their spas with `GET /api/owner/desk-spas`.
 
 Use period=TODAY, YESTERDAY, WEEK, MONTH, YEAR or CUSTOM. Custom reports accept from and to as ISO dates and up to 366 days. Records accepts view=APPOINTMENTS, VISITORS, BUYERS or TRANSACTIONS, search, and a zero-based page of 25 rows. Appointment filters include status, payment, serviceId, therapistId and pending. Buyer records also accept packageId. Collections and reports use integer minor units except for the package buyer's price, which is in major currency units.
+
+## Reception and booking policies
+
+Under Settings the spa owner can choose enquiry only, request to book, or instant booking. Spas created by lead onboarding start in enquiry mode. Changing to request or instant booking records the operator and requires an attestation covering the treatment menu, prices, capacity, hours and a working contact. Booking mode applies to new customer reservations.
+
+A request is for one guest and one advertised slot. It expires at the earlier of the appointment start and two hours after submission. Pending requests hold no capacity and collect no money. Reception accepts or declines under Bookings. Acceptance reruns the normal booking checks in the same transaction, creates a pay-at-spa appointment, and records the answer. Customers can check My bookings for the outcome.
+
+Under Bookings, reception can also enter a phone or walk-in appointment, choose a previous guest from that spa or create a reception-only guest profile, and select an available treatment, room slot and eligible therapist. A reception-only profile has no sign-in or marketing subscription.
+
+Checkout clients should send a stable requestKey (8–64 letters, digits, underscores or hyphens) in POST /api/bookings. On an ambiguous response, repeat the original checkout with the same key. A refreshed hold for the same selection is permitted. Changing booking details with the same key returns a conflict. GET /api/me/checkout-attempts/{key}?spa={spaId} returns the authenticated guest's booking reference and current state when the transaction committed.
+
+## Daily close and bank settlement
+
+Payments → Financial reports uses integer minor units in the API and major currency units in the forms. A shift is one local business day per spa and currency. Reception enters tender totals including tips. A variance requires an explanation. Submission closes that day's desk receipt changes. An owner can approve it or reopen it with a reason. Corrections and sign-off append revisions and retain the preceding snapshot.
+
+Platform administrators use Payments → Payout statements to match a completed bank transfer to a non-overlapping settlement period for a spa and currency. Enter the bank reference, transfer date, amount and any explained adjustment. The statement retains the booking and package lines, refunds, commission and differences. The unmatched list covers the 31 days ending on the selected date. The first version uses manual bank reconciliation. Recording a statement does not initiate a money transfer.

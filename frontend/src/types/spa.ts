@@ -1,4 +1,5 @@
 export interface Spa {
+  bookingMode?: 'INSTANT'|'REQUEST'|'ENQUIRY';
   id: string;
   name: string;
   address: string;

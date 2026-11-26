@@ -335,7 +335,7 @@ public class SpaSearchService {
                 spa.getRatingCount(),
                 thumbnail,
                 startingPriceCents,
-                distanceKm
+                distanceKm, spa.getBookingMode()
         );
     }
 }
