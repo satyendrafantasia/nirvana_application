@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +27,7 @@ class PackageCatalogTest {
     @Autowired ObjectMapper json;
     long packageId;
     long spaId;
+    private final String spaSearchTerm = "catalog" + UUID.randomUUID().toString().replace("-", "");
 
     /** Works on a near-empty database too: one active package, taken at one published spa. */
     @BeforeEach void anActivePackageAtAPublishedSpa() {
@@ -33,7 +35,7 @@ class PackageCatalogTest {
         jdbc.update("UPDATE packages SET is_active=1 WHERE id=?", packageId);
         spaId = jdbc.queryForObject("SELECT MIN(id) FROM spa s WHERE " + PUBLISHED, Long.class);
         jdbc.update("INSERT IGNORE INTO service_package_spa (package_id, spa_id) VALUES (?,?)", packageId, spaId);
-        jdbc.update("UPDATE spa SET name='Zephyr Lotus Retreat', city='Lucknow' WHERE id=?", spaId);
+        jdbc.update("UPDATE spa SET name=?, city='Lucknow' WHERE id=?", spaSearchTerm + " Lotus Retreat", spaId);
     }
 
     private JsonNode get(String url) throws Exception {
@@ -70,14 +72,14 @@ class PackageCatalogTest {
     }
 
     @Test void spasAreFoundByNameAndCityWithTheirPackages() throws Exception {
-        JsonNode found = search("zephyr lucknow");
+        JsonNode found = search(spaSearchTerm + " lucknow");
         assertEquals(1, found.get("total").asLong());
         JsonNode spa = found.get("spas").get(0);
         assertEquals(spaId, spa.get("id").asLong());
         assertEquals("Lucknow", spa.get("city").asText());
         assertTrue(spa.get("packageIds").toString().contains(String.valueOf(packageId)));
 
-        assertEquals(0, search("zephyr pune").get("total").asLong());
+        assertEquals(0, search(spaSearchTerm + " pune").get("total").asLong());
         assertEquals(published(packageId), get("/api/packages/spas?packageId=" + packageId + "&limit=1").get("total").asLong());
         assertEquals(1, get("/api/packages/spas?packageId=" + packageId + "&limit=1").get("spas").size());
     }
@@ -85,7 +87,7 @@ class PackageCatalogTest {
     @Test void unpublishedSpasNeverShow() throws Exception {
         long before = published(packageId);
         jdbc.update("UPDATE spa SET is_verified=0 WHERE id=?", spaId);
-        assertEquals(0, get("/api/packages/spas?q=zephyr").get("total").asLong());
+        assertEquals(0, search(spaSearchTerm).get("total").asLong());
         for (JsonNode p : get("/api/packages/catalog"))
             if (p.get("id").asLong() == packageId) assertEquals(before - 1, p.get("eligibleSpaCount").asLong());
         assertEquals(0, get("/api/packages/catalog?spaId=" + spaId).size());
