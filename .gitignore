@@ -1,0 +1,5 @@
+# Local secrets and operational data (see docs/operations.md).
+.env
+secrets/
+backups/
+app.env
