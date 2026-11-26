@@ -355,7 +355,30 @@ public class BookingServiceImpl implements BookingService {
                 && booking.getStartTs().isBefore(now.plusMinutes(SAME_DAY_RESCHEDULE_CUTOFF_MINUTES))) {
             throw new IllegalStateException("Same-day changes are locked within cutoff window");
         }
+        return moveToSlot(booking, request, now, true);
+    }
 
+    /**
+     * The spa moves its own appointment. The guest's limits (two changes, the same-day cutoff)
+     * are for the guest, so they don't apply and the move doesn't use up the guest's changes.
+     */
+    @Override
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public BookingRescheduleResponse rescheduleBySpa(Long bookingId, Long spaId, BookingRescheduleRequest request) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .filter(b -> b.getSpa().getId().equals(spaId))
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found for spa"));
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new IllegalStateException("Only a confirmed appointment can be moved");
+        }
+        if (!booking.getStartTs().isAfter(now)) {
+            throw new IllegalStateException("Cannot move an appointment that has started");
+        }
+        return moveToSlot(booking, request, now, false);
+    }
+
+    private BookingRescheduleResponse moveToSlot(Booking booking, BookingRescheduleRequest request, OffsetDateTime now, boolean byGuest) {
         spaRepository.lockSchedule(booking.getSpa().getId()).orElseThrow();
         Slot targetSlot = slotRepository.findByIdForUpdate(request.getTargetSlotId())
                 .orElseThrow(() -> new EntityNotFoundException("Target slot not found"));
@@ -388,7 +411,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setSlot(targetSlot);
         booking.setStartTs(targetSlot.getStartTs());
         booking.setEndTs(TherapistRoster.end(targetSlot));
-        booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
+        if (byGuest) booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
         booking.setLastStatusChangedAt(now);
         booking.setCancellationReasonText(request.getReason());
         booking.setReminderProcessedAt(null); // the new time gets its own reminder

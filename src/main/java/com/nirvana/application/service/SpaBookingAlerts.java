@@ -224,7 +224,7 @@ public class SpaBookingAlerts {
      * A stored UTC wall-clock time as an instant. Drivers hand DATETIME columns back as Timestamp
      * or as LocalDateTime depending on version and settings, so both are accepted.
      */
-    static Instant fromUtc(Object stored) {
+    public static Instant fromUtc(Object stored) {
         if (stored instanceof Timestamp t) return t.toLocalDateTime().toInstant(ZoneOffset.UTC);
         if (stored instanceof LocalDateTime t) return t.toInstant(ZoneOffset.UTC);
         if (stored instanceof OffsetDateTime t) return t.toInstant();

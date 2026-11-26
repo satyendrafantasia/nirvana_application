@@ -27,4 +27,7 @@ public interface BookingService {
     BookingCancelResponse cancelBookingBySpa(Long spaId, Long bookingId, String reason, boolean byAdmin);
 
     BookingRescheduleResponse rescheduleBooking(Long bookingId, Long userId, BookingRescheduleRequest request);
+
+    /** The spa moves its own appointment, without the guest's reschedule limits. */
+    BookingRescheduleResponse rescheduleBySpa(Long bookingId, Long spaId, BookingRescheduleRequest request);
 }

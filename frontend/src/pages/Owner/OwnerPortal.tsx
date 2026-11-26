@@ -2,7 +2,7 @@ import OwnerDesk from './OwnerDesk';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
-import { isStaff } from '../../auth/roles';
+import { isDeskStaff, isStaff } from '../../auth/roles';
 import client, { errorMessage } from '../../api/client';
 import { Workspace } from '../../features/FeaturePage';
 import Drafts from '../Staff/Drafts';
@@ -11,12 +11,13 @@ import Schedule from './Schedule';
 import OwnerCatalog from './OwnerCatalog';
 import ClaimListing from './ClaimListing';
 import Media from '../Staff/Media';
+import FrontDeskTeam from './FrontDeskTeam';
 type Spa = {
   id: number;
   name: string;
   active: boolean;
-  verified: boolean;
-  kycStatus: string;
+  verified?: boolean;
+  kycStatus?: string;
   kycRejectedReason?: string;
 };
 type Link_ = { label: string; to: string; section: string };
@@ -50,14 +51,17 @@ export const ownerTabs: { label: string; to: string; sections: string[]; pages?:
   }
 ];
 
-function Tabs({ section }: { section: string }) {
+/** What front-desk staff can open: the day's appointments and taking payments. */
+export const deskSections = ['overview', 'bookings', 'payments'];
+function Tabs({ section, full }: { section: string; full: boolean }) {
   const [params] = useSearchParams();
   const spaQuery = params.get('spa') ? '?spa=' + encodeURIComponent(params.get('spa')!) : '';
-  const current = ownerTabs.find((t) => t.sections.includes(section));
+  const tabs = full ? ownerTabs : ownerTabs.filter((t) => deskSections.includes(t.sections[0]));
+  const current = tabs.find((t) => t.sections.includes(section));
   return (
     <div className="space-y-3">
       <nav aria-label="Owner workspace" className="flex flex-wrap lg:flex-col gap-1">
-        {ownerTabs.map((t) => (
+        {tabs.map((t) => (
           <Link
             key={t.label}
             to={t.to + spaQuery}
@@ -97,7 +101,7 @@ import PushAlerts from './PushAlerts';
 
 export default function OwnerPortal() {
   const { user } = useAuth();
-  if (!isStaff(user?.roles))
+  if (!isStaff(user?.roles) && !isDeskStaff(user?.roles))
     return (
       <div className="max-w-xl mx-auto p-8 space-y-4">
         <h1 className="text-2xl font-bold">Owner access required</h1>
@@ -113,12 +117,16 @@ export default function OwnerPortal() {
 function Portal() {
   const { user } = useAuth();
   const location = useLocation();
-  const section = location.pathname.split('/')[2] || 'overview';
+  // The owner (or manager) runs the whole spa; front-desk staff only the desk of the spas they were added to.
+  const full = isStaff(user?.roles);
+  const path = location.pathname.split('/')[2] || 'overview';
+  const section = full || deskSections.includes(path) ? path : 'overview';
   const [params, setParams] = useSearchParams();
   const selected = params.get('spa');
   const spas = useQuery({
-    queryKey: ['owner-spas', user?.id],
-    queryFn: async () => (await client.get<Spa[]>('/api/onboarding/spas')).data
+    queryKey: ['owner-spas', user?.id, full],
+    queryFn: async () =>
+      (await client.get<Spa[]>(full ? '/api/onboarding/spas' : '/api/owner/desk-spas')).data
   });
   const spa = spas.data?.find((s) => String(s.id) === selected) || spas.data?.[0];
   const id = spa ? String(spa.id) : '';
@@ -128,7 +136,7 @@ function Portal() {
         <div>
           <p className="text-sm text-primary-100">Nirvana Partners</p>
           <h1 className="text-3xl font-bold mt-1">{spa?.name || 'Your spa workspace'}</h1>
-          {spa && (
+          {spa && full && (
             <p className="mt-2 text-sm">
               {spa.active ? 'Published' : 'Unpublished'} · Verification {spa.kycStatus || 'pending'}
             </p>
@@ -154,7 +162,7 @@ function Portal() {
       </header>
       <div className="grid items-start gap-5 lg:grid-cols-[185px_minmax(0,1fr)]">
         <aside className="rounded-2xl border bg-white p-2 lg:p-3">
-          <Tabs section={section} />
+          <Tabs section={section} full={full} />
         </aside>
         <div className="min-w-0 space-y-5">
           {spas.isPending && <p>Loading your spas…</p>}
@@ -174,7 +182,7 @@ function Portal() {
             </>
           ) : spa ? (
             <>
-              {!spa.active && (
+              {full && !spa.active && (
                 <p>
                   Add your treatments and opening hours, and{' '}
                   <Link className="underline" to="/owner/onboarding">
@@ -184,11 +192,14 @@ function Portal() {
                 </p>
               )}
 
-              {section === 'overview' && user && (
+              {section === 'overview' && user && full && (
                 <PushAlerts key={user.id} user={String(user.id)} spa={id} />
               )}
               {(['overview', 'bookings', 'payments', 'customers', 'analytics'] as const).map(
-                (view) => section === view && <OwnerDesk key={id + view} id={id} section={view} />
+                (view) =>
+                  section === view && (
+                    <OwnerDesk key={id + view} id={id} section={view} owner={full} />
+                  )
               )}
               {section === 'availability' && (
                 <div className="space-y-6" key={id}>
@@ -214,8 +225,16 @@ function Portal() {
                 </Link>
               )}
               {section === 'settings' && <SpaSettings key={id} initialSpaId={id} />}
+              {section === 'settings' && <FrontDeskTeam key={'team' + id} spaId={id} />}
               {section === 'photos' && <Media key={id} spaId={id} />}
             </>
+          ) : !full ? (
+            !spas.isPending &&
+            !spas.isError && (
+              <p className="card p-6">
+                You aren&apos;t on any spa&apos;s front desk now. Ask the spa owner to add you again.
+              </p>
+            )
           ) : (
             !spas.isPending &&
             !spas.isError && (
@@ -240,7 +259,7 @@ function Portal() {
               </div>
             )
           )}
-          {!!spas.data?.length && section !== 'claim' && (
+          {full && !!spas.data?.length && section !== 'claim' && (
             <Link className="inline-block text-sm underline mt-3" to="/owner/claim">
               Add another spa from Google Maps
             </Link>

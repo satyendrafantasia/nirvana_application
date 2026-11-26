@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { isStaff, isAdmin, ownsSpas } from '../../auth/roles';
+import { isStaff, isAdmin, ownsSpas, isDeskStaff } from '../../auth/roles';
 const FeatureMenu = lazy(() => import('./FeatureMenu'));
 import Button from '../common/Button';
 
@@ -53,10 +53,14 @@ const Navbar = () => {
           {/* Admin-only accounts own no spa: their tools are in the Admin menu instead. */}
           {!(isAdmin(user?.roles) && !ownsSpas(user?.roles)) && (
             <NavLink
-              to={isStaff(user?.roles) ? '/owner' : '/owner/login'}
+              to={isStaff(user?.roles) || isDeskStaff(user?.roles) ? '/owner' : '/owner/login'}
               className="text-primary-700"
             >
-              {isStaff(user?.roles) ? 'Owner dashboard' : 'For spa owners'}
+              {isStaff(user?.roles)
+                ? 'Owner dashboard'
+                : isDeskStaff(user?.roles)
+                  ? 'Front desk'
+                  : 'For spa owners'}
             </NavLink>
           )}
           <NavLink to="/discover">Discover nearby</NavLink>

@@ -73,6 +73,7 @@ public class OwnerCatalogController {
             throw new IllegalStateException("Wait for reservation #"+h.getId()+" to expire");
         spa.setAllowTherapistSelection(input.names());spa.setAllowTherapistTypeSelection(input.labels());return input;
     }
+    @PreAuthorize("@staffAccess.desk(#spaId)") // the desk filters bookings by these
     @GetMapping("/therapists")
     public List<TherapistView> therapists(@PathVariable Long spaId){return therapists.findBySpa_IdOrderByNameAsc(spaId).stream().map(this::view).toList();}
     @PostMapping("/therapists")
@@ -116,6 +117,7 @@ public class OwnerCatalogController {
         t.getServices().clear();t.getServices().addAll(assigned);
         return view(therapists.saveAndFlush(t));
     }
+    @PreAuthorize("@staffAccess.desk(#spaId)")
     @GetMapping("/services")
     public List<ServiceView> services(@PathVariable Long spaId){return services.findBySpa_IdOrderByNameAsc(spaId).stream().map(this::view).toList();}
     @PostMapping("/services")

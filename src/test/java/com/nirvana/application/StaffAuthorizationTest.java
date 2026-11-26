@@ -78,7 +78,7 @@ class StaffAuthorizationTest {
   }
  }
  @Test void spaScopeAllowsOnlyAssignedOwner(){
-  var repo=mock(SpaRepository.class);var access=new StaffAccess(repo);
+  var repo=mock(SpaRepository.class);var access=new StaffAccess(repo,mock(org.springframework.jdbc.core.JdbcTemplate.class));
   SecurityContextHolder.getContext().setAuthentication(auth("ROLE_SPA_OWNER"));
   when(repo.existsByIdAndSpaManager_User_Id(10L,999999L)).thenReturn(true);
   try{assertTrue(access.spa(10L));assertFalse(access.spa(11L));assertFalse(access.admin());}finally{SecurityContextHolder.clearContext();}

@@ -76,6 +76,67 @@ class OwnerScheduleTest {
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE booking_id=? AND returned_at IS NOT NULL",Integer.class,booking));
 
     }
+    @Test @Transactional void theSpaMovesPartPaysAndShareTheDeskWithLimitedStaff() throws Exception {
+        ok(hours(List.of(interval("WORK",10,18))));
+        long[] slots={slot(11,0,1),slot(12,0,1),slot(13,0,1),slot(15,0,1)};
+        var result=book(slots[0],false);
+        assertEquals(2,result.status()/100,()->result.body().toString());
+        long booking=result.body().get("bookingId").asLong();
+        String desk="/api/owner/spas/1/desk/bookings/"+booking;
+        // Three moves by the spa: more than a guest may make, and none of them use up the guest's own changes.
+        for(int i=1;i<slots.length;i++)ok(owner(post(desk+"/move"),Map.of("slotId",slots[i],"reason","Therapist running late")));
+        entityManager.flush();
+        assertEquals(slots[3],jdbc.queryForObject("SELECT slot_id FROM booking WHERE id=?",Long.class,booking));
+        assertEquals(0,jdbc.queryForObject("SELECT COALESCE(reschedule_count,0) FROM booking WHERE id=?",Integer.class,booking));
+
+        int balance=jdbc.queryForObject("SELECT remainder_cents FROM booking WHERE id=?",Integer.class,booking);
+        org.junit.jupiter.api.Assumptions.assumeTrue(balance>100,"the fixture service needs a price");
+        // An advance, sent twice by a flaky connection, is recorded once.
+        for(int i=0;i<2;i++)ok(owner(post(desk+"/collect"),Map.of("method","UPI","amountCents",100,"requestKey","advance-"+booking)));
+        assertEquals(400,owner(post(desk+"/collect"),Map.of("method","CASH","amountCents",balance,"requestKey","too-much-"+booking)).status());
+        java.util.function.Supplier<MockHttpServletRequestBuilder> records=()->get("/api/owner/spas/1/desk/records").param("period","CUSTOM").param("from",day.toString()).param("to",day.toString());
+        var row=ok(owner(records.get(),null)).at("/items/0");
+        assertEquals("DUE_AT_SPA",row.get("payment").asText());
+        assertEquals(balance-100,row.get("payable").asInt());
+        ok(owner(post(desk+"/collect"),Map.of("method","CASH","tipCents",50,"requestKey","rest-"+booking)));
+        row=ok(owner(records.get(),null)).at("/items/0");
+        assertEquals("PAID_AT_SPA",row.get("payment").asText());
+        assertEquals(50,row.get("deskTips").asInt());
+
+        // Front-desk staff: the day's appointments yes; the money, voids and returns no.
+        long staff=jdbc.queryForObject("SELECT MIN(id) FROM app_user WHERE id NOT IN (2,3) AND email IS NOT NULL",Long.class);
+        String email=jdbc.queryForObject("SELECT email FROM app_user WHERE id=?",String.class,staff);
+        ok(owner(post("/api/owner/spas/1/staff"),Map.of("contact",email.toUpperCase())));
+        assertEquals(200,call(records.get(),staff,"ROLE_SPA_STAFF",null).status());
+        var summary=ok(call(get("/api/owner/spas/1/desk/summary"),staff,"ROLE_SPA_STAFF",null));
+        assertEquals("DESK",summary.get("access").asText());
+        assertFalse(summary.has("money"));
+        assertEquals(403,call(get("/api/owner/spas/1/desk/transactions.csv"),staff,"ROLE_SPA_STAFF",null).status());
+        assertEquals(403,call(post(desk+"/void"),staff,"ROLE_SPA_STAFF",Map.of("reason","Mistake")).status());
+        assertEquals(403,call(get("/api/owner/spas/1/desk/records").param("view","TRANSACTIONS"),staff,"ROLE_SPA_STAFF",null).status());
+        assertEquals(403,call(get("/api/owner/spas/2/desk/records"),staff,"ROLE_SPA_STAFF",null).status());
+        assertEquals(1,ok(call(get("/api/owner/desk-spas"),staff,"ROLE_SPA_STAFF",null)).size());
+
+        // The owner voids the last part, recorded by mistake: the balance is due again.
+        ok(owner(post(desk+"/void"),Map.of("reason","Recorded as cash, was UPI")));
+        row=ok(owner(records.get(),null)).at("/items/0");
+        assertEquals("DUE_AT_SPA",row.get("payment").asText());
+        assertEquals(100,row.get("deskPaid").asInt());
+        var full=ok(owner(get("/api/owner/spas/1/desk/summary"),null));
+        assertEquals("OWNER",full.get("access").asText());
+        assertTrue(full.has("payout"));
+        assertTrue(full.get("money").toString().contains("DESK"));
+
+        assertEquals(200,owner(delete("/api/owner/spas/1/staff/"+staff),null).status());
+        assertEquals(403,call(records.get(),staff,"ROLE_SPA_STAFF",null).status());
+
+        // A guest who signed up by phone and has no name still shows among visitors.
+        jdbc.update("UPDATE app_user SET name=NULL WHERE id=3");
+        jdbc.update("UPDATE booking SET status='COMPLETED' WHERE id=?",booking);
+        var visitors=ok(owner(get("/api/owner/spas/1/desk/records").param("view","VISITORS").param("period","CUSTOM")
+            .param("from",day.toString()).param("to",day.toString()),null));
+        assertTrue(java.util.stream.StreamSupport.stream(visitors.get("items").spliterator(),false).anyMatch(v->v.get("id").asLong()==3));
+    }
     @Test @Transactional void lunchAndLaterBookingUseEntireDuration() throws Exception {
         ok(hours(List.of(interval("WORK",10,18),interval("BREAK",13,14))));
         long noon=slot(12,0,3), lunch=slot(12,30,3), after=slot(14,0,3), earlier=slot(13,30,3);

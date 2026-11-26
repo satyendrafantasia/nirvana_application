@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Front-desk actions a spa takes on its own appointments. */
 @RestController
 @RequestMapping("/api/owner/spas/{spaId}/bookings/{bookingId}")
-@PreAuthorize("@staffAccess.spa(#spaId)")
+@PreAuthorize("@staffAccess.desk(#spaId)")
 @RequiredArgsConstructor
 public class OwnerBookingController {
 

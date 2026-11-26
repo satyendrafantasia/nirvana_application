@@ -34,7 +34,8 @@ type Summary = {
   arrivals: number;
   conflicts: number;
   packagesTrend: { day: string; sales: number; redemptions: number }[];
-  cashTrend: { day: string; currency: string; collected: number; refunds: number }[];
+  /** Owner only: the desk sees the day's work, not the takings. */
+  cashTrend?: { day: string; currency: string; collected: number; refunds: number }[];
   due: { currency: string; outstanding: number }[];
   timezone: string;
   today: string;
@@ -50,7 +51,10 @@ type Summary = {
     cancelled: number;
   }[];
   services: { name: string; visits: number; currency: string; valueCents: number }[];
-  money: { currency: string; collected: number; refunds: number }[];
+  /** Owner only. DESK is money taken at the spa; ONLINE is held by Nirvana and paid out after commission. */
+  money?: { currency: string; channel: 'DESK' | 'ONLINE'; collected: number; refunds: number; tips: number }[];
+  payout?: { currency: string; online: number; commission: number; commissionPct: number; payout: number }[];
+  access?: 'OWNER' | 'DESK';
 };
 type Row = {
   eventUtc: string;
@@ -88,6 +92,13 @@ type Row = {
   price: number;
   gatewayStatus?: string;
   deskMethod?: string;
+  /** Taken at the desk so far (part payments included), its tips, and when the latest part was taken. */
+  deskPaid?: number;
+  deskTips?: number;
+  deskCollectedUtc?: string;
+  deskReturned?: number;
+  channel?: 'DESK' | 'ONLINE';
+  tip?: number;
 };
 type Records = {
   items: Row[];
@@ -97,6 +108,12 @@ type Records = {
 };
 type Section = 'overview' | 'analytics' | 'bookings' | 'payments' | 'customers';
 const periodKeys = Object.keys(periods);
+const localDay = (v: string, zone: string) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date(v));
+const newKey = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
 function Notice({ error, retry }: { error: unknown; retry: () => void }) {
   return (
     <div role="alert" className="rounded-xl bg-rose-50 p-4">
@@ -108,7 +125,16 @@ function Notice({ error, retry }: { error: unknown; retry: () => void }) {
   );
 }
 
-export default function OwnerDesk({ id, section }: { id: string; section: Section }) {
+/** owner: the spa's owner or manager. Front-desk staff get the day's work without the money reports. */
+export default function OwnerDesk({
+  id,
+  section,
+  owner = true
+}: {
+  id: string;
+  section: Section;
+  owner?: boolean;
+}) {
   const [url, setUrl] = useSearchParams();
   const param = (key: string) => url.get(key) || '';
   const change = (fields: Record<string, string>) => {
@@ -179,7 +205,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
     change({ calendar: mode, period: 'CUSTOM', from: day, to: end.toISOString().slice(0, 10) });
   };
   const buyers = section === 'customers' && param('view') === 'BUYERS';
-  const ledger = section === 'payments' && param('view') === 'TRANSACTIONS';
+  const ledger = owner && section === 'payments' && param('view') === 'TRANSACTIONS';
   const view = ledger
     ? 'TRANSACTIONS'
     : section === 'customers'
@@ -329,31 +355,55 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                     className="underline"
                     to={link('bookings', { period: 'TODAY', upcoming: 'true' })}
                   >
-                    {s.arrivals} upcoming arrivals today
+                    {s.arrivals} still to arrive today
                   </Link>
-                  {s.conflicts > 0 && (
-                    <Link className="underline" to={link('availability')}>
-                      {s.conflicts} appointments with overlapping assignments or closures today
-                    </Link>
-                  )}
+                  {s.conflicts > 0 &&
+                    (owner ? (
+                      <Link className="underline" to={link('availability')}>
+                        {s.conflicts} scheduling {s.conflicts === 1 ? 'clash' : 'clashes'} today
+                      </Link>
+                    ) : (
+                      <span>
+                        {s.conflicts} scheduling {s.conflicts === 1 ? 'clash' : 'clashes'} today
+                      </span>
+                    ))}
                 </div>
               </div>
               <div className="card p-5">
-                <h3 className="font-semibold">Collections & refunds</h3>
-                {s.money.length ? (
-                  s.money.map((m) => (
-                    <div key={m.currency}>
-                      <strong className="text-xl">
-                        {money(m.collected - m.refunds, m.currency)} net
-                      </strong>
-                      <p>
-                        {money(m.collected, m.currency)} collected · {money(m.refunds, m.currency)}{' '}
-                        refunded
+                {s.money && (
+                  <>
+                    <h3 className="font-semibold">Collections & refunds</h3>
+                    {s.money.length ? (
+                      s.money.map((m) => (
+                        <div key={m.currency + m.channel} className="mb-2">
+                          <p className="text-sm text-slate-600">
+                            {m.channel === 'DESK'
+                              ? 'Taken at your desk'
+                              : 'Paid online · held by Nirvana until payout'}
+                          </p>
+                          <strong className="text-xl">
+                            {money(m.collected - m.refunds, m.currency)} net
+                          </strong>
+                          <p className="text-sm">
+                            {money(m.collected, m.currency)} collected ·{' '}
+                            {money(m.refunds, m.currency)} refunded
+                            {m.tips > 0 && ' · ' + money(m.tips, m.currency) + ' in tips'}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p>No recorded money movements for these dates.</p>
+                    )}
+                    {s.payout?.map((p) => (
+                      <p key={p.currency} className="text-sm">
+                        Expected payout from Nirvana:{' '}
+                        <strong>{money(p.payout, p.currency)}</strong> (
+                        {money(p.online, p.currency)} online less {p.commissionPct}% commission,{' '}
+                        {money(p.commission, p.currency)}). An estimate: the payout statement is
+                        final.
                       </p>
-                    </div>
-                  ))
-                ) : (
-                  <p>No recorded money movements for these dates.</p>
+                    ))}
+                  </>
                 )}
                 <Link
                   className="block underline"
@@ -445,7 +495,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                       }
                     >
                       <option value="APPOINTMENTS">Appointment balances</option>
-                      <option value="TRANSACTIONS">Collections & refunds</option>
+                      {owner && <option value="TRANSACTIONS">Collections & refunds</option>}
                     </select>
                   </label>
                   {ledger && (
@@ -604,7 +654,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                       })}
                     </h4>
                     {matches.map((b) => (
-                      <Appointment key={b.id} row={b} zone={r.timezone} spa={id} />
+                      <Appointment key={b.id} row={b} zone={r.timezone} spa={id} owner={owner} />
                     ))}
                     {!matches.length && <p className="text-sm">No appointments on this page.</p>}
                   </section>
@@ -620,9 +670,11 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
               ledger ? (
                 <article key={row.source + row.reference + row.eventUtc} className="border-t py-3">
                   <strong>{money(row.collected - row.refunded, row.currency)}</strong> ·{' '}
-                  {row.source}
+                  {row.source} ·{' '}
+                  {row.channel === 'DESK' ? 'held by the spa' : 'held by Nirvana until payout'}
                   <p>
                     {when(row.eventUtc, r.timezone)} · {row.reference} · {row.method}
+                    {!!row.tip && ' · ' + money(row.tip, row.currency) + ' tip'}
                   </p>
                   {row.receipt && <small>Receipt {row.receipt}</small>}
                 </article>
@@ -648,7 +700,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                   )}
                 </article>
               ) : (
-                <Appointment key={row.id} row={row} zone={r.timezone} spa={id} />
+                <Appointment key={row.id} row={row} zone={r.timezone} spa={id} owner={owner} />
               )
             )
           )}
@@ -859,7 +911,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
           )}
         </section>
       )}
-      {section === 'analytics' && s && (
+      {section === 'analytics' && s?.cashTrend && (
         <section className="card p-5">
           <h3 className="font-semibold text-lg">Collections and refunds over time</h3>
           {s.cashTrend.length ? (
@@ -875,7 +927,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                     value={v.collected}
                     max={Math.max(
                       1,
-                      ...s.cashTrend
+                      ...(s.cashTrend ?? [])
                         .filter((x) => x.currency === v.currency)
                         .map((x) => Math.max(x.collected, x.refunds))
                     )}
@@ -886,7 +938,7 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
                     value={v.refunds}
                     max={Math.max(
                       1,
-                      ...s.cashTrend
+                      ...(s.cashTrend ?? [])
                         .filter((x) => x.currency === v.currency)
                         .map((x) => Math.max(x.collected, x.refunds))
                     )}
@@ -918,7 +970,17 @@ export default function OwnerDesk({ id, section }: { id: string; section: Sectio
   );
 }
 
-function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: string }) {
+function Appointment({
+  row: b,
+  zone,
+  spa,
+  owner
+}: {
+  row: Row;
+  zone: string;
+  spa: string;
+  owner: boolean;
+}) {
   const [showHistory, setShowHistory] = useState(false);
   const history = useQuery({
     queryKey: ['desk', spa, 'history', b.id],
@@ -935,6 +997,12 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
   const [day, setDay] = useState('');
   const [slot, setSlot] = useState('');
   const [method, setMethod] = useState('CASH');
+  // A desk payment: the amount (a part payment is fine), a tip, and a key so a retry lands once.
+  const [amount, setAmount] = useState('');
+  const [tip, setTip] = useState('');
+  const [key, setKey] = useState('');
+  const rupees = (v: string) => Math.round(Number(v || 0) * 100);
+  const amountOk = rupees(amount) > 0 && rupees(amount) <= b.payable && rupees(tip) >= 0;
   const qc = useQueryClient();
   const slots = useQuery({
     queryKey: ['desk-slots', spa, b.serviceId, b.guests, day],
@@ -960,11 +1028,23 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
           accept: mode === 'confirm',
           reason
         });
-      else if (mode === 'move' || mode === 'collect' || mode === 'return')
-        await client.post(
-          prefix + '/desk/bookings/' + b.id + '/' + mode,
-          mode === 'move' ? { slotId: Number(slot), reason } : { method, reference: reason }
-        );
+      else if (mode === 'move')
+        await client.post(prefix + '/desk/bookings/' + b.id + '/move', {
+          slotId: Number(slot),
+          reason
+        });
+      else if (mode === 'collect')
+        await client.post(prefix + '/desk/bookings/' + b.id + '/collect', {
+          method,
+          reference: reason,
+          amountCents: rupees(amount),
+          tipCents: rupees(tip),
+          requestKey: key
+        });
+      else if (mode === 'return')
+        await client.post(prefix + '/desk/bookings/' + b.id + '/return');
+      else if (mode === 'void')
+        await client.post(prefix + '/desk/bookings/' + b.id + '/void', { reason });
       else
         await client.post(
           prefix + '/bookings/' + b.id + '/' + mode,
@@ -988,9 +1068,19 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
   if (b.status === 'CONFIRMED' && Date.parse(b.startUtc) > Date.now())
     actions.push({ path: 'move', label: 'Reschedule' });
   if (canSpaCancel(shape)) actions.push({ path: 'cancel', label: 'Cancel booking' });
-  if (b.payment === 'PAID_AT_SPA' && b.status === 'CANCELLED')
+  const tookMoney = !!b.deskPaid && !b.deskReturned;
+  if (owner && tookMoney && b.status === 'CANCELLED')
     actions.push({ path: 'return', label: 'Record money returned' });
-  if (b.payment === 'DUE_AT_SPA') actions.push({ path: 'collect', label: 'Record payment' });
+  if (b.payment === 'DUE_AT_SPA')
+    actions.push({ path: 'collect', label: b.deskPaid ? 'Record next payment' : 'Record payment' });
+  // A payment recorded by mistake can be voided by the owner on the day it was recorded.
+  if (
+    owner &&
+    tookMoney &&
+    b.deskCollectedUtc &&
+    localDay(b.deskCollectedUtc, zone) === localDay(new Date().toISOString(), zone)
+  )
+    actions.push({ path: 'void', label: 'Void last desk payment' });
   return (
     <article className="border-t py-4 space-y-2">
       <div className="flex flex-wrap justify-between gap-2">
@@ -1028,6 +1118,8 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
           </p>
           <p>
             {b.reference}
+            {!!b.deskPaid && ' · ' + money(b.deskPaid, b.currency) + ' paid at desk'}
+            {!!b.deskTips && ' + ' + money(b.deskTips, b.currency) + ' tip'}
             {b.payment === 'DUE_AT_SPA' && ' · ' + money(b.payable, b.currency) + ' due'}
           </p>
         </div>
@@ -1043,6 +1135,11 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
               setMode(a.path);
               setReason('');
               setSlot('');
+              if (a.path === 'collect') {
+                setAmount((b.payable / 100).toFixed(2));
+                setTip('');
+                setKey(newKey());
+              }
             }}
           >
             {a.label}
@@ -1118,14 +1215,58 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
             </div>
           )}
           {mode === 'collect' && (
-            <label className="grid">
-              Payment received · {money(b.payable, b.currency)}
-              <select className={input} value={method} onChange={(e) => setMethod(e.target.value)}>
-                {['CASH', 'UPI', 'CARD'].map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <label className="grid">
+                Method
+                <select
+                  className={input}
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                >
+                  {['CASH', 'UPI', 'CARD'].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid">
+                Amount received (balance {money(b.payable, b.currency)})
+                <input
+                  className={input}
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  max={(b.payable / 100).toFixed(2)}
+                  required
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </label>
+              <label className="grid">
+                Tip (optional)
+                <input
+                  className={input}
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={tip}
+                  onChange={(e) => setTip(e.target.value)}
+                />
+              </label>
+              {rupees(amount) > 0 && rupees(amount) < b.payable && (
+                <p className="w-full text-sm">
+                  Part payment: {money(b.payable - rupees(amount), b.currency)} will still be due.
+                </p>
+              )}
+            </div>
+          )}
+          {mode === 'void' && (
+            <p>
+              This removes the last desk payment from the records, so its balance is due again. Use
+              it only for a payment recorded by mistake. The appointment history keeps what was
+              removed and why.
+            </p>
           )}
           {mode === 'return' && (
             <p>
@@ -1140,13 +1281,13 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
               customer.
             </p>
           )}
-          {['cancel', 'decline', 'collect', 'move'].includes(mode) && (
+          {['cancel', 'decline', 'collect', 'move', 'void'].includes(mode) && (
             <label className="grid">
               {mode === 'collect' ? 'Receipt reference (optional)' : 'Reason'}
               <input
                 className={input}
                 value={reason}
-                required={mode === 'cancel' || mode === 'decline'}
+                required={mode === 'cancel' || mode === 'decline' || mode === 'void'}
                 maxLength={mode === 'collect' ? 80 : 300}
                 onChange={(e) => setReason(e.target.value)}
               />
@@ -1159,7 +1300,8 @@ function Appointment({ row: b, zone, spa }: { row: Row; zone: string; spa: strin
               disabled={
                 action.isPending ||
                 (mode === 'move' && !slot) ||
-                ((mode === 'cancel' || mode === 'decline') && !reason.trim())
+                (mode === 'collect' && !amountOk) ||
+                ((mode === 'cancel' || mode === 'decline' || mode === 'void') && !reason.trim())
               }
             >
               Confirm{' '}
