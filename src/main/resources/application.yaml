@@ -295,6 +295,11 @@ app:
   scheduling:
     # Background jobs: payment reconciliation, unpaid-booking expiry, auto-completion.
     enabled: ${SCHEDULING_ENABLED:true}
+  health-forms:
+    # Guest health answers are encrypted with AES-256-GCM. Base64 of 32 random bytes; without it the form is off.
+    encryption-key: ${HEALTH_FORM_KEY:}
+    # Answers are deleted this many days after the visit (at once for a cancelled booking).
+    retention-days: ${HEALTH_FORM_RETENTION_DAYS:90}
   flyway:
     # Flyway repair rewrites migration history. Run it deliberately, never on every start.
     repair-on-migrate: ${FLYWAY_REPAIR_ON_MIGRATE:false}
