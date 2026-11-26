@@ -50,3 +50,10 @@ CREATE TABLE spa_payout_account (
   UNIQUE KEY uk_payout_account_route (route_account_id),
   CONSTRAINT fk_payout_account_spa FOREIGN KEY (spa_id) REFERENCES spa(id)
 );
+
+-- Business days are settled one way or the other: by a payout (payout_id set) or by a manual bank statement
+-- matched on Payments > Payout statements (payout_id NULL). The primary key keeps a day from being both.
+ALTER TABLE payout_business_day
+  ADD COLUMN payout_id BIGINT NULL,
+  ADD KEY ix_payout_business_day_payout (payout_id),
+  ADD CONSTRAINT fk_payout_business_day_payout FOREIGN KEY (payout_id) REFERENCES payout(id);

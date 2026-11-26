@@ -135,6 +135,44 @@ class PayoutTest {
         assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM payout_item WHERE payout_id=?", Integer.class, p.get("id")));
     }
 
+    /** Payouts and the manual bank statement (Payments, Payout statements) never settle the same business day. */
+    @Test @Transactional void daysOnAManualBankStatementAreNotPaidAgainAndViceVersa() throws Exception {
+        var zone = java.time.ZoneId.of(jdbc.queryForObject("SELECT COALESCE(NULLIF(timezone,''),'Asia/Kolkata') FROM spa WHERE id=1", String.class));
+        var manualDay = java.time.LocalDate.now(zone).minusDays(6);
+        var manualAt = manualDay.atTime(12, 0).atZone(zone).withZoneSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime();
+        long a = f.booking(), b = f.booking();
+        long payA = f.payment(a, 40_000, manualAt);
+        long payB = f.payment(b, 60_000, daysAgo(3));
+        String manualRef = "NEFT-" + java.util.UUID.randomUUID().toString().substring(0, 10);
+        java.util.function.Function<java.time.LocalDate, Map<String, Object>> statement = d -> {
+            var m = new java.util.HashMap<String, Object>(Map.of("date", d.toString(), "periodStart", d.toString(), "currency", "INR",
+                    "cash", 0, "card", 0, "upi", 0, "transferred", 36_000, "transferDate", d.toString(), "adjustment", 0));
+            m.put("reference", manualRef);
+            return m;
+        };
+        ok(f.admin(post("/api/owner/spas/1/finance/PAYOUT"), statement.apply(manualDay)));
+
+        payouts.run(daysAgo(1));
+        var p = f.latest();
+        long id = ((Number) p.get("id")).longValue();
+        assertEquals(60_000L, ((Number) p.get("gross_cents")).longValue(), "the manually settled day is left out");
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM payout_item WHERE kind='BOOKING' AND source_id=?", Integer.class, payA));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM payout_item WHERE kind='BOOKING' AND source_id=?", Integer.class, payB));
+        var payoutDay = daysAgo(3).atZone(java.time.ZoneOffset.UTC).withZoneSameInstant(zone).toLocalDate();
+        assertEquals(id, jdbc.queryForObject("SELECT payout_id FROM payout_business_day WHERE spa_id=1 AND currency='INR' AND covered_date=?", Long.class, payoutDay));
+
+        // The payout's day can't then go on a manual statement; one bank reference settles one statement.
+        var overlap = statement.apply(payoutDay);
+        overlap.put("reference", manualRef + "-2");
+        assertNotEquals(200, f.admin(post("/api/owner/spas/1/finance/PAYOUT"), overlap).status());
+        assertEquals(409, f.admin(post("/api/admin/payouts/" + id + "/mark-paid"), Map.of("reference", manualRef)).status());
+        assertEquals("PENDING", payouts.payout(id).get("status"));
+        ok(f.admin(post("/api/admin/payouts/" + id + "/mark-paid"), Map.of("reference", manualRef + "-3")));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM spa_transfer_reference WHERE reference_no=?", Integer.class, manualRef + "-3"));
+        var unmatched = ok(f.admin(get("/api/owner/spas/1/finance/unmatched").param("through", java.time.LocalDate.now(zone).toString()).param("currency", "INR"), null));
+        assertFalse(unmatched.toString().contains(payoutDay.toString()), "a paid payout's days count as matched");
+    }
+
     @Test void onlyTheOwnerAndAdminsSeePayouts() throws Exception {
         assertEquals(403, f.call(get("/api/owner/spas/1/payouts"), 3, "ROLE_USER", null).status());
         assertEquals(403, f.call(get("/api/owner/spas/1/payouts"), 3, "ROLE_SPA_STAFF", null).status());

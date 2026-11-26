@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -97,10 +98,10 @@ public class PayoutService {
             for (var group : groups.values()) {
                 try {
                     Long id = tx.execute(s -> settle(group, cutoff));
-                    if (id == null) carried++; else created++;
-                } catch (DuplicateKeyException e) {
-                    // Another run took these items first: they're settled, just not by us.
-                    log.info("event=payout.items_taken spa={}", group.get(0).get("spa"));
+                    if (id == null) carried++; else if (id > 0) created++;
+                } catch (DuplicateKeyException | ReconciledElsewhere e) {
+                    // Another run, or a manual bank statement, took these items first: they're settled, just not by us.
+                    log.info("event=payout.items_taken spa={} reason={}", group.get(0).get("spa"), e.getClass().getSimpleName());
                 }
             }
             int[] sent = sendDue();
@@ -111,16 +112,50 @@ public class PayoutService {
         }
     }
 
-    /** Writes one payout for a spa's unsettled items; null when what's owed is negative (carried forward). */
-    private Long settle(List<Map<String, Object>> items, LocalDateTime cutoff) {
-        long spa = num(items.get(0).get("spa"));
-        String currency = String.valueOf(items.get(0).get("currency"));
+    /** A spa business day was matched to a manual bank statement while this payout was being written. */
+    static class ReconciledElsewhere extends RuntimeException {
+        ReconciledElsewhere() { super("Business day already on a manual payout statement", null, false, false); }
+    }
+
+    /** The spa's time zone, which decides an item's business day (as on the shift and payout statements). */
+    private ZoneId zone(long spa) {
+        String tz = db.queryForObject("SELECT timezone FROM spa WHERE id=:spa", Map.of("spa", spa), String.class);
+        try { return tz == null || tz.isBlank() ? props.getZone() : ZoneId.of(tz); } catch (java.time.DateTimeException e) { return props.getZone(); }
+    }
+
+    private static LocalDate businessDay(Object at, ZoneId zone) {
+        return time(at).atZone(ZoneOffset.UTC).withZoneSameInstant(zone).toLocalDate();
+    }
+
+    /**
+     * Leaves out money on business days an admin already matched to a bank transfer on the manual payout
+     * statement (Payments, Payout statements): that money was paid outside a payout.
+     */
+    private List<Map<String, Object>> notReconciled(List<Map<String, Object>> items, long spa, String currency, ZoneId zone) {
+        var manual = new HashSet<>(db.queryForList("SELECT covered_date FROM payout_business_day WHERE spa_id=:spa AND currency=:currency AND payout_id IS NULL",
+                Map.of("spa", spa, "currency", currency), LocalDate.class));
+        if (manual.isEmpty()) return items;
+        return items.stream().filter(i -> !manual.contains(businessDay(i.get("at"), zone))).toList();
+    }
+
+    /**
+     * Writes one payout for a spa's unsettled items; null when what's owed is negative (carried forward), 0 when
+     * every item was on a manually reconciled day. Claims the items' business days in payout_business_day, the
+     * table the manual payout statement uses, so a day is settled one way or the other, never both.
+     */
+    private Long settle(List<Map<String, Object>> all, LocalDateTime cutoff) {
+        long spa = num(all.get(0).get("spa"));
+        String currency = String.valueOf(all.get(0).get("currency"));
+        // Locks the spa like the manual statement does, so the two can't settle the same day at once.
+        Integer pct = db.queryForObject("SELECT commission_pct FROM spa WHERE id=:spa FOR UPDATE", Map.of("spa", spa), Integer.class);
+        ZoneId zone = zone(spa);
+        var items = notReconciled(all, spa, currency, zone);
+        if (items.isEmpty()) return 0L;
         long gross = 0, refunds = 0;
         for (var i : items) {
             long amount = num(i.get("amount"));
             if (amount > 0) gross += amount; else refunds -= amount;
         }
-        Integer pct = db.queryForObject("SELECT commission_pct FROM spa WHERE id=:spa", Map.of("spa", spa), Integer.class);
         var split = PayoutMath.split(gross, refunds, pct == null ? 0 : pct);
         if (split.net() < 0) return null;
         if (split.net() > Integer.MAX_VALUE) throw new IllegalStateException("Payout too large for spa " + spa);
@@ -147,6 +182,16 @@ public class PayoutService {
         db.batchUpdate("INSERT INTO payout_item(payout_id,kind,source_id,source_seq,amount_cents,occurred_at,reference) VALUES(:payout,:kind,:sourceId,:seq,:amount,:at,:reference)",
                 items.stream().map(i -> { var m = new HashMap<>(i); m.put("payout", id); return new MapSqlParameterSource(m); })
                         .toArray(MapSqlParameterSource[]::new));
+        var days = items.stream().map(i -> businessDay(i.get("at"), zone)).collect(Collectors.toCollection(TreeSet::new));
+        LocalDate statementDay = cutoff.minusNanos(1).atZone(ZoneOffset.UTC).withZoneSameInstant(zone).toLocalDate();
+        db.batchUpdate("""
+            INSERT INTO payout_business_day(spa_id,currency,covered_date,statement_date,payout_id) VALUES(:spa,:currency,:day,:statement,:payout)
+            ON DUPLICATE KEY UPDATE spa_id=spa_id
+            """, days.stream().map(d -> new MapSqlParameterSource(Map.of("spa", spa, "currency", currency, "day", d,
+                "statement", statementDay, "payout", id))).toArray(MapSqlParameterSource[]::new));
+        Integer manual = db.queryForObject("SELECT COUNT(*) FROM payout_business_day WHERE spa_id=:spa AND currency=:currency AND covered_date IN (:days) AND payout_id IS NULL",
+                Map.of("spa", spa, "currency", currency, "days", days), Integer.class);
+        if (manual != null && manual > 0) throw new ReconciledElsewhere();
         return id;
     }
 
@@ -244,12 +289,21 @@ public class PayoutService {
         var p = payout(id);
         if ("IN_PROGRESS".equals(p.get("status")) && p.get("transferId") != null)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A Razorpay transfer is in flight for this payout; wait for it to finish");
+        // Bank references are shared with the manual payout statement: one transfer settles one statement.
+        Integer used = db.queryForObject("SELECT COUNT(*) FROM spa_transfer_reference WHERE reference_no=:ref", Map.of("ref", ref), Integer.class);
+        if (used != null && used > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "That reference is already recorded on a payout statement");
+        var end = p.get("periodEnd") == null ? now() : time(p.get("periodEnd"));
+        LocalDate day = end.minusNanos(1).atZone(ZoneOffset.UTC).withZoneSameInstant(zone(num(p.get("spaId")))).toLocalDate();
         try {
-            int n = db.update("""
-                UPDATE payout SET status='COMPLETED',transfer_id=:ref,provider=COALESCE(provider,'MANUAL'),failure_reason=NULL,paid_at=:now,updated_at=:now
-                WHERE id=:id AND status<>'COMPLETED'
-                """, Map.of("ref", ref, "now", now(), "id", id));
-            if (n != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "This payout is already paid");
+            tx.executeWithoutResult(s -> {
+                db.update("INSERT INTO spa_transfer_reference(reference_no,spa_id,business_date,currency) VALUES(:ref,:spa,:day,:currency)",
+                        Map.of("ref", ref, "spa", p.get("spaId"), "currency", p.get("currency"), "day", day));
+                int n = db.update("""
+                    UPDATE payout SET status='COMPLETED',transfer_id=:ref,provider=COALESCE(provider,'MANUAL'),failure_reason=NULL,paid_at=:now,updated_at=:now
+                    WHERE id=:id AND status<>'COMPLETED'
+                    """, Map.of("ref", ref, "now", now(), "id", id));
+                if (n != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "This payout is already paid");
+            });
         } catch (DuplicateKeyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "That reference is already recorded on another payout");
         }
@@ -284,8 +338,12 @@ public class PayoutService {
         var rows = db.queryForList(UNSETTLED.replace("WHERE e.spa IS NOT NULL", "WHERE e.spa=:spa"),
                 Map.of("spa", spa, "cutoff", now(), "since", since));
         Integer pct = db.queryForObject("SELECT commission_pct FROM spa WHERE id=:spa", Map.of("spa", spa), Integer.class);
+        ZoneId zone = zone(spa);
         var byCurrency = new TreeMap<String, long[]>();
-        for (var r : rows) {
+        var kept = new ArrayList<Map<String, Object>>();
+        rows.stream().collect(Collectors.groupingBy(r -> String.valueOf(r.get("currency"))))
+            .forEach((currency, list) -> kept.addAll(notReconciled(list, spa, currency, zone)));
+        for (var r : kept) {
             long amount = num(r.get("amount"));
             var t = byCurrency.computeIfAbsent(String.valueOf(r.get("currency")), c -> new long[3]);
             if (amount > 0) t[0] += amount; else t[1] -= amount;
