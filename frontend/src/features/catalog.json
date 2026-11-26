@@ -807,16 +807,6 @@
             "$ref": "#/components/schemas/ConsentUpdateRequest"
           },
           "multipart": false
-        },
-        {
-          "title": "Request data erasure",
-          "method": "POST",
-          "path": "/api/privacy/erase",
-          "parameters": [],
-          "body": {
-            "$ref": "#/components/schemas/DataErasureRequest"
-          },
-          "multipart": false
         }
       ]
     },
@@ -3422,22 +3412,6 @@
           "format": "date-time"
         }
       }
-    },
-    "DataErasureRequest": {
-      "type": "object",
-      "properties": {
-        "reason": {
-          "type": "string",
-          "maxLength": 256,
-          "minLength": 0
-        },
-        "confirmationKeyword": {
-          "type": "string",
-          "maxLength": 16,
-          "minLength": 0
-        }
-      },
-      "required": ["confirmationKeyword", "reason"]
     },
     "Address": {
       "type": "object",

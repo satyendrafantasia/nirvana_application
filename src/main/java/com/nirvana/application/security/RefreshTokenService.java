@@ -20,9 +20,17 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
+    private final com.nirvana.application.service.erasure.AccountErasureLog erasureLog;
 
     @Transactional
     public RefreshToken issue(User user, String deviceFingerprint, String userAgent, String ipAddress) {
+        if (user.getDataErasedAt() != null)
+            throw new org.springframework.security.authentication.DisabledException("This account has been deleted");
+        if (user.getDataErasureRequestedAt() != null) {
+            // Every sign-in method ends here, so signing in during the grace period keeps the account.
+            user.setDataErasureRequestedAt(null);
+            erasureLog.cancelOnSignIn(user.getId());
+        }
         OffsetDateTime now = OffsetDateTime.now();
         RefreshToken token = RefreshToken.builder()
                 .user(user)

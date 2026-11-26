@@ -1,8 +1,6 @@
 package com.nirvana.application.controller;
 
-import com.nirvana.application.model.User;
 import com.nirvana.application.model.dto.ConsentUpdateRequest;
-import com.nirvana.application.model.dto.DataErasureRequest;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.ComplianceService;
 import jakarta.validation.Valid;
@@ -25,12 +23,6 @@ public class ComplianceController {
     public java.util.Map<String,String> updateConsent(@Valid @RequestBody ConsentUpdateRequest request) {
         complianceService.recordConsent(resolveUserId(), request);
         return java.util.Map.of("message", "Privacy preferences saved");
-    }
-
-    @PostMapping("/erase")
-    public java.util.Map<String,String> erase(@Valid @RequestBody DataErasureRequest request) {
-        complianceService.eraseUserData(resolveUserId(), request);
-        return java.util.Map.of("message", "Your personal data has been erased");
     }
 
     private Long resolveUserId() {
