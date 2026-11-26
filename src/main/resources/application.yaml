@@ -149,6 +149,16 @@ payments:
     auto-capture: true             # payment_capture = 1
     description-prefix: "Nirvana Spa Booking"
 
+# Spa payouts: what Nirvana owes each spa for online money, settled weekly. MANUAL (the default) writes
+# statements and an admin records the bank transfer; RAZORPAY_ROUTE also transfers through Razorpay Route
+# (needs payments.razorpay keys, and Route with direct transfers enabled on the Razorpay account).
+payouts:
+  provider: ${PAYOUTS_PROVIDER:MANUAL}
+  hold-days: ${PAYOUTS_HOLD_DAYS:2}
+  since: ${PAYOUTS_SINCE:}
+  zone: ${PAYOUTS_ZONE:Asia/Kolkata}
+  cron: ${PAYOUTS_CRON:0 30 3 * * MON}
+
 notifications:
   sendgrid:
     enabled: false

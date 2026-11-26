@@ -86,6 +86,7 @@ describe('Owner entry and access boundaries', () => {
       'Overview',
       'Bookings',
       'Payments',
+      'Payouts',
       'Customers',
       'Analytics',
       'Schedule',

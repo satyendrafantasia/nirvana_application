@@ -16,6 +16,7 @@ import OwnerCatalog from './OwnerCatalog';
 import ClaimListing from './ClaimListing';
 import Media from '../Staff/Media';
 import FrontDeskTeam from './FrontDeskTeam';
+import Payouts from './Payouts';
 type Spa = {
   id: number;
   name: string;
@@ -30,6 +31,7 @@ export const ownerTabs: { label: string; to: string; sections: string[]; pages?:
   { label: 'Overview', to: '/owner', sections: ['overview'] },
   { label: 'Bookings', to: '/owner/bookings', sections: ['bookings'] },
   { label: 'Payments', to: '/owner/payments', sections: ['payments'] },
+  { label: 'Payouts', to: '/owner/payouts', sections: ['payouts'] },
   { label: 'Customers', to: '/owner/customers', sections: ['customers'] },
   { label: 'Analytics', to: '/owner/analytics', sections: ['analytics'] },
   { label: 'Schedule', to: '/owner/availability', sections: ['availability'] },
@@ -238,6 +240,7 @@ function Portal() {
               {section === 'settings' && <SpaSettings key={id} initialSpaId={id} />}
               {section === 'settings' && <FrontDeskTeam key={'team' + id} spaId={id} />}
               {section === 'photos' && <Media key={id} spaId={id} />}
+              {section === 'payouts' && <Payouts key={id} spaId={id} />}
             </>
           ) : !full ? (
             !spas.isPending &&

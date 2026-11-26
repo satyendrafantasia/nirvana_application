@@ -3,6 +3,7 @@ package com.nirvana.application.controller;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
+import com.nirvana.application.service.payout.PayoutMath;
 import java.util.*;
 
 @Service
@@ -56,17 +57,16 @@ class OwnerFinance {
     }
     /**
      * What Nirvana owes the spa for these dates: online money in, less online refunds, less commission.
-     * An estimate; the payout statement is what's actually paid.
+     * An estimate; the payout statement is what's actually paid. Both use the same maths ({@link PayoutMath}).
      */
     static List<Map<String,Object>> payout(List<Map<String,Object>> totals,int commissionPct){
         var out=new ArrayList<Map<String,Object>>();
         for(var t:totals){
             if(!"ONLINE".equals(t.get("channel")))continue;
-            long net=num(t.get("collected"))-num(t.get("refunds"));
-            long commission=Math.round(Math.max(0,net)*commissionPct/100.0);
+            var split=PayoutMath.split(num(t.get("collected")),num(t.get("refunds")),commissionPct);
             var row=new LinkedHashMap<String,Object>();
-            row.put("currency",t.get("currency"));row.put("online",net);row.put("commission",commission);
-            row.put("commissionPct",commissionPct);row.put("payout",net-commission);
+            row.put("currency",t.get("currency"));row.put("online",split.online());row.put("commission",split.commission());
+            row.put("commissionPct",commissionPct);row.put("payout",split.net());
             out.add(row);
         }
         return out;
