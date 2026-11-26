@@ -45,6 +45,7 @@ export const ADMIN_MENU: { group: string; items: { to: string; label: string }[]
     group: 'Business',
     items: [
       { to: '/features/corporates', label: 'Corporate partners' },
+      { to: '/admin/payouts', label: 'Spa payouts' },
       { to: '/features/coupons', label: 'Coupons' },
       { to: '/admin/gift-cards', label: 'Gift cards' },
       { to: '/features/content', label: 'Help content & notifications' }

@@ -4,6 +4,7 @@ const paths = new Set([
   '/admin/city-discovery',
   '/admin/listing-claims',
   '/admin/spa-leads',
+  '/admin/payouts',
   '/staff/media',
   '/packages',
   '/me/packages',

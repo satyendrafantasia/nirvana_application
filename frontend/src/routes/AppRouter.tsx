@@ -11,6 +11,7 @@ const Media = lazy(() => import('../pages/Staff/Media'));
 const CityDiscovery = lazy(() => import('../pages/Staff/CityDiscovery'));
 const ListingClaims = lazy(() => import('../pages/Staff/ListingClaims'));
 const SpaLeads = lazy(() => import('../pages/Staff/SpaLeads'));
+const AdminPayouts = lazy(() => import('../pages/Staff/AdminPayouts'));
 const Home = lazy(() => import('../pages/Home/Home'));
 const SpaSearch = lazy(() => import('../pages/SpaSearch/SpaSearch'));
 const SpaDetails = lazy(() => import('../pages/SpaDetails/SpaDetails'));
@@ -78,6 +79,14 @@ const AppRouter = () => {
         element={
           <RequireAuth>
             <SpaLeads />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/payouts"
+        element={
+          <RequireAuth>
+            <AdminPayouts />
           </RequireAuth>
         }
       />

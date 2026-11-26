@@ -65,16 +65,16 @@ public class FinancialReports {
             if(input.reference()==null || input.reference().isBlank() || input.transferDate()==null || input.transferDate().isAfter(LocalDate.now(zone)))throw new IllegalArgumentException("Enter the completed transfer date and bank reference");
             long gross=0,refunds=0;
             for(var row:lines){gross+=amount(row,"collected");refunds+=amount(row,"refunded");}
-            long commission=Math.round(Math.max(0,gross-refunds)*((Number)settings.get("commission_pct")).doubleValue()/100);
+            long commission=com.nirvana.application.service.payout.PayoutMath.split(gross,refunds,((Number)settings.get("commission_pct")).intValue()).commission();
             long expected=gross-refunds-commission+input.adjustment();
             if(input.adjustment()!=0 && !explanation)throw new IllegalArgumentException("Explain the payout adjustment");
             details.put("periodStart",start);
             for(LocalDate d=start;!d.isAfter(input.date());d=d.plusDays(1)){
                 db.update("INSERT INTO payout_business_day(spa_id,currency,covered_date,statement_date) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE spa_id=spa_id",spa,input.currency(),d,input.date());
-                if(db.queryForObject("SELECT COUNT(*) FROM payout_business_day WHERE spa_id=? AND currency=? AND covered_date=? AND statement_date=?",Integer.class,spa,input.currency(),d,input.date())!=1)
+                if(db.queryForObject("SELECT COUNT(*) FROM payout_business_day WHERE spa_id=? AND currency=? AND covered_date=? AND statement_date=? AND payout_id IS NULL",Integer.class,spa,input.currency(),d,input.date())!=1)
                     throw new IllegalStateException("The settlement period overlaps another statement");
             }
-            db.update("DELETE FROM payout_business_day WHERE spa_id=? AND currency=? AND statement_date=? AND covered_date<?",spa,input.currency(),input.date(),start);
+            db.update("DELETE FROM payout_business_day WHERE spa_id=? AND currency=? AND statement_date=? AND covered_date<? AND payout_id IS NULL",spa,input.currency(),input.date(),start);
             String reference=input.reference().trim();
             db.update("INSERT INTO spa_transfer_reference(reference_no,spa_id,business_date,currency) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE reference_no=reference_no",reference,spa,input.date(),input.currency());
             if(db.queryForObject("SELECT COUNT(*) FROM spa_transfer_reference WHERE reference_no=? AND spa_id=? AND business_date=? AND currency=?",Integer.class,reference,spa,input.date(),input.currency())!=1)
@@ -115,6 +115,8 @@ public class FinancialReports {
         Set<LocalDate> days=new TreeSet<>();
         for(var line:lines)days.add(com.nirvana.application.service.SpaBookingAlerts.fromUtc(line.get("eventUtc")).atZone(zone).toLocalDate());
         db.query("SELECT b.covered_date FROM spa_financial_report r JOIN payout_business_day b ON b.spa_id=r.spa_id AND b.currency=r.currency AND b.statement_date=r.business_date WHERE r.spa_id=? AND r.kind='PAYOUT' AND r.currency=? AND state='MATCHED' AND revision=(SELECT MAX(n.revision) FROM spa_financial_report n WHERE n.spa_id=r.spa_id AND n.business_date=r.business_date AND n.currency=r.currency AND n.kind=r.kind)",(org.springframework.jdbc.core.RowCallbackHandler)rs->days.remove(rs.getDate(1).toLocalDate()),spa,currency);
+        db.query("SELECT b.covered_date FROM payout_business_day b JOIN payout p ON p.id=b.payout_id WHERE b.spa_id=? AND b.currency=? AND p.status='COMPLETED'",
+            (org.springframework.jdbc.core.RowCallbackHandler)rs->days.remove(rs.getDate(1).toLocalDate()),spa,currency);
         return List.copyOf(days);
     }
     private static long amount(Map<String,Object> row,String key){return ((Number)row.get(key)).longValue();}
