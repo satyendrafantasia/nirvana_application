@@ -1,0 +1,124 @@
+# Local / production-like stack: MariaDB, Redis, the Spring Boot API, the nginx web front and a
+# nightly backup job. Copy .env.example to .env (and optionally app.env.example to app.env),
+# fill them in, then:
+#
+#   docker compose up -d --build
+#   open http://localhost:8088
+#
+# See docs/operations.md for backups, restores and every environment variable.
+
+name: nirvana
+
+x-db-env: &db-env
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_NAME: ${DB_NAME:-nirvana}
+
+services:
+  db:
+    image: mariadb:11.4.13-noble
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      # Migration V57 needs this collation (an alias of uca1400_ai_ci in MariaDB 11.4).
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+05:30
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+      MARIADB_DATABASE: ${DB_NAME:-nirvana}
+      MARIADB_USER: ${DB_APP_USER:-nirvana}
+      MARIADB_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # No published port: only the app and backup containers reach the database. To inspect it
+    # from the host, uncomment and keep it on loopback.
+    # ports: ["127.0.0.1:3336:3306"]
+
+  redis:
+    image: redis:7.4.9-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      target: app
+    image: ${APP_IMAGE:-nirvana-app:local}
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Application settings (Razorpay, SMS, mail, OAuth, S3...). Kept apart from .env so the app
+    # never sees the database root password.
+    env_file:
+      - path: app.env
+        required: false
+    environment:
+      SPA_DB_URL: jdbc:mysql://db:3306/${DB_NAME:-nirvana}
+      SPA_DB_USER: ${DB_APP_USER:-nirvana}
+      SPA_DB_PASSWORD: ${DB_APP_PASSWORD}
+      # Hibernate dialect for MariaDB behind MySQL Connector/J.
+      SPRING_JPA_DATABASE_PLATFORM: com.nirvana.application.config.LocalMariaDbDialect
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (at least 32 random characters)}
+      # The web container is the only client and replaces forwarding headers.
+      FORWARD_HEADERS_STRATEGY: native
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8088}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:-}
+        VITE_GOOGLE_MAPS_EMBED_KEY: ${VITE_GOOGLE_MAPS_EMBED_KEY:-}
+        VITE_ANALYTICS_PATH: ${VITE_ANALYTICS_PATH:-}
+    image: ${WEB_IMAGE:-nirvana-web:local}
+    restart: unless-stopped
+    depends_on:
+      app: { condition: service_healthy }
+    environment:
+      API_UPSTREAM: app:8080
+    ports:
+      - "${WEB_PORT:-8088}:8080"
+
+  backup:
+    build:
+      context: .
+      target: backup
+    image: ${BACKUP_IMAGE:-nirvana-backup:local}
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      <<: *db-env
+      DB_USER: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      BACKUP_AT: ${BACKUP_AT:-02:30}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-14}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-8}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-nirvana/db}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      AWS_ACCESS_KEY_ID: ${BACKUP_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${BACKUP_AWS_SESSION_TOKEN:-}
+    volumes:
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+
+volumes:
+  db-data:
