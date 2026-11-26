@@ -65,6 +65,8 @@ class RewardsTest {
         rules.pointsPer100Rupees = 10; // 13,452 paise earns 10 points: easier to see than 1
         jdbc.update("update app_user set loyalty_points=0, referral_code=null where id in (3,4)");
         jdbc.update("delete from loyalty_ledger where user_id in (3,4)");
+        // Only a spa registered for GST may charge the 18% these totals include (see GstInvoiceTest).
+        jdbc.update("update spa set gstin='09AABCF1234B1ZA', tax_percent=18 where id=1");
     }
 
     @AfterEach void restore() {
