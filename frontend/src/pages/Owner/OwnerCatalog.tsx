@@ -5,6 +5,7 @@ import client, { errorMessage } from '../../api/client';
 import Fields from '../../features/Fields';
 import { Schema } from '../../features/model';
 import Button from '../../components/common/Button';
+import HealthQuestions, { HealthTerms } from './HealthQuestions';
 type RecordValue = Record<string, unknown>;
 const serviceSchema: Schema = {
   type: 'object',
@@ -168,6 +169,7 @@ export default function OwnerCatalog({
             sale status.
           </p>
         )}
+        {kind === 'services' && <HealthTerms spaId={spaId} />}
         {kind === 'therapists' && visibility.data && (
           <label className="block">
             Customer therapist choices
@@ -256,6 +258,7 @@ export default function OwnerCatalog({
                 Delete unused package
               </Button>
             )}
+            {kind === 'services' && <HealthQuestions spaId={spaId} serviceId={String(row.id)} />}
             {kind === 'therapists' && Boolean(row.active) && (
               <Button
                 variant="ghost"

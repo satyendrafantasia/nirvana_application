@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import { getSlots } from '../../api/bookingApi';
 import { bookingActions, canSpaCancel } from './bookingActions';
+import HealthFormPanel from './HealthFormPanel';
 
 const periods = {
   TODAY: 'Today',
@@ -1147,6 +1148,7 @@ function Appointment({
           </button>
         ))}
       </div>
+      <HealthFormPanel spa={spa} booking={b.id} />
       <details onToggle={(e) => setShowHistory(e.currentTarget.open)}>
         <summary className="text-sm text-primary-700">Appointment history</summary>
         {history.isError ? (

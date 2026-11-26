@@ -1,6 +1,8 @@
 import Button from '../../components/common/Button';
 import { BookingSummary } from '../../types/booking';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
+import { useState } from 'react';
+import HealthForm from '../../components/health/HealthForm';
 
 interface BookingConfirmationProps {
   summary: BookingSummary | null;
@@ -9,6 +11,8 @@ interface BookingConfirmationProps {
 
 const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) => {
   const { reset } = useBookingFlow();
+  // Offered once the booking exists; the guest may skip it and finish it from My bookings before the visit.
+  const [healthOpen, setHealthOpen] = useState(false);
 
   const handleDone = () => {
     reset();
@@ -42,6 +46,25 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
         <p className="text-sm text-slate-500">
           Booking details will appear here after confirmation.
         </p>
+      )}
+
+      {summary?.id && (summary.status === 'CONFIRMED' || summary.status === 'PENDING_PAYMENT') && (
+        <div className="mx-auto max-w-lg rounded-2xl border p-5 text-left">
+          {healthOpen ? (
+            <HealthForm bookingId={summary.id} onDone={() => setHealthOpen(false)} />
+          ) : (
+            <div className="space-y-2">
+              <p className="font-semibold">Health and consent form</p>
+              <p className="text-sm">
+                Tell your therapist about allergies, pregnancy or health conditions. It takes two minutes, and you can
+                also do it from My bookings any time before your visit.
+              </p>
+              <Button variant="secondary" onClick={() => setHealthOpen(true)}>
+                Fill it in now
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex flex-wrap justify-center gap-3">

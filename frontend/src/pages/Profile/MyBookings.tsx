@@ -8,6 +8,7 @@ import { BookingSummary } from '../../types/booking';
 import Button from '../../components/common/Button';
 import SlotGrid from '../../components/booking/SlotGrid';
 import { replacementTimes } from '../Booking/availableTimes';
+import HealthForm from '../../components/health/HealthForm';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -20,6 +21,7 @@ export default function MyBookings() {
   const [date, setDate] = useState('');
   const [target, setTarget] = useState('');
   const [cancel, setCancel] = useState<BookingSummary>();
+  const [health, setHealth] = useState<string>();
   const quote = useQuery({
     queryKey: ['cancellation-quote', cancel?.id],
     enabled: !!cancel,
@@ -124,12 +126,18 @@ export default function MyBookings() {
                 Reschedule
               </Button>
             )}
+            {['PENDING_PAYMENT', 'CONFIRMED', 'ARRIVED'].includes(b.status) && (
+              <Button variant="secondary" onClick={() => setHealth(health === b.id ? undefined : b.id)}>
+                Health form
+              </Button>
+            )}
             {b.canCancel && (
               <Button variant="ghost" onClick={() => setCancel(b)}>
                 Cancel appointment
               </Button>
             )}
           </div>
+          {health === b.id && <HealthForm bookingId={b.id} onDone={() => setHealth(undefined)} />}
           {cancel?.id === b.id && (
             <div>
               <p>Cancel this appointment?</p>
