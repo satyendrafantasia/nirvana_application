@@ -1,17 +1,21 @@
 import ConnectGoogle from './ConnectGoogle';
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
-import { errorMessage } from '../../api/client';
-import { authView } from '../../api/authApi';
+import client, { errorMessage } from '../../api/client';
+import { authView, requestOtp } from '../../api/authApi';
+import { otpBody, usePhoneCode } from '../../api/phoneCodes';
 import {
   Account,
   changePassword,
+  downloadMyData,
   getAccount,
+  getDeletionStatus,
   passwordProblem,
   pointsSummary,
   ProfileInput,
+  requestDeletion,
   updateAccount
 } from '../../api/accountApi';
 import Button from '../../components/common/Button';
@@ -65,6 +69,8 @@ export default function AccountSettings() {
               View corporate benefits
             </Link>
           </section>
+          <YourData />
+          <DeleteAccount account={account.data} />
         </>
       )}
     </div>
@@ -305,6 +311,165 @@ function Password() {
           {change.isPending ? 'Changing…' : 'Change password'}
         </Button>
       </form>
+    </section>
+  );
+}
+
+function YourData() {
+  const download = useMutation({ mutationFn: downloadMyData });
+  return (
+    <section className="card space-y-3 p-6" aria-labelledby="data-heading">
+      <h2 id="data-heading" className="text-xl font-semibold">
+        Your data
+      </h2>
+      <p className="text-sm text-slate-600">
+        Download a copy of the personal data Nirvana holds about you: your profile, bookings,
+        payments, packages, reviews, consents and notification choices. The file is JSON, a format
+        other services can read.
+      </p>
+      {download.isError && (
+        <p role="alert" className="text-rose-700">
+          {errorMessage(download.error)}
+        </p>
+      )}
+      <Button type="button" disabled={download.isPending} onClick={() => download.mutate()}>
+        {download.isPending ? 'Preparing your file…' : 'Download my data'}
+      </Button>
+    </section>
+  );
+}
+
+function DeleteAccount({ account }: { account: Account }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const status = useQuery({ queryKey: ['account-deletion'], queryFn: getDeletionStatus });
+  const phone = usePhoneCode();
+  const [open, setOpen] = useState(false);
+  const [useCode, setUseCode] = useState(false);
+  const [password, setPassword] = useState('');
+  const [challenge, setChallenge] = useState('');
+  const [code, setCode] = useState('');
+  const [understood, setUnderstood] = useState(false);
+  const mobile = account.phoneVerified && account.phone ? account.phone : '';
+  const email = account.emailVerified && account.email ? account.email : '';
+  const sendCode = useMutation({
+    mutationFn: async () => {
+      if (!mobile && !email)
+        throw new Error('Your account has no verified email or mobile to send a code to.');
+      const result = await requestOtp(mobile ? { phoneNumber: mobile } : { email });
+      if (mobile) await phone.start(mobile);
+      setChallenge(result.verificationId);
+    }
+  });
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!useCode) return requestDeletion({ password });
+      const { data } = await client.post<{ loginToken: string }>('/api/auth/login/otp/verify', {
+        verificationId: challenge,
+        ...otpBody(await phone.proof(code))
+      });
+      return requestDeletion({ loginToken: data.loginToken });
+    },
+    onSuccess: (result) => {
+      // Every session has already ended on the server; finish signing out here too.
+      logout();
+      navigate('/privacy', { replace: true, state: { deletionDate: result.eraseAfter } });
+    }
+  });
+  const graceDays = status.data?.graceDays ?? 7;
+  const blockers = status.data?.blockers ?? [];
+  const ready = understood && (useCode ? Boolean(challenge) && code.length === 6 : password.length > 0);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (ready) remove.mutate();
+  };
+  const switchProof = () => {
+    setUseCode(!useCode);
+    setChallenge('');
+    setCode('');
+    phone.reset();
+    sendCode.reset();
+    remove.reset();
+  };
+  return (
+    <section className="card space-y-4 p-6" aria-labelledby="delete-heading">
+      <h2 id="delete-heading" className="text-xl font-semibold">
+        Delete your account
+      </h2>
+      <p className="text-sm text-slate-600">
+        Your account is deleted {graceDays} days after you ask. Until then you can change your
+        mind: sign in again and the deletion is cancelled. After that, your name, email, phone,
+        photo, sign-in methods, saved spas and preferences are erased, and your reviews stay
+        without your name. Unused loyalty points, vouchers and package sessions are lost. Records
+        of bookings, payments, invoices and refunds are kept without your details, as tax and
+        accounting law requires.
+      </p>
+      {blockers.length > 0 && (
+        <div role="alert" className="space-y-1 text-rose-700">
+          {blockers.map((b) => (
+            <p key={b}>{b}</p>
+          ))}
+        </div>
+      )}
+      {!open ? (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!status.data || blockers.length > 0}
+          onClick={() => setOpen(true)}
+        >
+          Delete my account
+        </Button>
+      ) : (
+        <form className="space-y-4" onSubmit={submit}>
+          {!useCode ? (
+            <Input
+              label="Your password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          ) : challenge ? (
+            <Input
+              label="Verification code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+          ) : (
+            <Button type="button" disabled={sendCode.isPending} onClick={() => sendCode.mutate()}>
+              {sendCode.isPending ? 'Sending…' : `Send a code to ${mobile || email}`}
+            </Button>
+          )}
+          {(mobile || email) && (
+            <button type="button" className="text-sm underline" onClick={switchProof}>
+              {useCode ? 'Use my password instead' : 'No password? Confirm with a code instead'}
+            </button>
+          )}
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={understood}
+              onChange={(e) => setUnderstood(e.target.checked)}
+            />
+            <span>
+              I understand my account will be deleted after {graceDays} days unless I sign in again
+              before then.
+            </span>
+          </label>
+          {(sendCode.isError || remove.isError) && (
+            <p role="alert" className="text-rose-700">
+              {errorMessage(sendCode.error || remove.error)}
+            </p>
+          )}
+          <Button type="submit" disabled={!ready || remove.isPending}>
+            {remove.isPending ? 'Deleting…' : 'Delete my account'}
+          </Button>
+        </form>
+      )}
+      <div ref={phone.slot} />
     </section>
   );
 }

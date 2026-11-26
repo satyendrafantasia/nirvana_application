@@ -20,7 +20,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    long countByDataErasureRequestedAtIsNotNull();
+    long countByDataErasureRequestedAtIsNotNullAndDataErasedAtIsNull();
 
     /** Atomic balance change, so concurrent bookings for one customer cannot lose points. */
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)

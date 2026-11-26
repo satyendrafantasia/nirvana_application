@@ -5,6 +5,7 @@ import com.nirvana.application.model.dto.AuthResponse;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.security.SecurityUtils;
 import com.nirvana.application.service.AuthService;
+import com.nirvana.application.service.erasure.AccountErasureService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -12,7 +13,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,7 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 
-/** The signed-in customer's own profile, password and loyalty balance. */
+/** The signed-in customer's own profile, password, loyalty balance, data export and account deletion. */
 @RestController
 @RequestMapping("/api/me/account")
 @RequiredArgsConstructor
@@ -33,6 +37,7 @@ public class AccountController {
 
     private final UserRepository users;
     private final AuthService authService;
+    private final AccountErasureService erasure;
 
     /** Email and phone are shown but not editable here: changing them needs verification. */
     public record AccountView(Long id, String email, String phone, String firstName, String lastName,
@@ -91,6 +96,36 @@ public class AccountController {
     @PostMapping("/password")
     public AuthResponse changePassword(@Valid @RequestBody PasswordInput input) {
         return authService.changePassword(SecurityUtils.getCurrentUserId(), input.currentPassword(), input.newPassword());
+    }
+
+    /** Either the account password, or the login token from a fresh sign-in code (typed or Firebase phone proof). */
+    public record DeletionInput(@Size(max = 200) String password, @Size(max = 128) String loginToken) {
+    }
+
+    /** A copy of the person's data (DPDP Act 2023), as a JSON file download. */
+    @GetMapping("/export")
+    public ResponseEntity<java.util.Map<String, Object>> export() {
+        String file = "nirvana-my-data-" + java.time.LocalDate.now() + ".json";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(erasure.export(SecurityUtils.getCurrentUserId()));
+    }
+
+    /** Whether deletion is pending, and anything that would stop it going ahead now. */
+    @GetMapping("/deletion")
+    public AccountErasureService.Status deletionStatus() {
+        return erasure.status(SecurityUtils.getCurrentUserId());
+    }
+
+    /**
+     * Schedules deletion after the grace period and signs the account out everywhere;
+     * signing in again before then cancels it.
+     */
+    @PostMapping("/deletion")
+    public AccountErasureService.Status requestDeletion(@Valid @RequestBody DeletionInput input) {
+        return erasure.request(SecurityUtils.getCurrentUserId(), input.password(), input.loginToken());
     }
 
     private User current() {

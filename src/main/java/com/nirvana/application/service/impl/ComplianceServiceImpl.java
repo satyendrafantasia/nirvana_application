@@ -2,7 +2,6 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.model.User;
 import com.nirvana.application.model.dto.ConsentUpdateRequest;
-import com.nirvana.application.model.dto.DataErasureRequest;
 import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.service.ComplianceService;
 import jakarta.persistence.EntityNotFoundException;
@@ -13,14 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ComplianceServiceImpl implements ComplianceService {
-
-    private static final String ERASURE_CONFIRMATION = "ERASE";
 
     private final UserRepository userRepository;
 
@@ -45,36 +41,6 @@ public class ComplianceServiceImpl implements ComplianceService {
             user.setLocale(request.getLocale());
         }
 
-        return userRepository.save(user);
-    }
-
-    @Override
-    @Transactional
-    public User eraseUserData(Long userId, DataErasureRequest request) {
-        if (!ERASURE_CONFIRMATION.equalsIgnoreCase(request.getConfirmationKeyword())) {
-            throw new IllegalArgumentException("Confirmation keyword mismatch");
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
-
-        user.setDataErasureRequestedAt(OffsetDateTime.now());
-        user.setDataErasedAt(OffsetDateTime.now());
-        user.setEmail(null);
-        user.setPhone(null);
-        user.setName("Erased");
-        user.setLastName(null);
-        user.setDisplayName(null);
-        user.setUsername("erased-" + userId + "-" + UUID.randomUUID());
-        user.setMarketingOptIn(false);
-        user.setActive(false);
-        user.setIsActive(false);
-        user.setDeletedAt(OffsetDateTime.now());
-        user.setPrivacyConsentVersion(null);
-        user.setPrivacyConsentedAt(null);
-        user.setConsentSource("erasure:" + request.getReason());
-
-        log.info("User {} marked for data erasure. Reason: {}", userId, request.getReason());
         return userRepository.save(user);
     }
 }

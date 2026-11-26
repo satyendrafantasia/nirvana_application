@@ -127,7 +127,7 @@ public class OperationsObservabilityService {
     private OperationsDashboardResponse.ComplianceSummary buildComplianceSummary() {
         long pendingKyc = spaRepository.countByKycStatus(KycStatus.PENDING);
         long unverified = spaRepository.countByIsActiveTrueAndIsVerifiedFalse();
-        long erasureQueued = userRepository.countByDataErasureRequestedAtIsNotNull();
+        long erasureQueued = userRepository.countByDataErasureRequestedAtIsNotNullAndDataErasedAtIsNull();
 
         return new OperationsDashboardResponse.ComplianceSummary(pendingKyc, unverified, erasureQueued);
     }

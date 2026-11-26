@@ -54,3 +54,42 @@ export const pointsSummary = (points: number) =>
     ? 'You have no loyalty points yet. You earn points when an appointment is completed.'
     : `You have ${points.toLocaleString('en-IN')} loyalty point${points === 1 ? '' : 's'}. ` +
       `Up to ${Math.min(points, MAX_POINTS_PER_BOOKING).toLocaleString('en-IN')} can be used on your next booking.`;
+
+/** Downloads everything Nirvana holds about you as a JSON file (DPDP Act 2023). */
+export const downloadMyData = async (): Promise<void> => {
+  const response = await client.get<Blob>('/api/me/account/export', { responseType: 'blob' });
+  const header = String(response.headers['content-disposition'] ?? '');
+  const name = /filename="([^"]+)"/.exec(header)?.[1] ?? 'nirvana-my-data.json';
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+export interface DeletionStatus {
+  pending: boolean;
+  requestedAt?: string | null;
+  eraseAfter?: string | null;
+  graceDays: number;
+  /** What stops deletion right now, such as an upcoming booking or an open spa. */
+  blockers: string[];
+}
+
+/** A password, or the login token from a sign-in code sent to the account's contact. */
+export type DeletionProof = { password: string } | { loginToken: string };
+
+export const getDeletionStatus = async (): Promise<DeletionStatus> =>
+  (await client.get<DeletionStatus>('/api/me/account/deletion')).data;
+
+/** Schedules deletion and signs you out everywhere; signing in again before the date cancels it. */
+export const requestDeletion = async (proof: DeletionProof): Promise<DeletionStatus> =>
+  (await client.post<DeletionStatus>('/api/me/account/deletion', proof)).data;
+
+export const deletionDate = (iso: string | null | undefined): string =>
+  iso
+    ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
