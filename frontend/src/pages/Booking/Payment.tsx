@@ -7,7 +7,8 @@ import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { createBooking, CreatedBooking } from '../../api/bookingApi';
 import { resumePayment, payAtSpa, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
-import { getAccount, MAX_POINTS_PER_BOOKING } from '../../api/accountApi';
+import { money, previewCheckout } from '../../api/rewardsApi';
+import CheckoutSummary from './CheckoutSummary';
 import { BookingSummary } from '../../types/booking';
 
 type Mode = 'ONLINE' | 'OFFLINE';
@@ -104,16 +105,34 @@ export default function Payment({
   const submitting = useRef(false);
   const [coupon, setCoupon] = useState('');
   const [loyalty, setLoyalty] = useState(false);
+  const [giftCard, setGiftCard] = useState('');
+  // Codes are priced when the field is left, not on every key press.
+  const [applied, setApplied] = useState({ coupon: '', giftCard: '' });
   const [usePackage, setUsePackage] = useState(false);
   const [useSpaPackage, setUseSpaPackage] = useState(false);
-  const account = useQuery({ queryKey: ['account'], queryFn: getAccount, staleTime: 30_000 });
   const options = useQuery({
     queryKey: ['payment-options'],
     queryFn: async () => (await client.get<{online: boolean}>('/api/bookings/payment-options')).data
   });
   // Razorpay first when it's switched on; pay at spa when it isn't, or when the guest chose it.
   const method = options.data?.online ? (state.paymentMode ?? 'ONLINE') : 'OFFLINE';
-  const points = account.data?.loyaltyPoints;
+  const byPackage = usePackage || useSpaPackage;
+  const preview = useQuery({
+    queryKey: ['checkout-preview', state.spaId, state.service?.id, state.selectedSlot?.id, state.guests, applied, loyalty],
+    enabled: !!state.spaId && !!state.service && !byPackage && !created,
+    placeholderData: (previous) => previous,
+    queryFn: () =>
+      previewCheckout({
+        spaId: state.spaId!,
+        serviceId: state.service!.id,
+        slotId: state.selectedSlot?.id,
+        guests: state.guests,
+        couponCode: applied.coupon || undefined,
+        redeemLoyaltyPoints: loyalty,
+        giftCardCode: applied.giftCard || undefined
+      })
+  });
+  const points = preview.data?.pointsBalance;
   const eligibility = useQuery({
     queryKey: ['booking-package-eligibility', state.spaId, useSpaPackage],
     enabled: !!state.spaId && (usePackage || useSpaPackage) && !created,
@@ -145,6 +164,7 @@ export default function Payment({
           specialRequest: state.notes,
           couponCode: coupon.trim() || undefined,
           redeemLoyaltyPoints: loyalty,
+          giftCardCode: byPackage ? undefined : giftCard.trim() || undefined,
           payWithPackage: usePackage,
           payWithSpaPackage: useSpaPackage,
           bookingSource: 'WEB'
@@ -175,7 +195,7 @@ export default function Payment({
     onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && axios.isAxiosError(err) && err.response?.status === 409){setSlot(undefined);onTimeConflict();}},
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['my-bookings'] });
-      if (loyalty) void qc.invalidateQueries({ queryKey: ['account'] }); // the balance changed
+      if (loyalty) void qc.invalidateQueries({ queryKey: ['loyalty'] }); // the balance changed
       if (b.status === 'CONFIRMED') track('booking_completed', b.id);
       onConfirm(b);
       onNext();
@@ -201,13 +221,14 @@ export default function Payment({
             value={coupon}
             maxLength={64}
             onChange={(e) => setCoupon(e.target.value)}
+            onBlur={() => setApplied((a) => ({ ...a, coupon: coupon.trim() }))}
           />
         </label>
         <label className="block">
           <input
             type="checkbox"
             checked={loyalty}
-            disabled={points === 0}
+            disabled={points === 0 || byPackage}
             onChange={(e) => setLoyalty(e.target.checked)}
           />{' '}
           Redeem available loyalty points
@@ -215,9 +236,23 @@ export default function Payment({
             <span className="block text-sm text-slate-600">
               {points === 0
                 ? 'You have no points yet. You earn points when an appointment is completed.'
-                : `You have ${points.toLocaleString('en-IN')} points. Up to ${Math.min(points, MAX_POINTS_PER_BOOKING).toLocaleString('en-IN')} can be used here, one paisa each.`}
+                : loyalty && preview.data
+                  ? `Using ${preview.data.pointsRedeemed.toLocaleString('en-IN')} of your ${points.toLocaleString('en-IN')} points (${money(preview.data.pointsCents, preview.data.currency)} off).`
+                  : `You have ${points.toLocaleString('en-IN')} points.`}
             </span>
           )}
+        </label>
+        <label className="block">
+          Gift card code
+          <input
+            className="block border rounded-xl p-3 w-full uppercase"
+            value={giftCard}
+            maxLength={32}
+            disabled={byPackage}
+            placeholder="NVG-XXXX-XXXX-XXXX"
+            onChange={(e) => setGiftCard(e.target.value)}
+            onBlur={() => setApplied((a) => ({ ...a, giftCard: giftCard.trim() }))}
+          />
         </label>
         <label className="block">
           <input
@@ -262,12 +297,12 @@ export default function Payment({
                 : eligibility.data?.reason || 'This package cannot be used for this appointment.'}
         </p>
       )}
+      {!created && !byPackage && preview.data && <CheckoutSummary preview={preview.data} payAtSpa={method === 'OFFLINE'} />}
       {created && (
         <p>
-          Reference: {created.bookingReference} · Total:{' '}
-          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: created.currency }).format(
-            created.totalCents / 100
-          )}
+          Reference: {created.bookingReference} ·{' '}
+          {created.giftCardCents ? `Gift card ${money(created.giftCardCents, created.currency)} · ` : ''}
+          {created.giftCardCents ? 'Left to pay' : 'Total'}: {money(created.totalCents, created.currency)}
         </p>
       )}
       {mutation.isError && (

@@ -46,11 +46,3 @@ export const passwordProblem = (current: string, next: string, confirmation: str
   if (next !== confirmation) return 'The new passwords do not match.';
   return undefined;
 };
-
-/** Points are worth one minor currency unit each (for example 1 paisa), up to 1,500 per booking. */
-export const MAX_POINTS_PER_BOOKING = 1500;
-export const pointsSummary = (points: number) =>
-  points <= 0
-    ? 'You have no loyalty points yet. You earn points when an appointment is completed.'
-    : `You have ${points.toLocaleString('en-IN')} loyalty point${points === 1 ? '' : 's'}. ` +
-      `Up to ${Math.min(points, MAX_POINTS_PER_BOOKING).toLocaleString('en-IN')} can be used on your next booking.`;

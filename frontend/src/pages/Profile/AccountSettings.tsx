@@ -10,12 +10,12 @@ import {
   changePassword,
   getAccount,
   passwordProblem,
-  pointsSummary,
   ProfileInput,
   updateAccount
 } from '../../api/accountApi';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import { LoyaltyPoints, ReferFriends } from './Rewards';
 
 const LOCALES: [string, string][] = [
   ['', 'Default'],
@@ -49,7 +49,8 @@ export default function AccountSettings() {
       )}
       {account.data && (
         <>
-          <Points account={account.data} />
+          <LoyaltyPoints />
+          <ReferFriends />
           <Profile key={account.data.id} account={account.data} />
           <ConnectGoogle key={account.data.id} account={account.data} />
           <Password />
@@ -68,22 +69,6 @@ export default function AccountSettings() {
         </>
       )}
     </div>
-  );
-}
-
-function Points({ account }: { account: Account }) {
-  return (
-    <section className="card space-y-2 p-6" aria-labelledby="points-heading">
-      <h2 id="points-heading" className="text-xl font-semibold">
-        Loyalty points
-      </h2>
-      <p className="text-3xl font-bold">{account.loyaltyPoints.toLocaleString('en-IN')}</p>
-      <p>{pointsSummary(account.loyaltyPoints)}</p>
-      <p className="text-sm text-slate-600">
-        Each point takes one paisa (or one cent) off a booking. Points spent on a booking that is
-        cancelled are returned to you.
-      </p>
-    </section>
   );
 }
 

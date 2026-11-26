@@ -349,6 +349,10 @@ class BookingLifecycleTest {
 
     @Test void loyaltyPointsSpentOnACancelledBookingAreReturned() throws Exception {
         sync();
+        // Points live in the ledger as lots; the balance column follows it.
+        jdbc.update("delete from loyalty_ledger where user_id=3");
+        jdbc.update("insert into loyalty_ledger(user_id,entry_type,points,balance_after,remaining,expires_at,created_at)"
+                + " values(3,'ADJUSTMENT',700,700,700,utc_timestamp(6) + interval 6 month,utc_timestamp(6))");
         jdbc.update("update app_user set loyalty_points=700 where id=3");
         var booked = bookWith(slot(10), Map.of("redeemLoyaltyPoints", true));
         assertEquals(2, booked.status() / 100, () -> booked.body().toString());
@@ -371,13 +375,18 @@ class BookingLifecycleTest {
         moveToPast(noShow, 3);
         int paid = bookingInt(booking, "price_cents + tax_cents - discount_cents");
         assertTrue(paid > 0);
+        // Points are earned on money received: here, paid in full at the desk.
+        jdbc.update("insert into spa_desk_receipt(booking_id,spa_id,collected_by,collected_at,amount_cents,currency,method)"
+                + " values(?,1,2,utc_timestamp(6),?,'INR','CASH')", booking, paid);
+        int earned = paid / 10000; // 1 point per Rs 100
+        assertTrue(earned > 0);
         assertEquals(200, owner(action(booking, "complete")).status());
-        assertEquals(paid * 2 / 100, bookingInt(booking, "loyalty_points_earned"));
-        assertEquals(paid * 2 / 100, points());
+        assertEquals(earned, bookingInt(booking, "loyalty_points_earned"));
+        assertEquals(earned, points());
         owner(action(booking, "complete"));
-        assertEquals(paid * 2 / 100, points(), "a second attempt earns nothing more");
+        assertEquals(earned, points(), "a second attempt earns nothing more");
         owner(action(noShow, "no-show"));
-        assertEquals(paid * 2 / 100, points(), "a no-show earns nothing");
+        assertEquals(earned, points(), "a no-show earns nothing");
     }
 
     @Test void pastAppointmentIsCompletedAutomaticallyButRecentOnesAreLeftAlone() throws Exception {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { passwordProblem, pointsSummary } from './accountApi';
+import { passwordProblem } from './accountApi';
 
 describe('password change checks', () => {
   it('accepts a valid change', () => {
@@ -18,16 +18,5 @@ describe('password change checks', () => {
     expect(passwordProblem('old', 'a'.repeat(73), 'a'.repeat(73))).toMatch(/too long/);
     const wide = 'é'.repeat(37); // 74 bytes in UTF-8
     expect(passwordProblem('old', wide, wide)).toMatch(/too long/);
-  });
-});
-
-describe('points summary', () => {
-  it('explains how to earn when there are none', () => {
-    expect(pointsSummary(0)).toMatch(/no loyalty points/);
-  });
-  it('shows the balance and the per-booking cap', () => {
-    expect(pointsSummary(1)).toContain('1 loyalty point.');
-    expect(pointsSummary(700)).toContain('Up to 700 can be used');
-    expect(pointsSummary(5000)).toContain('Up to 1,500 can be used');
   });
 });

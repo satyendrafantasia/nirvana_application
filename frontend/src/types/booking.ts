@@ -32,6 +32,7 @@ export interface BookingPayload {
   paymentMethod?: string;
   couponCode?: string;
   redeemLoyaltyPoints?: boolean;
+  giftCardCode?: string;
   payWithPackage?: boolean;
   payWithSpaPackage?: boolean;
   bookingSource?: string;

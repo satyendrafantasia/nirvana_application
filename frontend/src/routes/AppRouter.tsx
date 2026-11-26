@@ -25,6 +25,8 @@ const AccountSettings = lazy(() => import('../pages/Profile/AccountSettings'));
 const OwnerPortal = lazy(() => import('../pages/Owner/OwnerPortal'));
 const NotFound = lazy(() => import('../pages/Static/NotFound'));
 const SpaBookingReply = lazy(() => import('../pages/SpaBookingReply/SpaBookingReply'));
+const GiftCards = lazy(() => import('../pages/GiftCards/GiftCards'));
+const GiftCardsAdmin = lazy(() => import('../pages/Staff/GiftCardsAdmin'));
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
@@ -52,6 +54,22 @@ const AppRouter = () => {
         element={
           <RequireAuth>
             <ListingClaims />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/gift-cards"
+        element={
+          <RequireAuth>
+            <GiftCards />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/gift-cards"
+        element={
+          <RequireAuth>
+            <GiftCardsAdmin />
           </RequireAuth>
         }
       />

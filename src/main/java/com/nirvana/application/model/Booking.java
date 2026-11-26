@@ -215,6 +215,11 @@ public class Booking extends BaseEntity {
     @Column(name = "loyalty_points_earned", nullable = false)
     private Integer loyaltyPointsEarned = 0;
 
+    /** Paid from a gift card, after tax. The ledger is gift_card_txn; remainderCents is what is left to pay. */
+    @Column(name = "gift_card_cents", nullable = false)
+    @Builder.Default
+    private Integer giftCardCents = 0;
+
     @Column(name = "tip_cents", nullable = false)
     private Integer tipCents = 0;
 

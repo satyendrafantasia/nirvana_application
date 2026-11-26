@@ -10,7 +10,10 @@ import com.nirvana.application.model.enums.DiscountType;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.repository.CouponRepository;
 import com.nirvana.application.service.PricingService;
-import lombok.RequiredArgsConstructor;
+import com.nirvana.application.rewards.CheckoutMath;
+import com.nirvana.application.rewards.LoyaltyLedger;
+import com.nirvana.application.rewards.RewardRules;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,15 +27,29 @@ import java.time.ZonedDateTime;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class DynamicPricingService implements PricingService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final int MAX_LOYALTY_REDEMPTION_CENTS = 1_500; // cap redemption per booking
     private static final int MAX_OFF_PEAK_DISCOUNT_CENTS = 1_000;
 
     private final CouponRepository couponRepository;
     private final BookingRepository bookingRepository;
+    private final RewardRules rules;
+    /** Spendable points (unexpired lots); without it the stored balance is used. */
+    private final LoyaltyLedger ledger;
+
+    public DynamicPricingService(CouponRepository couponRepository, BookingRepository bookingRepository) {
+        this(couponRepository, bookingRepository, RewardRules.defaults(), null);
+    }
+
+    @Autowired
+    public DynamicPricingService(CouponRepository couponRepository, BookingRepository bookingRepository,
+                                 RewardRules rules, LoyaltyLedger ledger) {
+        this.couponRepository = couponRepository;
+        this.bookingRepository = bookingRepository;
+        this.rules = rules;
+        this.ledger = ledger;
+    }
 
     @Override
     public PricingResult evaluatePricing(User user,
@@ -52,10 +69,11 @@ public class DynamicPricingService implements PricingService {
 
         discountCents += evaluateOffPeakDiscount(slot, spa, basePriceCents - discountCents);
 
+        // Points come after coupon and off-peak, capped at a share of what is left (see CheckoutMath).
         int loyaltyRedeemed = 0;
         if (redeemLoyaltyPoints) {
-            loyaltyRedeemed = redeemLoyaltyPoints(user, basePriceCents - discountCents);
-            discountCents += loyaltyRedeemed;
+            loyaltyRedeemed = CheckoutMath.pointsToRedeem(availablePoints(user), basePriceCents - discountCents, rules);
+            discountCents += CheckoutMath.pointsValue(loyaltyRedeemed, rules);
         }
 
         discountCents = clampDiscount(basePriceCents, discountCents);
@@ -89,6 +107,10 @@ public class DynamicPricingService implements PricingService {
         if (coupon.getMinOrderCents() != null && basePriceCents < coupon.getMinOrderCents()) {
             throw rejected("This coupon needs a higher booking value.");
         }
+        Long owner = ownerOf(coupon);
+        if (owner != null && (user == null || !owner.equals(user.getId()))) {
+            throw rejected("This coupon belongs to another account.");
+        }
         if (coupon.getMaxUsesGlobal() != null
                 && bookingRepository.countCouponUses(coupon.getId()) >= coupon.getMaxUsesGlobal()) {
             throw rejected("This coupon has been fully redeemed.");
@@ -98,6 +120,18 @@ public class DynamicPricingService implements PricingService {
             throw rejected("You have already used this coupon.");
         }
         return coupon;
+    }
+
+    /** Personal coupons (referral rewards) name their owner in meta. */
+    private Long ownerOf(Coupon coupon) {
+        String meta = coupon.getMetaJson();
+        if (meta == null || meta.isBlank()) return null;
+        try {
+            JsonNode owner = MAPPER.readTree(meta).path("ownerUserId");
+            return owner.isNumber() ? owner.asLong() : null;
+        } catch (Exception unreadable) {
+            return null;
+        }
     }
 
     private boolean appliesToService(Coupon coupon, com.nirvana.application.model.Service service) {
@@ -162,13 +196,11 @@ public class DynamicPricingService implements PricingService {
         return ZoneOffset.UTC;
     }
 
-    private int redeemLoyaltyPoints(User user, int remainingBaseCents) {
-        Integer points = user == null ? null : user.getLoyaltyPoints();
-        if (points == null || points <= 0) {
-            return 0;
-        }
-        int redeemable = Math.min(points, MAX_LOYALTY_REDEMPTION_CENTS);
-        return Math.max(0, Math.min(redeemable, remainingBaseCents));
+    private int availablePoints(User user) {
+        if (user == null) return 0;
+        if (ledger != null && user.getId() != null) return ledger.spendable(user.getId());
+        Integer points = user.getLoyaltyPoints();
+        return points == null ? 0 : Math.max(0, points);
     }
 
     private int clampDiscount(int basePriceCents, int discountCents) {

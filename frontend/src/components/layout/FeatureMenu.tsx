@@ -8,7 +8,8 @@ import { useAuth } from '../../hooks/useAuth';
  * the booking flow, package history in My Packages and corporate benefits in Account details.
  */
 export const ACCOUNT_MENU: { to: string; label: string }[] = [
-  { to: '/me/settings', label: 'Profile & password' },
+  { to: '/me/settings', label: 'Profile, points & referrals' },
+  { to: '/gift-cards', label: 'Gift cards' },
   { to: '/features/notifications', label: 'Notifications' },
   { to: '/features/messages', label: 'Help & messages' },
   { to: '/features/payments', label: 'Payments & refunds' },
@@ -45,6 +46,7 @@ export const ADMIN_MENU: { group: string; items: { to: string; label: string }[]
     items: [
       { to: '/features/corporates', label: 'Corporate partners' },
       { to: '/features/coupons', label: 'Coupons' },
+      { to: '/admin/gift-cards', label: 'Gift cards' },
       { to: '/features/content', label: 'Help content & notifications' }
     ]
   },

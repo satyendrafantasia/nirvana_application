@@ -246,7 +246,11 @@ public class BookingServiceImpl implements BookingService {
         int discountCents = pricing.discountCents();
         int taxCents = calculateTax(spa, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
-        int payableCents = payWithPackage ? 0 : totalCents;
+        // A gift card pays towards the total after tax; see rewards.CheckoutMath for the order.
+        boolean giftCard = StringUtils.hasText(request.getGiftCardCode());
+        if (giftCard && payWithPackage) throw new IllegalArgumentException("A package booking has nothing left to pay with a gift card");
+        int giftCardCents = giftCard ? loyalty.giftCardShare(request.getGiftCardCode(), spa, totalCents) : 0;
+        int payableCents = payWithPackage ? 0 : totalCents - giftCardCents;
         BookingSource bookingSource = resolveBookingSource(request.getBookingSource());
 
         Booking booking = new Booking();
@@ -262,6 +266,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setCouponCode(pricing.appliedCouponCode());
         booking.setCoupon(pricing.coupon());
         booking.setLoyaltyPointsRedeemed(pricing.loyaltyPointsRedeemed());
+        booking.setGiftCardCents(giftCardCents);
         booking.setTaxCents(taxCents);
         booking.setDepositCents(0);
         booking.setRemainderCents(payableCents);
@@ -282,7 +287,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setTherapistType(requestedTherapistType);
         booking.setBookingSource(bookingSource);
 
-        if (paymentMode == PaymentMode.OFFLINE) {
+        if (paymentMode == PaymentMode.OFFLINE || payableCents == 0) {
             booking.setStatus(BookingStatus.CONFIRMED);
         } else {
             booking.setStatus(BookingStatus.PENDING_PAYMENT);
@@ -300,11 +305,7 @@ public class BookingServiceImpl implements BookingService {
             bookingHoldRepository.save(hold);
         }
 
-        if (pricing.loyaltyPointsRedeemed() > 0) {
-            int remainingPoints = Math.max(0, (user.getLoyaltyPoints() == null ? 0 : user.getLoyaltyPoints()) - pricing.loyaltyPointsRedeemed());
-            user.setLoyaltyPoints(remainingPoints);
-            userRepository.save(user);
-        }
+        loyalty.redeemAtCheckout(saved, pricing.loyaltyPointsRedeemed(), request.getGiftCardCode(), giftCardCents);
 
         // reserve capacity immediately to prevent overbooking even while payment is pending
         short updatedUnits = (short) (slot.getBookedUnits() + guests);
@@ -316,7 +317,7 @@ public class BookingServiceImpl implements BookingService {
 
         com.nirvana.application.model.dto.PaymentInitResponse razorpayInit = null;
         com.nirvana.application.model.dto.UpiPaymentInitResponse upiInit = null;
-        if (paymentMode == PaymentMode.ONLINE) {
+        if (paymentMode == PaymentMode.ONLINE && payableCents > 0) {
             if ("UPI".equals(paymentMethod)) {
                 upiInit = paymentService.initiateUpiPayment(saved.getId(), "booking-" + saved.getId() + "-upi-init");
             } else {
@@ -529,7 +530,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setCancelledBy(CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         packageSessions.restoreFor(booking);
-        loyalty.returnRedeemed(booking);
+        loyalty.returnRedeemed(booking, Optional.ofNullable(eligibility.feePercent()).orElse(0));
         bookingRepository.save(booking);
 
         Slot slot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
@@ -694,6 +695,8 @@ public class BookingServiceImpl implements BookingService {
         response.setPriceCents(booking.getPriceCents());
         response.setTaxCents(booking.getTaxCents());
         response.setDiscountCents(booking.getDiscountCents());
+        response.setGiftCardCents(booking.getGiftCardCents());
+        response.setLoyaltyPointsRedeemed(booking.getLoyaltyPointsRedeemed());
         response.setTotalCents(totalCents);
         response.setCurrency(booking.getCurrency());
         response.setPaymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null);

@@ -54,6 +54,9 @@ export interface CreatedBooking {
   paymentMode: 'ONLINE' | 'OFFLINE';
   totalCents: number;
   currency: string;
+  /** Paid from a gift card; totalCents is what is still to pay. */
+  giftCardCents?: number;
+  loyaltyPointsRedeemed?: number;
   razorpay?: PaymentIntent;
 }
 export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> => {

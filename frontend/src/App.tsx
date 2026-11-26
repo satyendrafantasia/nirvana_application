@@ -4,6 +4,7 @@ import AppRouter from './routes/AppRouter';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import Toast from './components/common/Toast';
+import PendingReferral from './components/rewards/PendingReferral';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
       </main>
       <Footer />
       <Toast />
+      <PendingReferral />
     </div>
   );
 }

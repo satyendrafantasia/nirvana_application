@@ -134,10 +134,33 @@ class CouponValidationTest {
         assertEquals(0, pricing.evaluatePricing(user, spa, service, mondayAfternoonInIndia, 1, 10000, null, false).discountCents());
     }
 
-    @Test void loyaltyPointsAreCappedAndReported() {
+    @Test void loyaltyPointsAreWorthARupeeAndCappedAtAShareOfTheBooking() {
         when(user.getLoyaltyPoints()).thenReturn(5000);
+        // Rs 100 booking: points may pay 20%, so 20 points worth Rs 20.
         var result = pricing.evaluatePricing(user, spa, service, afternoon, 1, 10000, null, true);
-        assertEquals(1500, result.loyaltyPointsRedeemed());
-        assertEquals(1500, result.discountCents());
+        assertEquals(20, result.loyaltyPointsRedeemed());
+        assertEquals(2000, result.discountCents());
+    }
+
+    @Test void loyaltyPointsAreLimitedByTheBalance() {
+        when(user.getLoyaltyPoints()).thenReturn(7);
+        var result = pricing.evaluatePricing(user, spa, service, afternoon, 1, 10000, null, true);
+        assertEquals(7, result.loyaltyPointsRedeemed());
+        assertEquals(700, result.discountCents());
+    }
+
+    @Test void pointsApplyAfterTheCouponOnWhatIsLeft() {
+        when(user.getLoyaltyPoints()).thenReturn(5000);
+        // Rs 100 less 10% coupon = Rs 90 left; 20% of that is Rs 18.
+        var result = pricing.evaluatePricing(user, spa, service, afternoon, 1, 10000, "SAVE10", true);
+        assertEquals(18, result.loyaltyPointsRedeemed());
+        assertEquals(1000 + 1800, result.discountCents());
+    }
+
+    @Test void personalCouponOnlyWorksForItsOwner() {
+        coupon.setMetaJson("{\"ownerUserId\":99}");
+        assertRejected("another account");
+        coupon.setMetaJson("{\"ownerUserId\":3}");
+        assertEquals(1000, price("SAVE10", 10000).discountCents());
     }
 }
