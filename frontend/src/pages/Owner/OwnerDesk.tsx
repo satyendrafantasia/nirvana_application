@@ -601,6 +601,7 @@ export default function OwnerDesk({
                         'PAID_AT_SPA',
                         'PAID',
                         'PACKAGE',
+                        'GIFT_CARD',
                         'PENDING',
                         'INIT',
                         'FAILED',

@@ -39,6 +39,7 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
     private final AuditTrailService auditTrailService;
+    private final LoyaltyService loyalty;
 
     @Override
     @Transactional
@@ -226,6 +227,8 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     private void updateBookingRefundStatus(Booking booking, RefundStatus status) {
         booking.setRefundStatus(status);
         bookingRepository.save(booking);
+        // Points earned on a completed booking follow the money: a refund takes its share back.
+        if (status == RefundStatus.COMPLETED) loyalty.syncEarnedForBooking(booking.getId());
     }
 
     private RefundResponseDto toDto(PaymentRefund refund) {

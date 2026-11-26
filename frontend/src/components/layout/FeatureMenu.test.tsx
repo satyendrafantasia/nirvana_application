@@ -30,7 +30,8 @@ function render(roles: string[]) {
 describe('account menu', () => {
   it('keeps to what a guest manages about themselves', () => {
     const html = render(['ROLE_USER']);
-    expect(ACCOUNT_MENU).toHaveLength(6);
+    expect(ACCOUNT_MENU).toHaveLength(7);
+    expect(html).toContain('href="/gift-cards"');
     for (const item of ACCOUNT_MENU) expect(html).toContain(`href="${item.to}"`);
     for (const gone of ['map', 'nearby', 'google-booking', 'availability', 'package-history', 'spa-packages', 'benefits'])
       expect(html).not.toContain(`/features/${gone}"`);

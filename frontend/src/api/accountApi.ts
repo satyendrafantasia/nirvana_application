@@ -47,14 +47,6 @@ export const passwordProblem = (current: string, next: string, confirmation: str
   return undefined;
 };
 
-/** Points are worth one minor currency unit each (for example 1 paisa), up to 1,500 per booking. */
-export const MAX_POINTS_PER_BOOKING = 1500;
-export const pointsSummary = (points: number) =>
-  points <= 0
-    ? 'You have no loyalty points yet. You earn points when an appointment is completed.'
-    : `You have ${points.toLocaleString('en-IN')} loyalty point${points === 1 ? '' : 's'}. ` +
-      `Up to ${Math.min(points, MAX_POINTS_PER_BOOKING).toLocaleString('en-IN')} can be used on your next booking.`;
-
 /** Downloads everything Nirvana holds about you as a JSON file (DPDP Act 2023). */
 export const downloadMyData = async (): Promise<void> => {
   const response = await client.get<Blob>('/api/me/account/export', { responseType: 'blob' });

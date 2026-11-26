@@ -2,6 +2,9 @@ package com.nirvana.application.model.dto;
 
 public class BookingCreateResponse {
     @lombok.Getter @lombok.Setter private String therapistName;
+    /** Paid from a gift card; totalCents is what is still to pay. */
+    @lombok.Getter @lombok.Setter private Integer giftCardCents;
+    @lombok.Getter @lombok.Setter private Integer loyaltyPointsRedeemed;
     private Long bookingId;
     private String bookingReference;
     private String status;

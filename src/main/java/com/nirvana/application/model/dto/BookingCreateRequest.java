@@ -54,6 +54,12 @@ public class BookingCreateRequest {
     @Schema(description = "Whether loyalty points should be redeemed", example = "true")
     private Boolean redeemLoyaltyPoints;
 
+    @Size(max = 32)
+    @Schema(description = "Gift card code that pays towards the total after tax", example = "NVG-ABCD-EFGH-JKMN")
+    private String giftCardCode;
+    public String getGiftCardCode() { return giftCardCode; }
+    public void setGiftCardCode(String value) { giftCardCode = value; }
+
     @Schema(description = "Hold token for reserved slot if applicable")
     private String holdToken;
 

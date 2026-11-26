@@ -247,9 +247,36 @@ reliability:
     block-seconds: 120
 
 loyalty:
-  # Share of the amount paid that a customer earns back as points when an appointment is
-  # completed. One point is worth one minor currency unit at checkout. 0 disables earning.
-  earn-percent: ${LOYALTY_EARN_PERCENT:2}
+  # Points are earned on what was actually paid for a completed appointment (online, at the desk
+  # or by gift card), credited on completion and taken back if that money is refunded.
+  # 0 switches earning off.
+  points-per-100-rupees: ${LOYALTY_POINTS_PER_100_RUPEES:1}
+  # What one point is worth at checkout, in paise.
+  point-value-paise: ${LOYALTY_POINT_VALUE_PAISE:100}
+  # Points can pay for at most this share of a booking (after coupon and off-peak discounts).
+  max-redeem-percent: ${LOYALTY_MAX_REDEEM_PERCENT:20}
+  # Unspent points expire this many months after they were earned.
+  expiry-months: ${LOYALTY_EXPIRY_MONTHS:12}
+  job-interval-ms: ${LOYALTY_JOB_INTERVAL_MS:3600000}
+
+referral:
+  # POINTS gives both people points; COUPON gives each a single-use flat coupon of coupon-value-paise.
+  reward-type: ${REFERRAL_REWARD_TYPE:POINTS}
+  referrer-points: ${REFERRAL_REFERRER_POINTS:100}
+  referee-points: ${REFERRAL_REFEREE_POINTS:100}
+  coupon-value-paise: ${REFERRAL_COUPON_VALUE_PAISE:10000}
+  coupon-valid-days: ${REFERRAL_COUPON_VALID_DAYS:90}
+  # A referrer is rewarded for at most this many friends per calendar month (India time).
+  monthly-cap: ${REFERRAL_MONTHLY_CAP:5}
+  # A code can be added only within this many days of opening the account, before a completed booking.
+  claim-window-days: ${REFERRAL_CLAIM_WINDOW_DAYS:30}
+
+gift-cards:
+  min-paise: ${GIFT_CARD_MIN_PAISE:50000}
+  # RBI caps a gift PPI at Rs 10,000.
+  max-paise: ${GIFT_CARD_MAX_PAISE:1000000}
+  # RBI requires gift instruments to stay valid for at least a year; lower values are raised to 365.
+  validity-days: ${GIFT_CARD_VALIDITY_DAYS:365}
 
 # Booking SMS to spas, with a private link to confirm or decline. Uses the sms settings above
 # (AWS SNS). Indian carriers need a DLT-registered sender and one template per message kind.

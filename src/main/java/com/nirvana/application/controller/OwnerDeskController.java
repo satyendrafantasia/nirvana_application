@@ -53,6 +53,7 @@ public class OwnerDeskController {
              WHEN d.receipts>0 AND (d.paid>=b.remainder_cents OR b.status NOT IN ('ARRIVED','CONFIRMED','COMPLETED')) THEN 'PAID_AT_SPA'
              WHEN p.payment_status IN ('CAPTURED','COMPLETED') THEN 'PAID'
              WHEN p.payment_status IN ('REFUNDED','PARTIALLY_REFUNDED') THEN p.payment_status
+             WHEN b.gift_card_cents>0 AND b.remainder_cents<=COALESCE(d.paid,0) THEN 'GIFT_CARD'
              WHEN b.payment_mode='OFFLINE' AND b.status IN ('ARRIVED','CONFIRMED','COMPLETED') AND b.remainder_cents>COALESCE(d.paid,0) THEN 'DUE_AT_SPA'
              ELSE COALESCE(p.payment_status,'UNPAID') END
         """;
