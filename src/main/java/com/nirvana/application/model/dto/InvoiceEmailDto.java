@@ -37,5 +37,20 @@ public record InvoiceEmailDto(
         String invoicePdfUrl,
 
         /** The spa's time zone, so the appointment time reads as the guest will see it on arrival. */
-        String spaTimezone
+        String spaTimezone,
+
+        // GST details, when the email is for a GST document (tax invoice, bill of supply or credit note).
+        /** "Tax Invoice", "Bill of Supply" or "Credit Note"; null for the older plain invoice email. */
+        String documentTitle,
+        /** The spa's legal name: it, not Nirvana, is the supplier. */
+        String supplierName,
+        String supplierGstin,
+        /** For a credit note, the invoice it credits. */
+        String originalDocumentNumber,
+        Long taxableCents,
+        Long cgstCents,
+        Long sgstCents,
+        Long igstCents,
+        /** Such as "18%". */
+        String rateLabel
 ) {}

@@ -65,6 +65,10 @@ public class Spa extends BaseEntity {
     // business identifiers
     private String gstin;
 
+    /** The name registered against the GSTIN, printed as the supplier on invoices; null means the spa's name. */
+    @Column(name = "legal_name")
+    private String legalName;
+
     @Column(name = "business_reg_number")
     private String businessRegistrationNumber;
 

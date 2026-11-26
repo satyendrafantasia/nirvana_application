@@ -138,7 +138,16 @@ public class SpaOnboardingServiceImpl implements com.nirvana.application.service
                                                   SpaKycRequest request) {
         Spa spa = findOwnedSpa(ownerUserId, spaId);
 
-        spa.setGstin(request.getGstin());
+        // The GSTIN goes on every guest invoice, so only a well-formed one with a valid check digit is kept.
+        String gstin = request.getGstin() == null || request.getGstin().isBlank() ? null
+                : com.nirvana.application.service.gst.GstMath.normalizeGstin(request.getGstin());
+        if (request.getGstin() != null && !request.getGstin().isBlank() && gstin == null) {
+            throw new IllegalArgumentException("GSTIN " + request.getGstin().trim() + " is not valid. Check it against your GST registration.");
+        }
+        spa.setGstin(gstin);
+        if (request.getLegalName() != null) {
+            spa.setLegalName(request.getLegalName().isBlank() ? null : request.getLegalName().trim());
+        }
         spa.setBusinessRegistrationNumber(request.getBusinessRegistrationNumber());
         spa.setOwnerName(request.getOwnerName());
 

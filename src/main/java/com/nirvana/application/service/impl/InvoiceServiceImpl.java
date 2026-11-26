@@ -32,6 +32,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final EmailService emailService;   // you can provide a NoOp impl for now
+    private final com.nirvana.application.service.gst.GstInvoiceService gstInvoices;
 
 
     @Override
@@ -39,6 +40,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceResponseDto generateInvoiceForBooking(Long bookingId) {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
+        // The spa's GST invoice (or bill of supply), issued once and emailed to the guest on commit.
+        var gst = gstInvoices.issueForBooking(bookingId);
 
         // Idempotent: if already exists, return existing
         var existing = invoiceRepository.findByBookingId(bookingId);
@@ -59,7 +63,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         int discountCents = booking.getDiscountCents();
         int totalCents = payment.getAmountCents();
 
-        String invoiceNumber = generateInvoiceNumber();
+        // The GST document's number, so the receipt and the invoice agree.
+        String invoiceNumber = gst.map(com.nirvana.application.service.gst.GstDocument::documentNumber)
+                .orElseGet(this::generateInvoiceNumber);
 
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(invoiceNumber)
@@ -79,8 +85,8 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         Invoice saved = invoiceRepository.save(invoice);
 
-        // Build email payload and send (non-blocking in real prod via async queue)
-        try {
+        // The GST document's own email covers the guest; this plain one is only for a booking without one.
+        if (gst.isEmpty()) try {
             InvoiceEmailDto emailDto = buildEmailDto(saved);
             emailService.sendInvoiceEmail(emailDto);
         } catch (Exception e) {
@@ -151,7 +157,18 @@ public class InvoiceServiceImpl implements InvoiceService {
                 : java.util.stream.Stream.of(address.getAddressLine(), address.getCity(), address.getState(), address.getPostalCode())
                         .filter(v -> v != null && !v.isBlank()).collect(java.util.stream.Collectors.joining(", "));
 
+        var gst = gstInvoices.bySource("BOOKING:" + b.getId()).orElse(null);
         return InvoiceResponseDto.builder()
+                .documentTitle(gst == null ? null : gst.title())
+                .supplierName(gst == null ? null : gst.supplierName())
+                .supplierGstin(gst == null ? null : gst.supplierGstin())
+                .sacCode(gst == null ? null : gst.sacCode())
+                .placeOfSupply(gst == null || gst.placeOfSupply() == null ? null
+                        : gst.placeOfSupply() + (gst.placeOfSupplyCode() == null ? "" : " (" + gst.placeOfSupplyCode() + ")"))
+                .cgstCents(gst == null ? null : gst.cgstCents())
+                .sgstCents(gst == null ? null : gst.sgstCents())
+                .igstCents(gst == null ? null : gst.igstCents())
+                .rateLabel(gst == null ? null : com.nirvana.application.service.gst.GstMath.percent(gst.rateBps()))
                 .id(invoice.getId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .bookingId(b.getId())

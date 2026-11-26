@@ -35,7 +35,7 @@ public class NoOpEmailService implements EmailService {
 
     @Override
     public void sendInvoiceEmail(InvoiceEmailDto dto) {
-        String subject = "Invoice " + dto.invoiceNumber();
+        String subject = (dto.documentTitle() == null ? "Invoice" : dto.documentTitle()) + " " + dto.invoiceNumber();
         NotificationLog logEntry = NotificationLog.builder()
                 .channel(NotificationChannel.EMAIL)
                 .status(NotificationStatus.QUEUED)
@@ -111,16 +111,21 @@ public class NoOpEmailService implements EmailService {
     private String buildInvoiceBody(InvoiceEmailDto dto) {
         StringBuilder sb = new StringBuilder();
         sb.append("<p>Hello ").append(dto.toName() != null ? dto.toName() : "there").append(",</p>");
-        sb.append("<p>Your Nirvana invoice is ready.</p>");
+        if (dto.documentTitle() == null) sb.append("<p>Your Nirvana invoice is ready.</p>");
+        else com.nirvana.application.service.gst.GstMail.intro(sb, dto);
         sb.append("<ul>");
-        sb.append("<li><strong>Invoice #</strong>: ").append(dto.invoiceNumber()).append("</li>");
+        sb.append("<li><strong>").append(dto.documentTitle() == null ? "Invoice" : dto.documentTitle()).append(" #</strong>: ").append(dto.invoiceNumber()).append("</li>");
         sb.append("<li><strong>Booking Reference</strong>: ").append(dto.bookingReference()).append("</li>");
         if (dto.bookingStartTs() != null) {
             sb.append("<li><strong>Scheduled</strong>: ").append(BookingEmailContent.formatStart(dto.bookingStartTs(), dto.spaTimezone())).append("</li>");
         }
         sb.append("<li><strong>Spa</strong>: ").append(dto.spaName()).append("</li>");
         sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");
-        sb.append("<li><strong>Total</strong>: ").append(dto.currency()).append(" ").append(dto.totalCents() / 100.0).append("</li>");
+        if (dto.documentTitle() == null) {
+            sb.append("<li><strong>Total</strong>: ").append(dto.currency()).append(" ").append(dto.totalCents() / 100.0).append("</li>");
+        } else {
+            com.nirvana.application.service.gst.GstMail.amounts(sb, dto);
+        }
         sb.append("</ul>");
         sb.append("<p>You can download your invoice here: <a href=\"")
                 .append(dto.invoicePdfUrl())

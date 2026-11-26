@@ -8,6 +8,7 @@ import { BookingSummary } from '../../types/booking';
 import Button from '../../components/common/Button';
 import SlotGrid from '../../components/booking/SlotGrid';
 import { replacementTimes } from '../Booking/availableTimes';
+import InvoiceLinks from './InvoiceLinks';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -99,8 +100,9 @@ export default function MyBookings() {
           {b.therapistName && <p>Therapist: {b.therapistName}</p>}
           {b.refundStatus && b.refundStatus !== 'NONE' && <p>Refund: {b.refundStatus.toLowerCase()}</p>}
           <div className="flex gap-2 flex-wrap">
+            {(b.invoiceAvailable || (b.paymentMode === 'OFFLINE' && b.status === 'COMPLETED')) && <InvoiceLinks bookingId={b.id} />}
             {b.invoiceAvailable &&
-              <Button variant="secondary" disabled={action.isPending} onClick={() => action.mutate({kind: 'invoice', b})}>Download invoice</Button>}
+              <Button variant="secondary" disabled={action.isPending} onClick={() => action.mutate({kind: 'invoice', b})}>Download PDF</Button>}
             {b.status === 'PENDING_PAYMENT' && b.paymentMode === 'ONLINE' && (
               <>
               <Button disabled={action.isPending} onClick={() => action.mutate({ kind: 'pay', b })}>

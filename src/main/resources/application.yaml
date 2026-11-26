@@ -273,6 +273,28 @@ guest-alerts:
       moved: ${GUEST_WHATSAPP_TEMPLATE_MOVED:nirvana_guest_booking_moved}
       cancelled: ${GUEST_WHATSAPP_TEMPLATE_CANCELLED:nirvana_guest_booking_cancelled}
 
+# GST documents. The spa issues the guest's invoice (marketplace model); Nirvana invoices the spa
+# for its commission.
+gst:
+  # SAC for a spa treatment unless the service sets its own: 999722, beauty and physical well-being.
+  default-sac: ${GST_DEFAULT_SAC:999722}
+  # Used only when a spa has no tax_percent; a service's gst_rate_pct overrides both.
+  default-rate-pct: ${GST_DEFAULT_RATE_PCT:18}
+  nirvana:
+    legal-name: ${NIRVANA_LEGAL_NAME:Nirvana Wellness Private Limited}
+    # Needed to issue commission invoices; its first two digits are Nirvana's state.
+    gstin: ${NIRVANA_GSTIN:}
+    address: ${NIRVANA_REGISTERED_ADDRESS:}
+  commission:
+    sac: ${GST_COMMISSION_SAC:998599}
+    rate-pct: ${GST_COMMISSION_RATE_PCT:18}
+  sweep:
+    # Issues missed invoices and credit notes for this many days back, and last month's commission
+    # invoices. 0 turns the sweep off.
+    lookback-days: ${GST_SWEEP_LOOKBACK_DAYS:45}
+    initial-delay-ms: 300000
+    interval-ms: 600000
+
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   scheduling:

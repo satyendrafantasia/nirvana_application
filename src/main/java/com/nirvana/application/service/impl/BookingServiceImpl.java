@@ -244,7 +244,7 @@ public class BookingServiceImpl implements BookingService {
                 redeemLoyalty);
 
         int discountCents = pricing.discountCents();
-        int taxCents = calculateTax(spa, priceCents - discountCents);
+        int taxCents = calculateTax(spa, service, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
         int payableCents = payWithPackage ? 0 : totalCents;
         BookingSource bookingSource = resolveBookingSource(request.getBookingSource());
@@ -676,12 +676,18 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    private int calculateTax(Spa spa, int taxableAmount) {
-        Integer taxPercent = spa.getTaxPercent();
-        if (taxPercent == null || taxPercent <= 0) {
+    /**
+     * GST on the booking. Only a spa registered for GST (a valid GSTIN) may charge it; the rate is the
+     * service's own, else the spa's tax_percent.
+     */
+    private int calculateTax(Spa spa, com.nirvana.application.model.Service service, int taxableAmount) {
+        if (com.nirvana.application.service.gst.GstMath.normalizeGstin(spa.getGstin()) == null) {
             return 0;
         }
-        return (int) Math.round(taxableAmount * (taxPercent / 100.0));
+        java.math.BigDecimal rate = service.getGstRatePct() != null ? service.getGstRatePct()
+                : spa.getTaxPercent() == null ? java.math.BigDecimal.ZERO : java.math.BigDecimal.valueOf(spa.getTaxPercent());
+        return (int) com.nirvana.application.service.gst.GstMath.taxOnExclusive(taxableAmount,
+                com.nirvana.application.service.gst.GstMath.bps(rate));
     }
 
     private BookingCreateResponse buildResponse(Booking booking, int totalCents) {
