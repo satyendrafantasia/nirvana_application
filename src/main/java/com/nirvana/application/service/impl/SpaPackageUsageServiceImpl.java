@@ -80,6 +80,10 @@ public class SpaPackageUsageServiceImpl implements SpaPackageUsageService {
                     .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
         }
 
+        if(booking!=null && (!booking.getSpa().getId().equals(spaId) || !booking.getUser().getId().equals(userId)))
+            throw new IllegalArgumentException("The appointment must belong to this customer and spa");
+        if(!subscription.getServiceIds().isEmpty() && (booking==null || !subscription.getServiceIds().contains(booking.getService().getId())))
+            throw new IllegalStateException("This service is not included in the purchased package");
         int sessionNumber = subscription.getTotalSessions() - subscription.getRemainingSessions() + 1;
         subscription.setRemainingSessions(subscription.getRemainingSessions() - 1);
         if (subscription.getRemainingSessions() <= 0) {

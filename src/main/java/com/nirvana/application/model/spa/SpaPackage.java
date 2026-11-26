@@ -26,6 +26,16 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class SpaPackage extends BaseEntity {
+    private String title;
+    private String description;
+    private Integer validityDays;
+    private boolean archived;
+    private boolean publishedOnce;
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name="spa_package_service",joinColumns=@jakarta.persistence.JoinColumn(name="package_id"))
+    @jakarta.persistence.Column(name="service_id")
+    @lombok.Builder.Default
+    private java.util.Set<Long> serviceIds = new java.util.HashSet<>();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

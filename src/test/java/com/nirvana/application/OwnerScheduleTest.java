@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest @AutoConfigureMockMvc
 class OwnerScheduleTest {
     @org.junit.jupiter.api.BeforeEach void publishFixtureName(){jdbc.update("update therapist set public_name='Maya' where id=1");}
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     static final String BASE="/api/owner/spas/1/schedule";
@@ -52,6 +53,29 @@ class OwnerScheduleTest {
     long matches(long slot) throws Exception {return lookup(slot).findValues("therapistId").stream().filter(n->n.asLong()==1).count();}
     Map<String,String> interval(String kind,int start,int end){return Map.of("kind",kind,"start",time(start,0),"end",time(end,0));}
     Reply hours(List<?> list)throws Exception{return owner(put(BASE+"/therapists/1/days/"+day),Map.of("intervals",list));}
+    @Test @Transactional void frontDeskReceiptAndMovePreserveCustomerAndCapacity() throws Exception {
+        ok(hours(List.of(interval("WORK",10,18))));
+        long first=slot(11,0,1), next=slot(15,0,1);
+        var result=book(first,true);
+        assertEquals(2,result.status()/100,()->result.body().toString());
+        long booking=result.body().get("bookingId").asLong();
+        String desk="/api/owner/spas/1/desk/bookings/"+booking;
+        jdbc.update("INSERT INTO spa_booking_confirmation(booking_id,spa_id,token,status,created_at,updated_at) VALUES(?,1,?,'PENDING',UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE status='PENDING'",booking,UUID.randomUUID().toString().replace("-",""));
+        assertEquals(200,owner(post(desk+"/reply"),Map.of("accept",true)).status());
+        assertEquals("CONFIRMED",jdbc.queryForObject("SELECT status FROM spa_booking_confirmation WHERE booking_id=?",String.class,booking));
+        ok(owner(post(desk+"/move"),Map.of("slotId",next,"reason","Guest requested change")));
+        entityManager.flush();
+        assertEquals(1L,jdbc.queryForObject("SELECT therapist_id FROM booking WHERE id=?",Long.class,booking));
+        assertEquals(next,jdbc.queryForObject("SELECT slot_id FROM booking WHERE id=?",Long.class,booking));
+        for(int i=0;i<2;i++)assertEquals(200,owner(post(desk+"/collect"),Map.of("method","CASH","reference","Desk test")).status());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE booking_id=?",Integer.class,booking));
+        assertEquals(403,call(post(desk+"/collect"),3,"ROLE_USER",Map.of("method","CASH")).status());
+        ok(owner(post("/api/owner/spas/1/bookings/"+booking+"/cancel"),Map.of("reason","Test cancellation")));
+        entityManager.flush();
+        for(int i=0;i<2;i++)assertEquals(200,owner(post(desk+"/return"),null).status());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE booking_id=? AND returned_at IS NOT NULL",Integer.class,booking));
+
+    }
     @Test @Transactional void lunchAndLaterBookingUseEntireDuration() throws Exception {
         ok(hours(List.of(interval("WORK",10,18),interval("BREAK",13,14))));
         long noon=slot(12,0,3), lunch=slot(12,30,3), after=slot(14,0,3), earlier=slot(13,30,3);
@@ -218,6 +242,31 @@ class OwnerScheduleTest {
         assertEquals(404,owner(put(BASE+"/rooms/"+foreignRoom),Map.of("active",false,"name","Other spa")).status());
         assertEquals(404,owner(put(BASE+"/therapists/999999/days/"+day),Map.of("intervals",List.of())).status());
         assertEquals(404,owner(patch(BASE+"/slots/999999"),Map.of("closed",true)).status());
+    }
+    @Test void racingDeskMovesKeepTheLosingAppointment() throws Exception {
+        long therapist=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("publicName","Test desk","name","Desk race fixture","available",true,"active",true,"serviceIds",List.of(1)))).get("id").asLong();
+        long room=room();var start=day.plusWeeks(2).atTime(10,0).atZone(ZONE).toOffsetDateTime();
+        long[] slots=new long[3], ids=new long[2];
+        for(int i=0;i<3;i++){
+            var at=start.plusHours(i*2L);
+            slots[i]=ok(owner(post(BASE+"/slots"),Map.of("serviceId",1,"roomId",room,"start",at,"end",at.plusHours(1),"capacity",1))).get("id").asLong();
+            if(i<2){
+                var r=call(post("/api/bookings"),3,"ROLE_USER",Map.of("slotId",slots[i],"spaId",1,"serviceId",1,"guests",1,"paymentMode","OFFLINE","therapistId",therapist));
+                assertEquals(2,r.status()/100);ids[i]=r.body().get("bookingId").asLong();
+            }
+        }
+        var gate=new CountDownLatch(1);var pool=Executors.newFixedThreadPool(2);
+        try{
+            List<Future<Reply>> moves=new ArrayList<>();
+            for(long id:ids)moves.add(pool.submit(()->{gate.await();return owner(post("/api/owner/spas/1/desk/bookings/"+id+"/move"),Map.of("slotId",slots[2]));}));
+            gate.countDown();int success=0;
+            for(int i=0;i<2;i++){
+                var result=moves.get(i).get(20,TimeUnit.SECONDS);
+                if(result.status()==200)success++;else assertEquals(409,result.status(),()->String.valueOf(result.body()));
+                assertEquals(result.status()==200?slots[2]:slots[i],jdbc.queryForObject("SELECT slot_id FROM booking WHERE id=?",Long.class,ids[i]));
+            }
+            assertEquals(1,success);
+        }finally{pool.shutdownNow();}
     }
     @Test void simultaneousRequestsCannotShareRoomOrTherapist() throws Exception {
         for(boolean sameRoom:List.of(true,false)){

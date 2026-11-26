@@ -200,6 +200,7 @@ export function SpaPackages({ spaId }: { spaId: string }) {
     queryKey: ['spa-packages', spaId],
     queryFn: () => listSpaPackages(spaId)
   });
+  const includedServices=useQuery({queryKey:['spa-services',spaId],enabled:!!own.data?.some(p=>p.serviceIds?.length),queryFn:()=>getSpaServices(spaId)});
   // Only the Nirvana packages usable here, not the whole catalog with every spa.
   const catalog = useQuery({
     queryKey: ['packages', 'spa', spaId],
@@ -220,10 +221,10 @@ export function SpaPackages({ spaId }: { spaId: string }) {
   const spaName = spa.data?.name || 'this spa';
   const spaOffers: Offer[] = (own.data || []).map((p) => ({
     key: `spa-${p.id}`,
-    title: packageName(p.level),
+    title: p.title || packageName(p.level),
     price: packagePrice(Math.round(p.price * 100), currency),
     sessions: p.freeSessionsCount,
-    note: 'Use the sessions at this spa only',
+    note: ['Use the sessions at this spa only',p.description,p.validityDays && 'Valid '+p.validityDays+' days',p.serviceIds?.length && ('Included services: '+p.serviceIds.map(id=>includedServices.data?.find(v=>String(v.id)===String(id))?.name||'Service '+id).join(', '))].filter(Boolean).join(' · '),
     mine: true,
     start: () => startSpaPackage(spaId, p.id)
   }));

@@ -80,13 +80,17 @@ describe('Owner entry and access boundaries', () => {
     expect(html).toContain('Owner access required');
     expect(html).not.toContain('Owner workspace');
   });
-  it('shows an owner five tabs', () => {
+  it('shows the owner workspaces', () => {
     const html = render(<OwnerPortal />, ['ROLE_USER', 'ROLE_SPA_OWNER']);
     expect(ownerTabs.map((t) => t.label)).toEqual([
       'Overview',
       'Bookings',
+      'Payments',
+      'Customers',
+      'Analytics',
       'Schedule',
       'Services & team',
+      'Packages',
       'Settings'
     ]);
     for (const tab of ownerTabs) expect(html).toContain(`href="${tab.to}"`);
@@ -100,10 +104,11 @@ describe('Owner entry and access boundaries', () => {
       expect(reachable).toContain(section);
   });
   it('shows the sub-tabs of the tab you are on', () => {
-    const html = renderAt(<OwnerPortal />, '/owner/packages', ['ROLE_SPA_OWNER']);
-    expect(html).toContain('Treatments &amp; prices');
-    expect(isCurrent(html, '/owner/packages')).toBe(true); // the sub-tab
-    expect(isCurrent(html, '/owner/services')).toBe(true); // its tab, "Services & team"
+    const html = renderAt(<OwnerPortal />, '/owner/packages?spa=108', ['ROLE_SPA_OWNER']);
+    expect(isCurrent(html, '/owner/packages?spa=108')).toBe(true);
+    expect(isCurrent(html, '/owner/services?spa=108')).toBe(false);
+    const services = renderAt(<OwnerPortal />, '/owner/services', ['ROLE_SPA_OWNER']);
+    expect(services).toContain('Treatments &amp; prices');
     const settings = renderAt(<OwnerPortal />, '/owner/onboarding', ['ROLE_SPA_OWNER']);
     expect(settings).toContain('Setup &amp; verification');
     expect(settings).toContain('/owner/photos');

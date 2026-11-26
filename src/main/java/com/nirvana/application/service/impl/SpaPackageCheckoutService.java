@@ -35,6 +35,8 @@ public class SpaPackageCheckoutService {
   var p=packages.findBySpaIdAndId(spaId,packageId).filter(x->x.getStatus()==SpaPackageStatus.ACTIVE).orElseThrow(()->new EntityNotFoundException("Package unavailable"));
   var s=UserSpaPackageSubscription.builder().user(user).spa(p.getSpa()).spaPackage(p).level(p.getLevel()).pricePaid(p.getPrice()).totalSessions(p.getFreeSessionsCount()).remainingSessions(0).purchaseDate(OffsetDateTime.now()).status(UserSpaPackageStatus.PAYMENT_PENDING).paymentStatus(PaymentStatus.PENDING).currency(p.getSpa().getDefaultCurrency()).build();
   if(amount(s)<=0||s.getTotalSessions()<=0)throw new IllegalStateException("Package pricing is not configured");
+  s.setServiceIds(new java.util.HashSet<>(p.getServiceIds()));
+  if(p.getValidityDays()!=null)s.setExpiryDate(s.getPurchaseDate().plusDays(p.getValidityDays()));
   subscriptions.saveAndFlush(s);
   try{s.setRazorpayOrderId(gateway.orders.create(new JSONObject().put("amount",amount(s)).put("currency",s.getCurrency()).put("receipt","spa-package-"+s.getId())).get("id"));}catch(Exception e){throw new IllegalStateException("Unable to start checkout",e);}
   return intent(s);
@@ -53,8 +55,8 @@ public class SpaPackageCheckoutService {
   com.razorpay.Payment p=gateway.payments.fetch(id);
   if(!Objects.equals(id,p.get("id"))||!Objects.equals(s.getRazorpayOrderId(),p.get("order_id"))||!"captured".equals(p.get("status"))||!Boolean.TRUE.equals(p.get("captured"))||((Number)p.get("amount")).intValue()!=amount(s)||!Objects.equals(s.getCurrency(),p.get("currency"))||((Number)p.get("amount_refunded")).intValue()!=0)throw new IllegalStateException("Payment has not been captured for this package and amount.");
   if(s.getStatus()!=UserSpaPackageStatus.PAYMENT_PENDING)return;
-  s.setPaymentReferenceId(id);s.setPaymentStatus(PaymentStatus.SUCCESS);s.setStatus(UserSpaPackageStatus.ACTIVE);s.setRemainingSessions(s.getTotalSessions());subscriptions.save(s);
+  s.setCollectedAt(OffsetDateTime.now());s.setPaymentReferenceId(id);s.setPaymentStatus(PaymentStatus.SUCCESS);s.setStatus(UserSpaPackageStatus.ACTIVE);s.setRemainingSessions(s.getTotalSessions());subscriptions.save(s);
  }
  @Transactional public void captured(String orderId,String paymentId){subscriptions.findIdByOrder(orderId).ifPresent(id->{var s=subscriptions.findForUpdate(id).orElseThrow();try{enabled();settle(s,paymentId);}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Unable to reconcile spa package capture",e);}});}
- @Transactional public void refunded(String paymentId){if(gateway==null)return;try{com.razorpay.Payment p=gateway.payments.fetch(paymentId);subscriptions.findIdByOrder(p.get("order_id")).ifPresent(id->{var s=subscriptions.findForUpdate(id).orElseThrow();if(Objects.equals(paymentId,s.getPaymentReferenceId())&&((Number)p.get("amount_refunded")).intValue()>0){s.setStatus(UserSpaPackageStatus.CANCELLED);s.setRemainingSessions(0);subscriptions.save(s);}});}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Unable to reconcile spa package refund",e);}}
+ @Transactional public void refunded(String paymentId){if(gateway==null)return;try{com.razorpay.Payment p=gateway.payments.fetch(paymentId);subscriptions.findIdByOrder(p.get("order_id")).ifPresent(id->{var s=subscriptions.findForUpdate(id).orElseThrow();if(Objects.equals(paymentId,s.getPaymentReferenceId())&&((Number)p.get("amount_refunded")).intValue()>0){com.nirvana.application.model.RefundPosting.record(s.getRefundPostings(),0,((Number)p.get("amount_refunded")).intValue());s.setStatus(UserSpaPackageStatus.CANCELLED);s.setRemainingSessions(0);subscriptions.save(s);}});}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Unable to reconcile spa package refund",e);}}
 }

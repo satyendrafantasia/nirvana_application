@@ -21,6 +21,7 @@ import java.util.List;
 public class SpaPackageServiceImpl implements SpaPackageService {
 
     private final SpaRepository spaRepository;
+    private final com.nirvana.application.repository.ServiceRepository services;
     private final SpaPackageRepository spaPackageRepository;
 
     @Override
@@ -35,6 +36,19 @@ public class SpaPackageServiceImpl implements SpaPackageService {
                         .level(request.getLevel())
                         .build());
 
+        if(request.getTitle()!=null) spaPackage.setTitle(request.getTitle().trim());
+        if(request.getDescription()!=null) spaPackage.setDescription(request.getDescription().trim());
+        if(request.getArchived()!=null) spaPackage.setArchived(request.getArchived());
+        if(spaPackage.isArchived() && request.getStatus()==SpaPackageStatus.ACTIVE)
+            throw new IllegalArgumentException("Restore an archived package before publishing");
+        if(request.getServiceIds()!=null){
+            var selected=services.findAllById(request.getServiceIds());
+            if(selected.size()!=request.getServiceIds().size() || selected.stream().anyMatch(s->!s.getSpa().getId().equals(spaId)))
+                throw new IllegalArgumentException("Choose services from this spa");
+            spaPackage.getServiceIds().clear();spaPackage.getServiceIds().addAll(request.getServiceIds());
+        }
+        spaPackage.setValidityDays(request.getValidityDays());
+        if(request.getStatus()==SpaPackageStatus.ACTIVE)spaPackage.setPublishedOnce(true);
         spaPackage.setPrice(request.getPrice());
         spaPackage.setFreeSessionsCount(request.getFreeSessionsCount());
         spaPackage.setStatus(request.getStatus());
@@ -75,6 +89,11 @@ public class SpaPackageServiceImpl implements SpaPackageService {
 
     private SpaPackageResponse toResponse(SpaPackage spaPackage) {
         SpaPackageResponse response = new SpaPackageResponse();
+        response.setTitle(spaPackage.getTitle());
+        response.setDescription(spaPackage.getDescription());
+        response.setValidityDays(spaPackage.getValidityDays());
+        response.setArchived(spaPackage.isArchived());
+        response.setServiceIds(java.util.Set.copyOf(spaPackage.getServiceIds()));
         response.setId(spaPackage.getId());
         response.setSpaId(spaPackage.getSpa().getId());
         response.setLevel(spaPackage.getLevel());

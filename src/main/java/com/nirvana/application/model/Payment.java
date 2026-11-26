@@ -104,6 +104,16 @@ public class Payment extends BaseEntity {
     @Column(name="payment_link_order_id", length=128)
     private String paymentLinkOrderId;
 
+    @ElementCollection
+    @CollectionTable(name="booking_refund_posting",joinColumns=@JoinColumn(name="payment_id"))
+    @MapKeyColumn(name="cumulative_cents")
+    @Builder.Default
+    private java.util.Map<Integer,com.nirvana.application.model.RefundPosting> refundPostings=new java.util.HashMap<>();
+
+    public void setRefundedCents(Integer total) {
+        if(total!=null && total>0) RefundPosting.record(refundPostings,refundedCents==null?0:refundedCents,total);
+        this.refundedCents=total;
+    }
     @Version
     private Long version;
 }

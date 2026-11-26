@@ -26,15 +26,26 @@ public class OwnerBookingController {
     private final BookingLifecycleService lifecycle;
     private final BookingService bookingService;
     private final StaffAccess staffAccess;
-
-    @PostMapping("/arrive")
-    public StatusChange arrive(@PathVariable Long spaId, @PathVariable Long bookingId) {
-        return lifecycle.markArrived(spaId, bookingId);
+    private final com.nirvana.application.service.AuditTrailService audit;
+    private void record(Long id,String action,String reason){
+        audit.record(com.nirvana.application.model.enums.AdminActionType.STATUS_CHANGE,"BOOKING",id,
+            com.nirvana.application.security.SecurityUtils.getCurrentUserId(),null,java.util.Map.of("action",action),reason);
     }
 
+    @org.springframework.transaction.annotation.Transactional
+    @PostMapping("/arrive")
+    public StatusChange arrive(@PathVariable Long spaId, @PathVariable Long bookingId) {
+        var change=lifecycle.markArrived(spaId, bookingId);
+        record(bookingId,"arrive","arrive");
+        return change;
+    }
+
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/complete")
     public StatusChange complete(@PathVariable Long spaId, @PathVariable Long bookingId) {
-        return lifecycle.markCompleted(spaId, bookingId);
+        var change=lifecycle.markCompleted(spaId, bookingId);
+        record(bookingId,"complete","complete");
+        return change;
     }
 
     public record CancelRequest(@NotBlank @Size(max = 500) String reason) {
@@ -47,8 +58,11 @@ public class OwnerBookingController {
         return bookingService.cancelBookingBySpa(spaId, bookingId, request.reason().trim(), staffAccess.admin());
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/no-show")
     public StatusChange noShow(@PathVariable Long spaId, @PathVariable Long bookingId) {
-        return lifecycle.markNoShow(spaId, bookingId);
+        var change=lifecycle.markNoShow(spaId, bookingId);
+        record(bookingId,"no-show","no-show");
+        return change;
     }
 }

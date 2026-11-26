@@ -47,16 +47,16 @@ public class OwnerCatalogController {
     public record ServiceInput(@NotBlank @Size(max=255) String name, @Size(max=2000) String description,
         @NotNull @Min(1) @Max(1440) Integer durationMin, @NotNull @Min(0) @Max(1440) Integer bufferMin,
         @NotNull @Min(0) Integer basePriceCents, @NotBlank @Pattern(regexp="[A-Z]{3}") String currency,
-        @NotNull Boolean active) {}
+        @NotNull Boolean active, @Size(max=100) String category, Boolean visibleOnMarketplace) {}
     public record ServiceView(Long id, String name, String description, Integer durationMin,
-        Integer bufferMin, Integer basePriceCents, String currency, Boolean active) {}
+        Integer bufferMin, Integer basePriceCents, String currency, Boolean active,String category,Boolean visibleOnMarketplace) {}
     private ResponseStatusException missing(){return new ResponseStatusException(HttpStatus.NOT_FOUND,"Record not found in this spa");}
     private TherapistView view(Therapist t){
         Set<Long> ids=new HashSet<>();t.getServices().forEach(s->ids.add(s.getId()));
         if(t.getService()!=null)ids.add(t.getService().getId());
         return new TherapistView(t.getId(),t.getName(),t.getType(),t.getBio(),t.getIsActive(),t.getIsAvailable(),ids,t.getVersion(),t.getPublicName());
     }
-    private ServiceView view(Service s){return new ServiceView(s.getId(),s.getName(),s.getDescription(),s.getDurationMin(),s.getBufferMin(),s.getBasePriceCents(),s.getCurrency(),s.getIsActive());}
+    private ServiceView view(Service s){return new ServiceView(s.getId(),s.getName(),s.getDescription(),s.getDurationMin(),s.getBufferMin(),s.getBasePriceCents(),s.getCurrency(),s.getIsActive(),s.getCategory(),s.getIsVisibleOnMarketplace());}
     private String clean(String value){return value==null || value.isBlank()?null:value.trim();}
     public record Visibility(@NotNull Boolean names,@NotNull Boolean labels){}
     @GetMapping("/therapist-visibility")
@@ -127,6 +127,8 @@ public class OwnerCatalogController {
     private ServiceView save(Service s,ServiceInput in){
         s.setName(in.name().trim());s.setDescription(in.description());s.setDurationMin(in.durationMin());s.setDurationMinutes(in.durationMin());
         s.setBufferMin(in.bufferMin());s.setBasePriceCents(in.basePriceCents());s.setPriceCents(in.basePriceCents());s.setCurrency(in.currency());s.setIsActive(in.active());
+        if(in.category()!=null)s.setCategory(clean(in.category()));
+        if(in.visibleOnMarketplace()!=null)s.setIsVisibleOnMarketplace(in.visibleOnMarketplace());
         return view(services.saveAndFlush(s));
     }
 }

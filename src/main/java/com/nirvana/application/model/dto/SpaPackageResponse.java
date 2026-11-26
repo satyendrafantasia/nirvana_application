@@ -6,6 +6,11 @@ import com.nirvana.application.model.enums.spa.SpaPackageStatus;
 import java.math.BigDecimal;
 
 public class SpaPackageResponse {
+    @lombok.Getter @lombok.Setter @jakarta.validation.constraints.Size(max=100) private String title;
+    @lombok.Getter @lombok.Setter @jakarta.validation.constraints.Size(max=1500) private String description;
+    @lombok.Getter @lombok.Setter @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(3650) private Integer validityDays;
+    @lombok.Getter @lombok.Setter private Boolean archived;
+    @lombok.Getter @lombok.Setter @jakarta.validation.constraints.Size(max=500) private java.util.Set<Long> serviceIds;
 
     private Long id;
     private Long spaId;

@@ -73,6 +73,8 @@ public class UserSpaPackageServiceImpl implements UserSpaPackageService {
                 .paymentStatus(PaymentStatus.PENDING)
                 .paymentReferenceId(request.getPaymentReference())
                 .build();
+        subscription.setServiceIds(new java.util.HashSet<>(spaPackage.getServiceIds()));
+        if(spaPackage.getValidityDays()!=null)subscription.setExpiryDate(purchaseDate.plusDays(spaPackage.getValidityDays()));
         subscriptionRepository.save(subscription);
 
         PaymentResult paymentResult = paymentClient.processPayment(userId, spa.getId(), spaPackage.getPrice(), request.getPaymentMethod(), request.getPaymentReference());
@@ -80,6 +82,7 @@ public class UserSpaPackageServiceImpl implements UserSpaPackageService {
         subscription.setPaymentReferenceId(paymentResult.getReferenceId());
 
         if (paymentResult.getStatus() == PaymentStatus.SUCCESS) {
+            subscription.setCollectedAt(OffsetDateTime.now());
             subscription.setStatus(UserSpaPackageStatus.ACTIVE);
             subscription.setRemainingSessions(spaPackage.getFreeSessionsCount());
             subscriptionRepository.save(subscription);

@@ -5,12 +5,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { isAdmin } from '../../auth/roles';
 import Fields from '../../features/Fields';
 import { resolve, clean } from '../../features/model';
+import { embedUrl } from '../../components/spa/SpaProfile';
 import Button from '../../components/common/Button';
 export default function SpaSettings({ initialSpaId = '' }: { initialSpaId?: string }) {
   const { user } = useAuth();
   const admin = isAdmin(user?.roles);
   const [id, setId] = useState(initialSpaId);
   const [value, setValue] = useState<Record<string, unknown>>();
+  const [pinMessage, setPinMessage] = useState('');
   const [deactivate, setDeactivate] = useState(false);
   const spas = useQuery({
     queryKey: ['settings-spas', user?.id],
@@ -42,12 +44,20 @@ export default function SpaSettings({ initialSpaId = '' }: { initialSpaId?: stri
   useEffect(() => {
     if (initialSpaId) action.mutate('load');
   }, [initialSpaId]);
+  const address = (value?.address || {}) as Record<string, unknown>;
+  const pin =
+    address.latitude != null && address.longitude != null
+      ? String(address.latitude) + ',' + String(address.longitude)
+      : '';
+  const map = pin
+    ? embedUrl(pin, undefined, import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY)
+    : undefined;
   return (
     <div className="max-w-5xl mx-auto p-8 space-y-5">
       <h1 className="text-3xl font-bold">Full Spa Settings</h1>
       <p>
-        Load a spa before editing. Times use HH:mm:ss in the spaâ€™s timezone. Service and therapist
-        identifiers must belong to this spa or be unassigned.
+        Verify the contact details and map pin before saving. Times use HH:mm:ss in the spa’s
+        timezone. Service and therapist identifiers must belong to this spa or be unassigned.
       </p>
       <label className="block">
         Spa
@@ -103,6 +113,63 @@ export default function SpaSettings({ initialSpaId = '' }: { initialSpaId?: stri
               value={value}
               onChange={(v) => setValue(v as Record<string, unknown>)}
             />
+            <section className="space-y-2">
+              <h2 className="text-lg font-semibold">Map pin</h2>
+              <p>{pin || 'Enter latitude and longitude in the address fields.'}</p>
+              {pin && (
+                <a
+                  className="underline"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={
+                    'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(pin)
+                  }
+                >
+                  Check pin on Google Maps
+                </a>
+              )}
+              {map && (
+                <iframe
+                  title="Spa map pin"
+                  className="w-full h-48 rounded-xl"
+                  loading="lazy"
+                  src={map}
+                />
+              )}
+              <button
+                type="button"
+                className="block underline"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    setPinMessage('Enter coordinates in the address fields on this device.');
+                    return;
+                  }
+                  setPinMessage('Locating…');
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      setValue((v) => ({
+                        ...v,
+                        address: {
+                          ...(v?.address as object),
+                          latitude: Number(pos.coords.latitude.toFixed(6)),
+                          longitude: Number(pos.coords.longitude.toFixed(6))
+                        }
+                      }));
+                      setPinMessage('Pin updated. Check the pin and save when ready.');
+                    },
+                    () =>
+                      setPinMessage(
+                        'Location unavailable. Enter coordinates in the address fields.'
+                      )
+                  );
+                }}
+              >
+                Use my current location for the pin
+              </button>
+              <p role="status" className="text-sm">
+                {pinMessage}
+              </p>
+            </section>
             <Button disabled={action.isPending}>Save settings</Button>
           </form>
           <section className="border rounded-xl p-5 space-y-3">

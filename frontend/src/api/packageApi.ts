@@ -57,6 +57,7 @@ export const searchPackageSpas = async (
   ).data;
 /** A package one spa sells for its own visits. The price is in the spa's own currency. */
 export interface SpaPackage {
+  title?:string;description?:string;validityDays?:number;serviceIds?:number[];
   id: number;
   level: string;
   price: number;

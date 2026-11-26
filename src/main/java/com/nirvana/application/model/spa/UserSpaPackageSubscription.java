@@ -30,6 +30,11 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class UserSpaPackageSubscription extends BaseEntity {
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name="spa_subscription_service",joinColumns=@jakarta.persistence.JoinColumn(name="subscription_id"))
+    @jakarta.persistence.Column(name="service_id")
+    @lombok.Builder.Default
+    private java.util.Set<Long> serviceIds = new java.util.HashSet<>();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -86,6 +91,14 @@ public class UserSpaPackageSubscription extends BaseEntity {
     @Column(length=3)
     private String currency;
 
+    @ElementCollection
+    @CollectionTable(name="spa_package_refund_posting",joinColumns=@JoinColumn(name="subscription_id"))
+    @MapKeyColumn(name="cumulative_cents")
+    @Builder.Default
+    private java.util.Map<Integer,com.nirvana.application.model.RefundPosting> refundPostings=new java.util.HashMap<>();
+
+    @Column(name="collected_at")
+    private OffsetDateTime collectedAt;
     @Version
     private Long version;
 }
