@@ -43,5 +43,19 @@ public record InvoiceResponseDto(
         String paymentStatus,
         /** The gateway's payment ID, such as Razorpay's pay_…, when paid online. */
         String paymentReference,
-        OffsetDateTime paidAt
+        OffsetDateTime paidAt,
+
+        // From the GST document, when one was issued.
+        /** "Tax Invoice" or "Bill of Supply"; null for an invoice from before GST documents. */
+        String documentTitle,
+        /** The spa's legal name and GSTIN: the spa, not Nirvana, is the supplier. */
+        String supplierName,
+        String supplierGstin,
+        String sacCode,
+        String placeOfSupply,
+        Long cgstCents,
+        Long sgstCents,
+        Long igstCents,
+        /** Such as "18%". */
+        String rateLabel
 ) {}

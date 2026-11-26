@@ -67,6 +67,14 @@ public class Service extends BaseEntity {
     @Column(name = "duration_minutes" )
     private Integer durationMinutes;
 
+    /** SAC printed on the guest's invoice; null means the default (999722, beauty and spa services). */
+    @Column(name = "sac_code", length = 8)
+    private String sacCode;
+
+    /** GST rate for this service as a percentage; null means the spa's tax_percent. */
+    @Column(name = "gst_rate_pct", precision = 5, scale = 2)
+    private java.math.BigDecimal gstRatePct;
+
     @OneToMany(mappedBy = "service", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Therapist> therapists = new HashSet<>();
 

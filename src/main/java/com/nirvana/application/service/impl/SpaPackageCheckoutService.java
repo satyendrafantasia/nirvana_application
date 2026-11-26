@@ -51,11 +51,14 @@ public class SpaPackageCheckoutService {
   if(!Objects.equals(s.getRazorpayOrderId(),request.getRazorpayOrderId()))throw new IllegalArgumentException("Order mismatch");
   try{if(!Utils.verifyPaymentSignature(new JSONObject().put("razorpay_order_id",s.getRazorpayOrderId()).put("razorpay_payment_id",request.getRazorpayPaymentId()).put("razorpay_signature",request.getRazorpaySignature()),props.getKeySecret()))throw new IllegalArgumentException("Invalid signature");settle(s,request.getRazorpayPaymentId());return view(s);}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Payment verification unavailable",e);}
  }
+ @org.springframework.beans.factory.annotation.Autowired(required=false) private com.nirvana.application.service.gst.GstInvoiceService gst;
  private void settle(UserSpaPackageSubscription s,String id)throws com.razorpay.RazorpayException{
   com.razorpay.Payment p=gateway.payments.fetch(id);
   if(!Objects.equals(id,p.get("id"))||!Objects.equals(s.getRazorpayOrderId(),p.get("order_id"))||!"captured".equals(p.get("status"))||!Boolean.TRUE.equals(p.get("captured"))||((Number)p.get("amount")).intValue()!=amount(s)||!Objects.equals(s.getCurrency(),p.get("currency"))||((Number)p.get("amount_refunded")).intValue()!=0)throw new IllegalStateException("Payment has not been captured for this package and amount.");
   if(s.getStatus()!=UserSpaPackageStatus.PAYMENT_PENDING)return;
   s.setCollectedAt(OffsetDateTime.now());s.setPaymentReferenceId(id);s.setPaymentStatus(PaymentStatus.SUCCESS);s.setStatus(UserSpaPackageStatus.ACTIVE);s.setRemainingSessions(s.getTotalSessions());subscriptions.save(s);
+  // The spa's GST invoice for the purchase, emailed to the guest once this commits.
+  if(gst!=null)gst.issueForPackage(s.getId());
  }
  @Transactional public void captured(String orderId,String paymentId){subscriptions.findIdByOrder(orderId).ifPresent(id->{var s=subscriptions.findForUpdate(id).orElseThrow();try{enabled();settle(s,paymentId);}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Unable to reconcile spa package capture",e);}});}
  @Transactional public void refunded(String paymentId){if(gateway==null)return;try{com.razorpay.Payment p=gateway.payments.fetch(paymentId);subscriptions.findIdByOrder(p.get("order_id")).ifPresent(id->{var s=subscriptions.findForUpdate(id).orElseThrow();if(Objects.equals(paymentId,s.getPaymentReferenceId())&&((Number)p.get("amount_refunded")).intValue()>0){com.nirvana.application.model.RefundPosting.record(s.getRefundPostings(),0,((Number)p.get("amount_refunded")).intValue());s.setStatus(UserSpaPackageStatus.CANCELLED);s.setRemainingSessions(0);subscriptions.save(s);}});}catch(com.razorpay.RazorpayException e){throw new IllegalStateException("Unable to reconcile spa package refund",e);}}

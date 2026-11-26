@@ -87,7 +87,7 @@ public final class InvoicePdf {
             text("n.", BOLD, 30, FOREST, x + 7, y + 11);
             text("Nirvana", BOLD, 22, WHITE, x + s + 14, y + 22);
             text("WELLNESS", REGULAR, 8.5f, LIME, x + s + 15, y + 8);
-            textRight("INVOICE", BOLD, 22, WHITE, W - M, y + 22);
+            textRight(blank(inv.documentTitle()) ? "INVOICE" : inv.documentTitle().toUpperCase(Locale.ROOT), BOLD, 22, WHITE, W - M, y + 22);
             textRight(inv.invoiceNumber(), REGULAR, 10, LIME, W - M, y + 8);
         }
 
@@ -124,7 +124,9 @@ public final class InvoicePdf {
             if (!blank(inv.userEmail())) guest.add(inv.userEmail());
             if (!blank(inv.userPhone())) guest.add(inv.userPhone());
             List<String> spa = new ArrayList<>();
-            spa.add(inv.spaName());
+            spa.add(blank(inv.supplierName()) ? inv.spaName() : inv.supplierName());
+            if (!blank(inv.supplierName()) && !inv.supplierName().equals(inv.spaName())) spa.add("Trading as " + inv.spaName());
+            if (!blank(inv.documentTitle())) spa.add(blank(inv.supplierGstin()) ? "Not registered for GST" : "GSTIN " + inv.supplierGstin());
             if (!blank(inv.spaAddress())) spa.addAll(wrap(inv.spaAddress(), REGULAR, 9.5f, w - 28, 3));
             if (!blank(inv.spaPhone())) spa.add(inv.spaPhone());
             float h = 30 + 15 * Math.max(guest.size(), spa.size()) + 8;
@@ -156,7 +158,8 @@ public final class InvoicePdf {
             textRight("AMOUNT", BOLD, 8.5f, LIME, right - 12, top - 15.5f);
             float y = top - 24 - 22;
             text(inv.serviceName(), BOLD, 10.5f, INK, M + 12, y);
-            text("Treatment at " + inv.spaName(), REGULAR, 9, MUTED, M + 12, y - 13);
+            text("Treatment at " + inv.spaName() + (blank(inv.sacCode()) ? "" : "  |  SAC " + inv.sacCode())
+                    + (blank(inv.placeOfSupply()) ? "" : "  |  Place of supply " + inv.placeOfSupply()), REGULAR, 9, MUTED, M + 12, y - 13);
             textRight(String.valueOf(inv.guestCount() == null ? 1 : inv.guestCount()), REGULAR, 10.5f, INK, qtyX, y);
             textRight(money(inv.amountCents()), REGULAR, 10.5f, INK, right - 12, y);
             hr(y - 26);
@@ -169,7 +172,17 @@ public final class InvoicePdf {
             y = totalRow("Subtotal", money(inv.amountCents()), labelX, right, y, false);
             if (cents(inv.discountCents()) > 0)
                 y = totalRow("Discount", "- " + money(inv.discountCents()), labelX, right, y, false);
-            y = totalRow(taxLabel(), money(inv.taxCents()), labelX, right, y, false);
+            if ("Bill of Supply".equals(inv.documentTitle())) {
+                // Not registered for GST: no tax on the document.
+            } else if (cents(inv.cgstCents()) + cents(inv.sgstCents()) > 0) {
+                String half = half(inv.rateLabel());
+                y = totalRow("CGST" + half, money(inv.cgstCents()), labelX, right, y, false);
+                y = totalRow("SGST" + half, money(inv.sgstCents()), labelX, right, y, false);
+            } else if (cents(inv.igstCents()) > 0) {
+                y = totalRow("IGST" + (blank(inv.rateLabel()) ? "" : " (" + inv.rateLabel() + ")"), money(inv.igstCents()), labelX, right, y, false);
+            } else {
+                y = totalRow(taxLabel(), money(inv.taxCents()), labelX, right, y, false);
+            }
             y -= 4;
             roundedRect(labelX - 12, y - 12, right - labelX + 24, 30, 8, FOREST);
             text("Total", BOLD, 12, WHITE, labelX, y);
@@ -193,6 +206,9 @@ public final class InvoicePdf {
             text("Thank you for booking with Nirvana.", BOLD, 10.5f, INK, M, 72);
             text("This is a computer-generated invoice and needs no signature. Quote booking "
                     + inv.bookingReference() + " if you contact us.", REGULAR, 8.5f, MUTED, M, 57);
+            if (!blank(inv.documentTitle()) && !blank(inv.supplierName()))
+                text("Issued by " + inv.supplierName() + ", the supplier of this service, through the Nirvana marketplace.",
+                        REGULAR, 8.5f, MUTED, M, 44);
             textRight("Nirvana Wellness", BOLD, 8.5f, FOREST, W - M, 72);
         }
 
@@ -222,6 +238,20 @@ public final class InvoicePdf {
             if (base <= 0 || tax <= 0) return "GST";
             BigDecimal rate = BigDecimal.valueOf(tax * 100L).divide(BigDecimal.valueOf(base), 1, RoundingMode.HALF_UP).stripTrailingZeros();
             return "GST (" + rate.toPlainString() + "%)";
+        }
+
+        /** " (9%)" for an 18% rate split in two. */
+        private String half(String rateLabel) {
+            if (blank(rateLabel)) return "";
+            try {
+                return " (" + new BigDecimal(rateLabel.replace("%", "")).divide(BigDecimal.valueOf(2)).stripTrailingZeros().toPlainString() + "%)";
+            } catch (NumberFormatException e) {
+                return "";
+            }
+        }
+
+        private String money(Long minor) {
+            return money(minor == null ? null : (Integer) Math.toIntExact(minor));
         }
 
         private String money(Integer minor) {
@@ -360,6 +390,10 @@ public final class InvoicePdf {
 
     private static boolean blank(String s) {
         return s == null || s.isBlank();
+    }
+
+    private static long cents(Long v) {
+        return v == null ? 0 : v;
     }
 
     private static int cents(Integer v) {
