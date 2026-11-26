@@ -71,6 +71,23 @@ springdoc:
     enabled: ${API_DOCS_ENABLED:false}
     path: /swagger-ui/index.html
 
+# Search engines and link previews (docs/monitoring-and-seo.md). PUBLIC_SITE_URL is the approved
+# HTTPS origin; unset keeps every page noindex, robots.txt closed and the sitemap empty.
+# SEO_APP_SHELL is the built frontend/dist/app.html that spa pages are rendered into.
+seo:
+  public-origin: ${PUBLIC_SITE_URL:}
+  app-shell: ${SEO_APP_SHELL:}
+
+# Error reporting is off unless SENTRY_DSN is set (the starter reads it from the environment).
+# SENTRY_ENVIRONMENT and SENTRY_RELEASE tag events the same way. Errors only: tracing already
+# goes to OTLP above. No personal data, bodies or headers are sent (see config/SentryScrubbing).
+sentry:
+  send-default-pii: false
+  max-request-body-size: none
+  logging:
+    minimum-event-level: error
+    minimum-breadcrumb-level: info
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 

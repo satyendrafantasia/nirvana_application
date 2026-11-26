@@ -91,7 +91,12 @@ public class SecurityConfig {
                                 "/api/packages/catalog",
                                 "/api/packages/spas",
                                 "/api/v1/spa/{id:\\d+}/packages/available",
-                                "/api/faqs"
+                                "/api/faqs",
+                                // Crawler files and the server-rendered public spa pages.
+                                "/robots.txt",
+                                "/sitemap.xml",
+                                "/spas",
+                                "/spas/*"
                         ).permitAll()
                         .requestMatchers("/management/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                         .anyRequest().authenticated()

@@ -41,6 +41,12 @@
             <artifactId>pdfbox</artifactId>
             <version>3.0.6</version>
         </dependency>
+        <!-- Error reporting. Inactive unless SENTRY_DSN is set; see docs/monitoring-and-seo.md. -->
+        <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-spring-boot-starter-jakarta</artifactId>
+            <version>8.64.0</version>
+        </dependency>
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
