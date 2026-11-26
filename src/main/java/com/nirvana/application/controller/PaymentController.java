@@ -29,7 +29,7 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     /**
-     * Step 1 â€” Create Razorpay order.
+     * Step 1 — Create Razorpay order.
      * POST /api/bookings/{bookingId}/payments/razorpay/order
      */
     @PostMapping("/order")
@@ -44,7 +44,7 @@ public class PaymentController {
     }
 
     /**
-     * Step 2 â€” Confirm Razorpay payment.
+     * Step 2 — Confirm Razorpay payment.
      * POST /api/bookings/{bookingId}/payments/razorpay/confirm
      */
     @PostMapping("/confirm")
@@ -62,7 +62,7 @@ public class PaymentController {
     }
 
     /**
-     * Retry a payment â€” regenerate order_id.
+     * Retry a payment — regenerate order_id.
      * POST /api/bookings/{bookingId}/payments/razorpay/retry
      */
     @PostMapping("/pay-at-spa")

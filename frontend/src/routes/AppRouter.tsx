@@ -93,14 +93,8 @@ const AppRouter = () => {
         }
       />
       <Route path="/auth/password" element={<PasswordReset />} />
-      <Route
-        path="/packages"
-        element={
-          <RequireAuth>
-            <Packages />
-          </RequireAuth>
-        }
-      />
+      {/* Anyone can browse packages; buying asks for sign-in. */}
+      <Route path="/packages" element={<Packages />} />
       <Route
         path="/me/packages"
         element={

@@ -33,7 +33,7 @@ def q(v):
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--client',required=True);ap.add_argument('--start-date',default=dt.datetime.now(IST).date().isoformat());ap.add_argument('--report',required=True);args=ap.parse_args()
  if not os.environ.get('MYSQL_PWD'):raise SystemExit('Set MYSQL_PWD locally before running; do not store it in the script.')
- command=[args.client,'-h','127.0.0.1','-P3307','-uroot','--batch','--skip-column-names','nirvana_spa_test']
+ command=[args.client,'--default-character-set=utf8mb4','-h','127.0.0.1','-P3307','-uroot','--batch','--skip-column-names','nirvana_spa_test']
  def sql(value):
   result=subprocess.run(command,input=value,encoding='utf-8',capture_output=True)
   if result.returncode:raise RuntimeError(result.stderr)

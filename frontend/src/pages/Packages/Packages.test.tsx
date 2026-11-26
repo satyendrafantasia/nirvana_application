@@ -90,3 +90,34 @@ describe('asking the server', () => {
     vi.doUnmock('../../api/client');
   });
 });
+
+describe('browsing packages without an account', () => {
+  it('shows the catalog and a buy button to a guest who is not signed in', async () => {
+    const { default: Packages } = await import('./Packages');
+    const { AuthContext } = await import('../../contexts/AuthContext');
+    const qc = new QueryClient();
+    qc.setQueryData(['packages'], [pkg(1, 'GOLD', 12)]);
+    const guest = {
+      user: null,
+      token: null,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      hydrateUser: vi.fn(),
+      setUser: vi.fn(),
+      acceptAuth: vi.fn()
+    };
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <AuthContext.Provider value={guest}>
+          <StaticRouter location="/packages">
+            <Packages />
+          </StaticRouter>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    );
+    expect(html).toMatch(/gold package/i);
+    expect(html).toContain('Buy package');
+  });
+});

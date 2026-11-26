@@ -12,7 +12,7 @@ parser.add_argument('--client', required=True)
 args = parser.parse_args()
 if not os.environ.get('MYSQL_PWD'):
     parser.error('Set MYSQL_PWD for the local preview.')
-client = [args.client, '--host=127.0.0.1', '--port=3307', '--user=root', '--batch', '-N', 'nirvana_spa_test']
+client = [args.client, '--default-character-set=utf8mb4', '--host=127.0.0.1', '--port=3307', '--user=root', '--batch', '-N', 'nirvana_spa_test']
 def query(sql):
     result = subprocess.run(client, input=sql, text=True, encoding='utf-8', capture_output=True)
     if result.returncode:

@@ -171,7 +171,7 @@ export default function Discovery({
       );
       setMessage(
         request.mode === 'TEXT'
-          ? `Google results Â· page ${page} of up to 3. Results are ranked, not a complete directory.`
+          ? `Google results · page ${page} of up to 3. Results are ranked, not a complete directory.`
           : 'Up to 20 nearby results. Change the radius or ranking to refine your search.'
       );
     };
@@ -378,7 +378,7 @@ export default function Discovery({
                           clear();
                         }}
                       >
-                        {p.displayName?.text} â€” {p.formattedAddress}
+                        {p.displayName?.text} — {p.formattedAddress}
                       </button>
                       <Attribution place={p} />
                     </div>
@@ -388,7 +388,7 @@ export default function Discovery({
               {selected && (
                 <p role="status">
                   Selected: {selected.displayName?.text}
-                  {selected.formattedAddress ? ` â€” ${selected.formattedAddress}` : ''}
+                  {selected.formattedAddress ? ` — ${selected.formattedAddress}` : ''}
                 </p>
               )}
             </div>
@@ -451,7 +451,7 @@ export default function Discovery({
           </Button>
         </fieldset>
       </form>
-      {busy && <p role="status">Loadingâ€¦</p>}
+      {busy && <p role="status">Loading…</p>}
       {error && (
         <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">
           {error}
@@ -465,7 +465,7 @@ export default function Discovery({
       {results && (
         <section aria-label="Live Google results" className="space-y-4">
           <p className="text-sm">
-            Google Maps results Â· live information. Availability and prices come from onboarded
+            Google Maps results · live information. Availability and prices come from onboarded
             spas.
           </p>
           {results.length === 0 && (

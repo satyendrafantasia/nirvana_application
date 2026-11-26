@@ -65,5 +65,5 @@ they show server work, not network distance.
 
 ## Found in passing (not performance)
 
-- Some seed spa names are double-encoded, for example "Juniper Baths Â· Indiranagar". The data needs a one-off fix.
+- Some seed spa names are double-encoded, for example "Juniper Baths · Indiranagar". The data needs a one-off fix.
 - `/packages` sends signed-out visitors to sign in, although its data is public.

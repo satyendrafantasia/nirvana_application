@@ -137,7 +137,7 @@ export function SpaPhoto({
           />
         </a>
       ) : cover ? null : (
-        <p role="status">Loading photoâ€¦</p>
+        <p role="status">Loading photo…</p>
       )}
       {url && !failed && !!photo.authorAttributions?.length && (
         <figcaption

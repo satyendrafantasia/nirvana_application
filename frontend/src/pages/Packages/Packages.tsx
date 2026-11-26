@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CatalogPackage,
@@ -30,6 +31,8 @@ export default function Packages() {
     }
   }, [selected, success]);
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const buy = useMutation({
     mutationFn: async (p: CatalogPackage) => payForPackage(await startPackage(p.id)),
     onSuccess: (p, item) => {
@@ -92,6 +95,10 @@ export default function Packages() {
               aria-expanded={selected?.id === p.id}
               disabled={buy.isPending || !p.eligibleSpaCount}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                if (!user) {
+                  navigate('/auth/login?redirect=' + encodeURIComponent('/packages'));
+                  return;
+                }
                 trigger.current = event.currentTarget;
                 setSuccess(undefined);
                 setSelected(p);
