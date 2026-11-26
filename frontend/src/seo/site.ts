@@ -43,9 +43,11 @@ export function seoHead(home: boolean, origin: string) {
   }
   return tags.map((tag) => tag.replace(/^<(\w+)/, '<$1 data-site-head')).join('\n');
 }
+// Keep in step with SeoPages.robots() on the backend, which serves robots.txt in production.
+const privatePaths = ['/api/', '/owner', '/admin', '/me', '/booking', '/auth', '/staff', '/b/'];
 export function robots(origin: string) {
   return origin
-    ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`
+    ? `User-agent: *\nAllow: /\n${privatePaths.map((path) => `Disallow: ${path}\n`).join('')}Sitemap: ${origin}/sitemap.xml\n`
     : 'User-agent: *\nDisallow: /\n';
 }
 export function sitemap(origin: string) {

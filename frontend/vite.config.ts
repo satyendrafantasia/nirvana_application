@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { isAppRoute } from './src/seo/routes';
+import { version } from './package.json';
 const home =
   '<main><h1>Book spa and wellness services with Nirvana</h1><p>Search by city, spa name or treatment, compare prices and select an available appointment.</p><a href="/spas">Book an appointment</a></main>';
 function publicPages(origin: string): Plugin {
@@ -86,6 +87,7 @@ function publicPages(origin: string): Plugin {
   };
 }
 export default defineConfig(({ command, mode }) => ({
+  define: { __APP_RELEASE__: JSON.stringify('nirvana-frontend@' + version) },
   plugins: [
     react(),
     publicPages(

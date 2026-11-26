@@ -7,6 +7,9 @@ import App from './App';
 import './index.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { BookingProvider } from './contexts/BookingContext';
+import { startMonitoring } from './monitoring';
+
+startMonitoring();
 
 const queryClient = new QueryClient();
 
