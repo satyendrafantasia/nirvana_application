@@ -1,6 +1,13 @@
 package com.nirvana.application;
 
 import com.nirvana.application.model.Booking;
+import com.nirvana.application.model.Service;
+import com.nirvana.application.model.Slot;
+import com.nirvana.application.model.Spa;
+import com.nirvana.application.model.User;
+import com.nirvana.application.model.enums.BookingStatus;
+import com.nirvana.application.model.enums.PaymentMode;
+import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.service.SpaAlertSms;
 import com.nirvana.application.service.SpaBookingAlerts;
@@ -16,7 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,16 +46,34 @@ class SpaBookingConfirmationTest {
 
     /** A confirmed pay-at-spa booking tomorrow at a spa with the given phone. */
     private Booking booking(String phone) {
-        // Pay at spa: nothing to refund, so no payment gateway is needed when the spa declines.
-        long id = jdbc.queryForObject("SELECT MIN(b.id) FROM booking b WHERE NOT EXISTS (SELECT 1 FROM payment p WHERE p.booking_id=b.id)", Long.class);
-        long spa = jdbc.queryForObject("SELECT spa_id FROM booking WHERE id=?", Long.class, id);
-        jdbc.update("UPDATE spa SET phone=? WHERE id=?", phone, spa);
-        jdbc.update("""
-                UPDATE booking SET status='CONFIRMED', payment_mode='OFFLINE', payment_type='STANDARD', cancelled_by=NULL,
-                       start_ts=UTC_TIMESTAMP() + INTERVAL 1 DAY, end_ts=UTC_TIMESTAMP() + INTERVAL 1 DAY + INTERVAL 1 HOUR WHERE id=?""", id);
-        jdbc.update("DELETE FROM spa_booking_confirmation WHERE booking_id=?", id);
-        em.clear();
-        return bookings.findById(id).orElseThrow();
+        Spa spa = em.find(Spa.class, 1L);
+        spa.setPhone(phone);
+        Service service = em.getReference(Service.class, 1L);
+        OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
+        Slot slot = new Slot();
+        slot.setSpa(spa);
+        slot.setService(service);
+        slot.setStartTs(start);
+        slot.setEndTs(start.plusHours(1));
+        slot.setStatus(SlotStatus.BOOKED);
+        slot.setBookedUnits((short) 1);
+        em.persist(slot);
+
+        Booking booking = new Booking();
+        booking.setBookingReference("CONFIRM-" + UUID.randomUUID());
+        booking.setUser(em.getReference(User.class, 3L));
+        booking.setSpa(spa);
+        booking.setService(service);
+        booking.setSlot(slot);
+        booking.setStartTs(slot.getStartTs());
+        booking.setEndTs(slot.getEndTs());
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setPaymentMode(PaymentMode.OFFLINE);
+        booking.setPriceCents(150_000);
+        booking.setDepositCents(0);
+        booking.setRemainderCents(150_000);
+        booking.setPolicySnapshotJson("{}");
+        return bookings.saveAndFlush(booking);
     }
 
     private String token(long bookingId) {

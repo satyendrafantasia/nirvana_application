@@ -93,27 +93,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: shellcheck --severity=warning scripts/*.sh
-      - run: bash -n scripts/backup-db.sh scripts/restore-db.sh scripts/backup-schedule.sh
+      - run: for script in scripts/*.sh; do bash -n "$script"; done
 
   images:
-    name: Docker images
+    name: Build and smoke-test (${{ matrix.arch }})
     needs: [backend, frontend, scripts]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     permissions:
       contents: read
-      # Only used on main, with the job's own GITHUB_TOKEN; no stored secrets.
       packages: write
     env:
       PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      ARCH: ${{ matrix.arch }}
+      VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Image names
-        id: names
-        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
       - uses: docker/setup-buildx-action@v3
+
+      - name: Build native app, web and backup images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          targets: |
+            app
+            web
+            backup
+          load: true
+          set: |
+            *.platform=linux/${{ matrix.arch }}
+            *.label.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            *.label.org.opencontainers.image.revision=${{ github.sha }}
+            app.cache-from=type=gha,scope=app-${{ matrix.arch }}
+            web.cache-from=type=gha,scope=web-${{ matrix.arch }}
+            backup.cache-from=type=gha,scope=backup-${{ matrix.arch }}
+            app.cache-to=type=gha,mode=max,scope=app-${{ matrix.arch }}
+            web.cache-to=type=gha,mode=max,scope=web-${{ matrix.arch }}
+            backup.cache-to=type=gha,mode=max,scope=backup-${{ matrix.arch }}
+        env:
+          # Compose requires these placeholders to parse the file. No runtime secrets enter a build.
+          DB_ROOT_PASSWORD: compose-build-only
+          DB_APP_PASSWORD: compose-build-only
+          JWT_SECRET: compose-build-only-unused-at-runtime
+
+      - name: Exercise the built stack through nginx
+        run: bash scripts/smoke-compose.sh
 
       - name: Log in to GHCR
         if: env.PUBLISH == 'true'
@@ -123,41 +156,40 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build app image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: app
-          push: ${{ env.PUBLISH == 'true' }}
-          tags: |
-            ${{ steps.names.outputs.prefix }}/app:sha-${{ github.sha }}
-            ${{ env.PUBLISH == 'true' && format('{0}/app:main', steps.names.outputs.prefix) || '' }}
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,mode=max,scope=app
+      - name: Push tested native images
+        if: env.PUBLISH == 'true'
+        run: |
+          for target in app web backup; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$target:sha-$GITHUB_SHA-$ARCH"
+            docker tag "nirvana-$target:local" "$image"
+            docker push "$image"
+          done
 
-      - name: Build web image
-        uses: docker/build-push-action@v6
+  publish:
+    name: Publish and verify multi-platform images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          context: .
-          target: web
-          push: ${{ env.PUBLISH == 'true' }}
-          # Preview build (noindex). Set a repository variable to build for the production origin.
-          build-args: |
-            VITE_PUBLIC_SITE_URL=${{ vars.VITE_PUBLIC_SITE_URL }}
-          tags: |
-            ${{ steps.names.outputs.prefix }}/web:sha-${{ github.sha }}
-            ${{ env.PUBLISH == 'true' && format('{0}/web:main', steps.names.outputs.prefix) || '' }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-
-      - name: Build backup image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: backup
-          push: ${{ env.PUBLISH == 'true' }}
-          tags: |
-            ${{ steps.names.outputs.prefix }}/backup:sha-${{ github.sha }}
-            ${{ env.PUBLISH == 'true' && format('{0}/backup:main', steps.names.outputs.prefix) || '' }}
-          cache-from: type=gha,scope=backup
-          cache-to: type=gha,mode=max,scope=backup
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested digests and check both release tags
+        run: |
+          for target in app web backup; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$target"
+            release="$image:sha-$GITHUB_SHA"
+            docker buildx imagetools create -t "$release" -t "$image:main" \
+              "$release-amd64" "$release-arm64"
+            docker buildx imagetools inspect --raw "$release" > sha.json
+            docker buildx imagetools inspect --raw "$image:main" > main.json
+            cmp sha.json main.json
+            jq -e '([.manifests[].platform | select(.os == "linux") | .architecture] | sort) == ["amd64", "arm64"]' sha.json
+          done

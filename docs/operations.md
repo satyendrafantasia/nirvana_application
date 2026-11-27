@@ -20,13 +20,13 @@ Base images are pinned to exact versions in the `ARG` lines at the top of the Do
 Requires Docker with BuildKit (Docker 23+ or `docker buildx`).
 
 ```sh
-docker build --target app    -t nirvana-app .
+docker build --target app    -t nirvana-app --build-arg VITE_PUBLIC_SITE_URL=https://example.in .
 docker build --target web    -t nirvana-web --build-arg VITE_PUBLIC_SITE_URL=https://example.in .
 docker build --target backup -t nirvana-backup .
 ```
 
-The image build does not run tests (they need a database); CI does. The frontend is compiled into
-the `web` image, so its settings are build arguments, not runtime variables:
+Use the same frontend build arguments for `app` and `web`. Spring serves the generated HTML shell
+for spa listings, and nginx serves the matching JavaScript and CSS.
 
 | Build argument | Meaning |
 |---|---|
@@ -38,7 +38,8 @@ the `web` image, so its settings are build arguments, not runtime variables:
 ### Routing in the `web` image
 
 [`deploy/nginx/default.conf.template`](../deploy/nginx/default.conf.template) implements the rules in
-[production-readiness.md](production-readiness.md): `/` serves `index.html`; the client routes from
+[production-readiness.md](production-readiness.md). Spring handles `/spas`, individual spa pages,
+`/robots.txt` and `/sitemap.xml`. The homepage serves `index.html`; the remaining client routes from
 `frontend/src/seo/routes.ts` serve `app.html` with status 200; real files are served directly
 (`/assets/*` cached for a year, HTML revalidated); anything else gets `404.html` with status 404.
 **When you add a route to `routes.ts`, add it to the nginx template too.** `/management/*` (actuator)
@@ -295,8 +296,9 @@ Not exercised here: a real S3 bucket, the `aws` CLI upload path, and the scripts
 |---|---|
 | `backend` | MariaDB 11.4 service container; creates `nirvana_ci` with `utf8mb4_0900_ai_ci`; generates a one-off `JWT_SECRET`; `./mvnw verify` (all backend tests). Maven cache via `setup-java`. Test reports are uploaded when it fails. |
 | `frontend` | `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npx vitest run`. npm cache via `setup-node`. |
-| `scripts` | `shellcheck` and `bash -n` on the backup scripts. |
-| `images` | After the three jobs pass, builds the `app`, `web` and `backup` images with the GitHub Actions layer cache. On a push to `main` only, pushes them to `ghcr.io/<owner>/<repo>/{app,web,backup}` tagged `main` and `sha-<commit>`. |
+| `scripts` | Checks each shell script with ShellCheck and `bash -n`. |
+| `images` | Builds all three images on native AMD64 and ARM64 Linux runners. Each runner starts an isolated Compose stack and runs `scripts/smoke-compose.sh` against the built images. |
+| `publish` | After both architectures pass on a push to `main`, publishes multi-platform `main` and `sha-<commit>` tags for each image at `ghcr.io/<owner>/<repo>/{app,web,backup}`. Verifies that both tags resolve to the same manifest with both architectures. |
 
 Publishing uses the workflow's own `GITHUB_TOKEN` (`packages: write`), so no repository secrets are
 needed. The images are private by default under the owner's GitHub packages. Set the repository

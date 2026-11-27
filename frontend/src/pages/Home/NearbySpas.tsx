@@ -95,7 +95,6 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
       controller.abort();
       abort.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn]);
 
   return (

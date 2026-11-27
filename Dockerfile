@@ -11,7 +11,8 @@
 
 ARG MAVEN_IMAGE=maven:3.9.11-eclipse-temurin-17
 ARG NODE_IMAGE=node:24.22.3-bookworm-slim
-ARG JRE_IMAGE=eclipse-temurin:17.0.21.1_2-jre-noble
+# Pin the multi-architecture index so both AMD64 and Graviton pull native Java 17 runtimes.
+ARG JRE_IMAGE=eclipse-temurin:17-jre-noble@sha256:ad806840ae514b83d3d8e3a00a5c1b7302fb0a6ae02bbbaf8a8bf1ffdf5367c6
 ARG NGINX_IMAGE=nginx:1.28.3-alpine
 ARG MARIADB_IMAGE=mariadb:11.4.13-noble
 
@@ -80,8 +81,12 @@ RUN apt-get update \
  && useradd --system --uid 10001 --gid nirvana --home-dir /app --shell /usr/sbin/nologin nirvana
 WORKDIR /app
 COPY --from=backend-build --chown=nirvana:nirvana /src/app.jar /app/app.jar
+COPY --from=frontend-build --chown=nirvana:nirvana /src/frontend/dist/app.html /app/app.html
 USER nirvana:nirvana
+ARG VITE_PUBLIC_SITE_URL=
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError" \
+    SEO_APP_SHELL=/app/app.html \
+    PUBLIC_SITE_URL=${VITE_PUBLIC_SITE_URL} \
     SERVER_PORT=8080 \
     TZ=Asia/Kolkata
 EXPOSE 8080

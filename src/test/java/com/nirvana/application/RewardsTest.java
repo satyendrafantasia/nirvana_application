@@ -41,7 +41,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Rs 120 with 18% tax; a Monday 10:00 slot gets the 5% off-peak discount, so a plain booking is
  * 12,000 - 600 + 2,052 tax = 13,452 paise.
  */
-@SpringBootTest @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties = "reliability.rate-limiting.enabled=false")
+@AutoConfigureMockMvc @Transactional
 class RewardsTest {
     static final String SCHEDULE = "/api/owner/spas/1/schedule";
     static final ZoneId ZONE = ZoneId.of("Europe/London");

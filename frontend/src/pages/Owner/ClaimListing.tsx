@@ -307,7 +307,7 @@ export function ClaimSearch({ onPick }: { onPick: (placeId: string) => void }) {
 
 /** Step 2: the Google details, editable; only what the owner submits is saved. */
 export function ClaimDetails({
-  initial,
+  initial: { declaration, listingHasPhone, ...initialFields },
   onBack,
   onDone
 }: {
@@ -316,20 +316,19 @@ export function ClaimDetails({
   onDone: (spaId: number) => void;
 }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState<ClaimForm>(initial);
+  const [form, setForm] = useState(initialFields);
   const [authorised, setAuthorised] = useState(false);
   const [phoneVerificationId, setPhoneVerificationId] = useState<string>();
   const [skipPhone, setSkipPhone] = useState(false);
-  const hasPhone = initial.listingHasPhone !== false;
+  const hasPhone = listingHasPhone !== false;
   const phoneSettled = !!phoneVerificationId || skipPhone || !hasPhone;
-  const set = (key: keyof ClaimForm) => (e: { target: { value: string } }) =>
+  const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm({ ...form, [key]: e.target.value });
   const submit = useMutation({
     mutationFn: async () => {
-      const { declaration: _shown, listingHasPhone: _has, ...body } = form;
       return (
         await client.post<{ spaId: number }>('/api/owner/claims', {
-          ...body,
+          ...form,
           authorised,
           phoneVerificationId
         })
@@ -458,7 +457,7 @@ export function ClaimDetails({
             onChange={(e) => setAuthorised(e.target.checked)}
           />
           <span>
-            {form.declaration ||
+            {declaration ||
               'I own or am authorised to manage this spa, and the details I submitted are correct.'}{' '}
             <Link className="underline" to="/terms" target="_blank">
               Read the terms

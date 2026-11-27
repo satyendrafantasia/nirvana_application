@@ -2,6 +2,7 @@
 #
 # Routing follows docs/production-readiness.md and the Vite preview server:
 #   /                         index.html (indexable homepage)
+#   /spas, /spas/{id}, /sitemap.xml and /robots.txt   rendered by the Spring Boot app
 #   client routes             app.html, status 200 (keep in step with frontend/src/seo/routes.ts)
 #   real files                served directly; /assets/* are fingerprinted and cached for a year
 #   anything else             404.html, status 404
@@ -33,6 +34,13 @@ server {
     location ^~ /oauth2/       { proxy_pass http://${API_UPSTREAM}; include /etc/nginx/snippets/proxy.inc; }
     location ^~ /login/oauth2/ { proxy_pass http://${API_UPSTREAM}; include /etc/nginx/snippets/proxy.inc; }
 
+    location ~ "^/(robots\.txt|sitemap\.xml|spas(/[^/]+)?/*)$" {
+        # Spring maps the canonical path. Keep bookmarked trailing-slash URLs working.
+        rewrite ^(.+?)/+$ $1 break;
+        proxy_pass http://${API_UPSTREAM};
+        include /etc/nginx/snippets/proxy.inc;
+    }
+
     location ^~ /assets/ {
         try_files $uri =404;
         add_header Cache-Control "public, max-age=31536000, immutable" always;
@@ -46,12 +54,12 @@ server {
     }
 
     # Client-side routes: frontend/src/seo/routes.ts isAppRoute().
-    location ~ "^/(discover|admin/city-discovery|admin/listing-claims|admin/spa-leads|staff/media|packages|me/packages|spas|auth/login|auth/register|auth/otp|auth/email-link|auth/password|auth/social/callback|me/bookings|me/settings|privacy|terms)/*$" {
+    location ~ "^/(discover|admin/city-discovery|admin/listing-claims|admin/spa-leads|admin/payouts|staff/media|packages|me/packages|auth/login|auth/register|auth/otp|auth/email-link|auth/password|auth/social/callback|me/bookings|me/settings|privacy|terms)/*$" {
         try_files /app.html =404;
         add_header Cache-Control "no-cache" always;
         add_header X-Content-Type-Options nosniff always;
     }
-    location ~ "^/(discover/places/[^/]+|(spas|features|b)/[^/]+)/*$" {
+    location ~ "^/(discover/places/[^/]+|(features|b)/[^/]+)/*$" {
         try_files /app.html =404;
         add_header Cache-Control "no-cache" always;
         add_header X-Content-Type-Options nosniff always;
