@@ -1,12 +1,20 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
-import { robots, sitemap, seoHead, publicOrigin } from './src/seo/site';
+import { staticPagePaths, pageMeta } from './src/seo/pages';
+import { pageHead, robots, sitemap, seoHead, publicOrigin } from './src/seo/site';
 import react from '@vitejs/plugin-react';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { isAppRoute } from './src/seo/routes';
 import { version } from './package.json';
-const home =
-  '<main><h1>Book spa and wellness services with Nirvana</h1><p>Search by city, spa name or treatment, compare prices and select an available appointment.</p><a href="/spas">Book an appointment</a></main>';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { StaticRouter } from 'react-router-dom/server.js';
+import HomeHero from './src/pages/Home/HomeHero';
+
+// Deliver the same above-the-fold content before the browser starts React.
+const hero = renderToStaticMarkup(createElement(StaticRouter, { location: '/' }, createElement(HomeHero)));
+const home = '<header class="site-header"><div class="nav-shell mx-auto max-w-6xl px-4 py-3"><a class="brand" href="/">Nirvana Wellness</a></div></header>' +
+  '<main class="home-shell mx-auto max-w-6xl px-4 py-10">' + hero + '</main>';
 function publicPages(origin: string): Plugin {
   const files: Record<string, string> = {
     'robots.txt': robots(origin),
@@ -54,7 +62,9 @@ function publicPages(origin: string): Plugin {
           return next();
         const found = isAppRoute(path);
         try {
-          const content = await readFile(resolve(out, found ? 'app.html' : '404.html'));
+          const normalized = path.replace(/\/+$/, '');
+          const file = staticPagePaths.includes(normalized) ? normalized.slice(1) + '/index.html' : found ? 'app.html' : '404.html';
+          const content = await readFile(resolve(out, file));
           res.statusCode = found ? 200 : 404;
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.end(req.method === 'HEAD' ? undefined : content);
@@ -74,12 +84,18 @@ function publicPages(origin: string): Plugin {
           .replace(seoHead(true, origin), seoHead(false, origin))
           .replace(home, '');
         this.emitFile({ type: 'asset', fileName: 'app.html', source: shell });
+        for (const path of staticPagePaths) {
+          const body = '<main><h1>' + pageMeta[path].title + '</h1><p>' + pageMeta[path].summary + '</p><a href="/spas">Explore spas</a></main>';
+          this.emitFile({ type: 'asset', fileName: path.slice(1) + '/index.html', source: shell
+            .replace(seoHead(false, origin), pageHead(path, origin))
+            .replace('<div id="root"></div>', '<div id="root">' + body + '</div>') });
+        }
         this.emitFile({
           type: 'asset',
           fileName: '404.html',
-          source: shell.replace(
+          source: shell.replace(seoHead(false, origin), pageHead('/404', origin)).replace(
             '<div id="root"></div>',
-            '<div id="root"><h1>Page not found</h1><a href="/">Return home</a> · <a href="/spas">Explore services</a></div>'
+            '<div id="root"><main class="error-page"><section class="error-card"><p>Nirvana Wellness · 404</p><h1>Page not found</h1><p>This link may have moved.</p><p><a href="/">Go home</a> · <a href="/spas">Explore services</a></p></section></main></div>'
           )
         });
       }

@@ -30,6 +30,7 @@ const NotFound = lazy(() => import('../pages/Static/NotFound'));
 const SpaBookingReply = lazy(() => import('../pages/SpaBookingReply/SpaBookingReply'));
 const GiftCards = lazy(() => import('../pages/GiftCards/GiftCards'));
 const GiftCardsAdmin = lazy(() => import('../pages/Staff/GiftCardsAdmin'));
+import { isAdmin, isStaff } from '../auth/roles';
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
@@ -47,7 +48,7 @@ const AppRouter = () => {
       <Route
         path="/admin/city-discovery"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isAdmin}>
             <CityDiscovery />
           </RequireAuth>
         }
@@ -55,7 +56,7 @@ const AppRouter = () => {
       <Route
         path="/admin/listing-claims"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isAdmin}>
             <ListingClaims />
           </RequireAuth>
         }
@@ -71,7 +72,7 @@ const AppRouter = () => {
       <Route
         path="/admin/gift-cards"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isAdmin}>
             <GiftCardsAdmin />
           </RequireAuth>
         }
@@ -79,7 +80,7 @@ const AppRouter = () => {
       <Route
         path="/admin/spa-leads"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isAdmin}>
             <SpaLeads />
           </RequireAuth>
         }
@@ -87,7 +88,7 @@ const AppRouter = () => {
       <Route
         path="/admin/payouts"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isAdmin}>
             <AdminPayouts />
           </RequireAuth>
         }
@@ -116,7 +117,7 @@ const AppRouter = () => {
       <Route
         path="/staff/media"
         element={
-          <RequireAuth>
+          <RequireAuth allowed={isStaff}>
             <Media />
           </RequireAuth>
         }
@@ -168,7 +169,7 @@ const AppRouter = () => {
         }
       />
       <Route path="/support" element={<Support />} />
-      <Route path="/admin/support" element={<RequireAuth><Support staff /></RequireAuth>} />
+      <Route path="/admin/support" element={<RequireAuth allowed={isAdmin}><Support staff /></RequireAuth>} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/privacy" element={<TrustPage kind="privacy" />} />

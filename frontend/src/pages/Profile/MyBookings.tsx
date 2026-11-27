@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import CancellationBreakdown from './CancellationBreakdown';
 import { Requests } from '../Owner/AppointmentOperations';
 import { useState } from 'react';
@@ -67,7 +68,10 @@ export default function MyBookings() {
     onError: (_error, variables) => {
       if (variables.kind === 'cancel') void quote.refetch();
     },
-    onSuccess: () => {
+    onSuccess: (_, { kind }) => {
+      if (kind === 'cancel') showToast('Appointment cancelled.', 'success');
+      if (kind === 'move') showToast('Appointment rescheduled.', 'success');
+      if (kind === 'offline') showToast('Payment method updated to pay at spa.', 'success');
       void qc.invalidateQueries({ queryKey: ['my-wallet'] });
       setEditing(undefined);
       setCancel(undefined);

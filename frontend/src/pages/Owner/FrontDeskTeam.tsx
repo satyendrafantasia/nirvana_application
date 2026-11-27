@@ -68,9 +68,9 @@ export default function FrontDeskTeam({ spaId }: { spaId: string }) {
       {team.data?.map((m) => (
         <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
           <span>
-            <strong>{m.name}</strong>
-            {m.name !== m.email && m.email && ' · ' + m.email}
-            {m.name !== m.phone && m.phone && ' · ' + m.phone}
+            {m.name !== m.email && m.name !== m.phone && <strong>{m.name}</strong>}
+            {m.email && <a className="mx-1 underline" href={'mailto:' + m.email}>{m.email}</a>}
+            {m.phone && <a className="mx-1 underline" href={'tel:' + m.phone.replace(/[^+0-9]/g, '')}>{m.phone}</a>}
           </span>
           <button
             className={button}

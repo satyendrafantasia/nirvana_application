@@ -53,6 +53,12 @@ server {
         add_header X-Content-Type-Options nosniff always;
     }
 
+    # Pages with dedicated shareable HTML. Other client routes use the private shell below.
+    location ~ "^/(about|contact|privacy|terms|packages|support|auth/(login|register|otp|password|email-link|social/callback)|owner/(login|signup))/*$" {
+        try_files $uri/index.html =404;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
     # Client-side routes: frontend/src/seo/routes.ts isAppRoute().
     location ~ "^/(discover|admin/city-discovery|admin/listing-claims|admin/spa-leads|admin/payouts|staff/media|packages|me/packages|auth/login|auth/register|auth/otp|auth/email-link|auth/password|auth/social/callback|me/bookings|me/settings|gift-cards|admin/gift-cards|support|admin/support|about|contact|privacy|terms)/*$" {
         try_files /app.html =404;

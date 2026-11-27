@@ -1,48 +1,38 @@
 import { useEffect, useState } from 'react';
-
 type ToastType = 'success' | 'error' | 'info';
-
-interface ToastState {
+interface Notice {
   message: string;
   type: ToastType;
 }
-
 const eventName = 'nirvana:toast';
-
 export const showToast = (message: string, type: ToastType = 'info') => {
-  const event = new CustomEvent(eventName, { detail: { message, type } });
-  window.dispatchEvent(event);
+  window.dispatchEvent(new CustomEvent<Notice>(eventName, { detail: { message, type } }));
 };
-
-const Toast = () => {
-  const [toast, setToast] = useState<ToastState | null>(null);
-
+export default function Toast() {
+  const [toast, setToast] = useState<Notice | null>(null);
   useEffect(() => {
-    const handler = (event: Event) => {
-      const custom = event as CustomEvent<ToastState>;
-      setToast(custom.detail);
-      setTimeout(() => setToast(null), 3000);
-    };
-
-    window.addEventListener(eventName, handler);
-    return () => window.removeEventListener(eventName, handler);
+    const receive = (event: Event) => setToast((event as CustomEvent<Notice>).detail);
+    window.addEventListener(eventName, receive);
+    return () => window.removeEventListener(eventName, receive);
   }, []);
-
-  if (!toast) return null;
-
-  const colors: Record<ToastType, string> = {
-    success: 'bg-emerald-500',
-    error: 'bg-rose-500',
-    info: 'bg-primary-600'
-  };
-
+  useEffect(() => {
+    if (!toast || toast.type === 'error') return;
+    const timer = window.setTimeout(() => setToast(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <div className={`${colors[toast.type]} text-white rounded-xl px-4 py-3 shadow-lg`}>
-        {toast.message}
+    <aside aria-label="Notifications" className="notice-stack">
+      <div role="status" aria-atomic="true">
+        {toast && toast.type !== 'error' && toast.message}
       </div>
-    </div>
+      <div role="alert" aria-atomic="true">
+        {toast?.type === 'error' && toast.message}
+      </div>
+      {toast && (
+        <button type="button" aria-label="Dismiss notification" onClick={() => setToast(null)}>
+          ×
+        </button>
+      )}
+    </aside>
   );
-};
-
-export default Toast;
+}

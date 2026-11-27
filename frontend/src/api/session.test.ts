@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import client, { renewSession, sessionClient } from './client';
+import client, { errorMessage, renewSession, sessionClient } from './client';
 beforeEach(() => {
   const values = new Map([
     ['nirvana_token', 'old'],
@@ -79,4 +79,13 @@ it('does not refresh rejected login credentials', async () => {
   };
   await expect(client.post('/api/auth/login', {})).rejects.toThrow();
   expect(refresh).not.toHaveBeenCalled();
+});
+
+it('keeps validation actionable and infrastructure details out of notifications', () => {
+  const failure = (status: number, data: unknown) => ({isAxiosError:true, response:{status,data}});
+  expect(errorMessage(failure(503, {message:'internal diagnostic'}))).toMatch(/temporarily unavailable/);
+  expect(errorMessage(failure(403, {}))).toMatch(/access/);
+  expect(errorMessage(new AxiosError('network error'))).toMatch(/connection/i);
+  expect(errorMessage(failure(422, {fieldErrors:[{field:'date', message:'Choose a future date'}]}))).toBe('date: Choose a future date');
+  expect(errorMessage(failure(400, {fieldErrors:{},message:{}}))).toMatch(/retry/i);
 });

@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -115,6 +116,7 @@ export default function OwnerCatalog({
     mutationFn: (mode: string) =>
       client.put(visibilityPath, { names: mode.includes('n'), labels: mode.includes('l') }),
     onSuccess: () => {
+      showToast('Therapist visibility updated.', 'success');
       void qc.invalidateQueries({ queryKey: [visibilityPath] });
       refreshAvailability();
     }
@@ -149,6 +151,7 @@ export default function OwnerCatalog({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: key });
       refreshAvailability();
+      showToast(kind === 'therapists' ? 'Therapist saved.' : kind === 'packages' ? 'Package saved.' : 'Service saved.', 'success');
       setValue(defaults(kind));
       setEditing(undefined);
     }

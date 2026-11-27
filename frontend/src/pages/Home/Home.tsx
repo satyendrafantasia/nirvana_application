@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import Discovery from '../Discovery/Discovery';
+import HomeHero from './HomeHero';
+import { lazy, Suspense, useState } from 'react';
+const Discovery = lazy(() => import('../Discovery/Discovery'));
 import NearbySpas from './NearbySpas';
 import SearchSource, { type SpaSource } from '../../components/spa/SearchSource';
 import { Link, useNavigate } from 'react-router-dom';
@@ -27,28 +28,11 @@ const Home = () => {
 
   return (
     <div className="home-shell mx-auto max-w-6xl px-4 py-10">
-      <section className="wellness-hero">
-        <div className="hero-copy">
-          <p className="eyebrow"><span /> YOUR EVERYDAY ESCAPE</p>
-          <h1>A little pause.<br /><span>A better you.</span></h1>
-          <p className="hero-description">Make room for feeling good. Discover spa experiences, find your moment, and leave the everyday behind.</p>
-          <Link to="/spas" className="hero-discover">Book an appointment <span aria-hidden="true">↗</span></Link>
-          <div className="hero-footnote"><span className="tiny-spark" aria-hidden="true">✳</span> A little time for yourself changes everything.</div>
-        </div>
-        <div className="hero-art">
-          <img className="hero-photo" src="/hero-spa-800.jpg" width="1100" height="1467" fetchPriority="high"
-            srcSet="/hero-spa-480.jpg 480w, /hero-spa-800.jpg 800w, /hero-spa.jpg 1100w"
-            sizes="(max-width: 1023px) 100vw, 560px"
-            alt="A guest resting on a massage table during a hot stone treatment in a softly lit spa room" />
-          <span className="art-topline">SPA &amp; MASSAGE, BOOKED IN MINUTES</span>
-          <div className="art-caption"><span>Less rush.<br />More ritual.</span><span className="art-star" aria-hidden="true">✳</span></div>
-          <span className="art-number">NIRVANA / WELLNESS, REIMAGINED</span>
-        </div>
-      </section>
+      <HomeHero />
       <section id="find-your-spa" className="search-panel" aria-label="Find a spa">
         <div className="search-heading"><h2>Where will you unwind?</h2><SearchSource value={source} onChange={(next) => { setNearby(false); setSource(next); }} /></div>
-        {source === 'google' ? (user ? <Discovery embedded startNearby={nearby} /> : (
-          <Link className="font-semibold underline" to="/spas?source=google">Sign in to search Google Places</Link>
+        {source === 'google' ? (user ? <Suspense fallback={<p role="status">Loading spa search…</p>}><Discovery embedded startNearby={nearby} /></Suspense> : (
+          <Link className="font-semibold underline" to="/auth/login?redirect=%2Fspas%3Fsource%3Dgoogle">Sign in to search Google Places</Link>
         )) : <CatalogueSearch onSearch={(filters) => navigate(`/spas?${filters}`)}
           onNearby={() => {
             if (!user) { navigate('/spas?source=google'); return; }
@@ -77,7 +61,7 @@ const Home = () => {
           ) : (
             <p className="listing-empty text-sm text-slate-500">
               {isError ? (
-                'Spa listings are unavailable. Please retry once the service is connected.'
+                'Spa listings are temporarily unavailable.'
               ) : isLoading ? (
                 'Loading spas…'
               ) : (

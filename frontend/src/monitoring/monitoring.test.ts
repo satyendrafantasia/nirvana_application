@@ -66,8 +66,9 @@ describe('personal data scrubbing', () => {
 });
 
 describe('server-rendered page metadata', () => {
-  it('identifies a page by its path and listing city only', () => {
-    expect(pageKey('/spas', '?city=Pune&page=2')).toBe(pageKey('/spas/', '?city=pune'));
+  it('distinguishes a canonical city listing from a filtered view', () => {
+    expect(pageKey('/spas', '?city=Pune&page=2')).not.toBe(pageKey('/spas/', '?city=pune'));
+    expect(pageKey('/spas', '?city=Pune')).toBe(pageKey('/spas/', '?city=pune'));
     expect(pageKey('/spas/12', '')).not.toBe(pageKey('/spas/13', ''));
     expect(pageKey('/spas', '?city=Pune')).not.toBe(pageKey('/spas', '?city=Goa'));
   });

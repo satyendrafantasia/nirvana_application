@@ -21,7 +21,7 @@ const ServiceCard = ({ service, onBook }: ServiceCardProps) => {
   return (
     <div ref={card} className="card flex flex-wrap items-center justify-between gap-4 p-4">
       <div>
-        <h4 className="text-base font-semibold text-slate-800">{service.name}</h4>
+        <h3 className="text-base font-semibold text-slate-800">{service.name}</h3>
         {service.description && <p className="text-sm text-slate-500">{service.description}</p>}
         <p className="text-sm text-slate-500">Duration: {service.durationMinutes} mins</p>
       </div>

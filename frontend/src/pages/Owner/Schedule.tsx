@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { FormEvent, useState } from 'react';
 import { Temporal } from '@js-temporal/polyfill';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -142,6 +143,7 @@ function Daily({ day, base, spaId }: { day: Day; base: string; spaId: string }) 
     onMutate: () => setNotice(''),
     onSuccess: (_, e) => {
       setNotice(e.success);
+      showToast(e.success, 'success');
       setSlot(undefined);
       setStaff(undefined);
     },

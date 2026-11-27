@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import axios from 'axios';
 import { track } from '../../telemetry';
 import { useRef, useState } from 'react';
@@ -224,7 +225,10 @@ export default function Payment({
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['my-bookings'] });
       if (loyalty) void qc.invalidateQueries({ queryKey: ['loyalty'] }); // the balance changed
-      if (b.status === 'CONFIRMED') track('booking_completed', b.id);
+      if (b.status === 'CONFIRMED') {
+        track('booking_completed', b.id);
+        showToast('Appointment confirmed.', 'success');
+      }
       onConfirm(b);
       onNext();
     }

@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
@@ -24,6 +25,7 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/leaflet": "^1.9.22",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

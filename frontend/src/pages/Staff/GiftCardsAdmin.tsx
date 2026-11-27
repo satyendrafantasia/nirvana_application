@@ -108,6 +108,7 @@ export default function GiftCardsAdmin() {
             {errorMessage(cancel.error)}
           </p>
         )}
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Gift card records">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500">
@@ -150,6 +151,7 @@ export default function GiftCardsAdmin() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </div>
   );

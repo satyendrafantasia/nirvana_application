@@ -769,6 +769,7 @@ export default function OwnerDesk({
             </div>
             <details className="mt-3">
               <summary>View chart data</summary>
+              <div className="table-scroll" tabIndex={0} role="region" aria-label="Chart data">
               <table className="w-full text-left">
                 <thead>
                   <tr>
@@ -791,6 +792,7 @@ export default function OwnerDesk({
                   ))}
                 </tbody>
               </table>
+              </div>
             </details>
           </section>
           <section className="card p-5">
@@ -815,6 +817,7 @@ export default function OwnerDesk({
         <section className="card p-5">
           <h3 className="mb-2 text-lg font-semibold">Package sales & redemptions</h3>
           {s.packagesTrend.some((x) => x.sales || x.redemptions) ? (
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Chart data">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr>
@@ -833,6 +836,7 @@ export default function OwnerDesk({
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <p>No package sales or redemptions for these dates.</p>
           )}

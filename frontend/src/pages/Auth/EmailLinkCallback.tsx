@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
@@ -48,12 +49,13 @@ export default function EmailLinkCallback() {
         navigate('/auth/otp' + next, { replace: true });
       } else {
         acceptAuth(authView(data));
+        showToast('You’re signed in.', 'success');
         navigate(destination, { replace: true });
       }
     }
   });
   return (
-    <main className="card mx-auto my-10 max-w-md p-6 space-y-4">
+    <section className="card mx-auto my-10 max-w-md p-6 space-y-4">
       <h1 className="text-2xl font-bold">
         {registration ? 'Verify your email' : 'Sign in by email'}
       </h1>
@@ -86,6 +88,6 @@ export default function EmailLinkCallback() {
       <Link className="underline" to={start + next}>
         Request a new email link
       </Link>
-    </main>
+    </section>
   );
 }

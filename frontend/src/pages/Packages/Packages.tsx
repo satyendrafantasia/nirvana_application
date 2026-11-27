@@ -59,7 +59,14 @@ export default function Packages() {
           View My Packages →
         </Link>
       </div>
-      {catalog.isLoading && <p>Loading packages…</p>}
+      {catalog.isLoading && (
+        <div className="min-h-screen space-y-4" role="status">
+          <p>Loading packages…</p>
+          <div aria-hidden="true" className="grid gap-6 md:grid-cols-3">
+            {[1, 2, 3].map(card => <div key={card} className="h-64 rounded-3xl border border-slate-100 bg-white" />)}
+          </div>
+        </div>
+      )}
       {catalog.isError && (
         <div role="alert">
           <p>{errorMessage(catalog.error)}</p>

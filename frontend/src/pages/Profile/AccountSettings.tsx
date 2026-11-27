@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import ConnectGoogle from './ConnectGoogle';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -99,6 +100,7 @@ function Profile({ account }: { account: Account }) {
       qc.setQueryData(['account'], updated);
       if (user) setUser({ ...user, firstName: updated.displayName || updated.firstName || user.firstName });
       setSaved(true);
+      showToast('Profile updated.', 'success');
     }
   });
   const set = <K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) =>

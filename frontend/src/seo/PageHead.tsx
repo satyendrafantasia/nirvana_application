@@ -1,51 +1,84 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { publicOrigin, seoHead } from './site';
-const titles: Record<string, string> = {
-  '/about': 'About us',
-  '/contact': 'Contact us',
-  '/support': 'Booking support',
-  '/admin/support': 'Support inbox',
-  '/terms': 'Booking terms',
-  '/privacy': 'Privacy policy',
-  '/spas': 'Browse spas',
-  '/discover': 'Discover nearby spas',
-  '/booking': 'Book an appointment',
-  '/auth/login': 'Sign in',
-  '/auth/register': 'Create an account',
-  '/me/bookings': 'My appointments',
-  '/me/settings': 'Account settings',
-  '/packages': 'Wellness packages',
-  '/404': 'Page not found'
-};
-/** The page a URL describes: the path, plus the city for the spa listing. */
+import { useQuery } from '@tanstack/react-query';
+import { getSpaDetails } from '../api/spaApi';
+import { publicOrigin, pageHead } from './site';
+import { pageMeta, type PageMeta } from './pages';
+import { isAppRoute } from './routes';
+
 export function pageKey(pathname: string, search: string) {
-  return pathname.replace(/\/+$/, '') + '|' + (new URLSearchParams(search).get('city')?.trim().toLowerCase() || '');
+  const params = new URLSearchParams(search);
+  return (
+    pathname.replace(/\/+$/, '') +
+    '|' +
+    (params.get('city')?.trim().toLowerCase() || '') +
+    (Array.from(params.keys()).some((key) => key !== 'city') ? '|filtered' : '')
+  );
 }
-// The backend renders spa and listing pages with their real title, description and structured
-// data (marked data-server-head). They describe the page the visitor arrived on, so they stay
-// until the visitor moves to a different page.
-const arrivedOn = typeof window === 'undefined' ? '' : pageKey(window.location.pathname, window.location.search);
+const initial = typeof window !== 'undefined' && {
+  key: pageKey(location.pathname, location.search),
+  head: Array.from(document.querySelectorAll('head [data-server-head]'), (n) => n.outerHTML).join(
+    ''
+  )
+};
+const origin = publicOrigin(
+  import.meta.env.PROD ? import.meta.env.VITE_PUBLIC_SITE_URL : undefined
+);
+const privateTitles: Record<string, string> = {
+  booking: 'Your appointment',
+  owner: 'Owner dashboard',
+  admin: 'Administration',
+  me: 'My account',
+  staff: 'Staff workspace',
+  discover: 'Google Places spa discovery',
+  features: 'Account tools',
+  'gift-cards': 'Gift cards',
+  b: 'Appointment response'
+};
 export default function PageHead() {
   const { pathname, search } = useLocation();
-  const page = pageKey(pathname, search);
+  const path = pathname.replace(/\/+$/, '') || '/';
+  const key = pageKey(path, search);
+  const spaId = /^\/spas\/(\d+)$/.exec(path)?.[1];
+  const spa = useQuery({
+    queryKey: ['spa', spaId],
+    enabled: !!spaId,
+    queryFn: () => getSpaDetails(spaId!),
+    staleTime: 60000
+  });
   useEffect(() => {
-    const served = document.head.querySelectorAll('[data-server-head]');
-    if (served.length && page === arrivedOn) return;
-    served.forEach((node) => node.remove());
-    document.head.querySelectorAll('[data-site-head]').forEach((node) => node.remove());
-    document.head.insertAdjacentHTML(
-      'beforeend',
-      seoHead(
-        pathname === '/',
-        publicOrigin(
-          import.meta.env.MODE === 'production' && import.meta.env.PROD
-            ? import.meta.env.VITE_PUBLIC_SITE_URL
-            : undefined
-        )
-      )
-    );
-    if (pathname !== '/') document.title = (titles[pathname] || 'Nirvana Wellness') + ' | Nirvana';
-  }, [page, pathname]);
+    const served = initial && initial.key === key && initial.head;
+    if (served && document.head.querySelector('[data-server-head]')) return;
+    let canonical = path;
+    let meta: PageMeta | undefined = pageMeta[path];
+    if (spaId && spa.data)
+      meta = {
+        title: spa.data.name + (spa.data.city ? ' in ' + spa.data.city : ''),
+        summary:
+          spa.data.description ||
+          'Explore treatments, prices and booking options at ' + spa.data.name + '.',
+        index: true
+      };
+    if (path === '/spas') {
+      const city = new URLSearchParams(search).get('city')?.trim();
+      meta = {
+        ...pageMeta[path],
+        title: city ? 'Spas in ' + city : pageMeta[path].title,
+        index: !search
+      };
+      if (city) canonical += '?city=' + encodeURIComponent(city);
+    }
+    if (!meta && path !== '/') {
+      const title = privateTitles[path.split('/')[1]];
+      meta =
+        isAppRoute(path) && (title || spaId)
+          ? { title: title || 'Spa details', summary: 'View details on Nirvana Wellness.' }
+          : pageMeta['/404'];
+    }
+    document.head
+      .querySelectorAll('[data-server-head],[data-site-head]')
+      .forEach((n) => n.remove());
+    document.head.insertAdjacentHTML('beforeend', served || pageHead(canonical, origin, meta));
+  }, [key, path, search, spaId, spa.data]);
   return null;
 }

@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client, { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
-import { DiscoveryCard, type GooglePlace } from '../Discovery/Discovery';
+import type { GooglePlace } from '../Discovery/Discovery';
+const DiscoveryCard = lazy(() =>
+  import('../Discovery/Discovery').then((module) => ({ default: module.DiscoveryCard }))
+);
 
 export const NEARBY_RADIUS_METERS = 5000;
 export const NEARBY_LIMIT = 6;
@@ -51,9 +54,13 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
                 },
                 { signal: controller.signal }
               )
-            : await client.post<{ places: GooglePlace[] }>('/api/public/discovery/nearby', position, {
-                signal: controller.signal
-              });
+            : await client.post<{ places: GooglePlace[] }>(
+                '/api/public/discovery/nearby',
+                position,
+                {
+                  signal: controller.signal
+                }
+              );
           if (!controller.signal.aborted) setPlaces(data.places.slice(0, NEARBY_LIMIT));
         } catch (e) {
           if (!controller.signal.aborted) setError(errorMessage(e));
@@ -101,7 +108,9 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
     <section className="nearby-spas" aria-labelledby="nearby-heading">
       <div className="nearby-heading">
         <div>
-          <p className="eyebrow"><span /> CLOSE TO YOU</p>
+          <p className="eyebrow">
+            <span /> CLOSE TO YOU
+          </p>
           <h2 id="nearby-heading">Spas near you</h2>
         </div>
         {places && (
@@ -157,11 +166,13 @@ export default function NearbySpas({ signedIn }: { signedIn: boolean }) {
                   </>
                 )}
               </p>
-              <div className="grid gap-6 md:grid-cols-3">
-                {places.map((place) => (
-                  <DiscoveryCard key={place.id} place={place} />
-                ))}
-              </div>
+              <Suspense fallback={<p role="status">Loading nearby spas…</p>}>
+                <div className="grid gap-6 md:grid-cols-3">
+                  {places.map((place) => (
+                    <DiscoveryCard key={place.id} place={place} />
+                  ))}
+                </div>
+              </Suspense>
             </>
           )}
         </>

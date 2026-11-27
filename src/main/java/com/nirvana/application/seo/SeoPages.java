@@ -85,6 +85,21 @@ public class SeoPages {
             data.put("url", base + spaPath(id));
         }
         data.put("name", spa.name());
+        if (!menu.isEmpty()) {
+            List<Map<String, Object>> offers = new ArrayList<>();
+            for (ServiceSummaryResponse service : menu) {
+                Map<String, Object> offer = new LinkedHashMap<>();
+                offer.put("@type", "Offer");
+                offer.put("itemOffered", Map.of("@type", "Service", "name", service.name()));
+                Integer cents = service.priceCents() != null ? service.priceCents() : service.basePriceCents();
+                if (cents != null && cents >= 0 && service.currency() != null) {
+                    offer.put("price", BigDecimal.valueOf(cents, 2));
+                    offer.put("priceCurrency", service.currency());
+                }
+                offers.add(offer);
+            }
+            data.put("hasOfferCatalog", Map.of("@type", "OfferCatalog", "name", "Treatments", "itemListElement", offers));
+        }
         data.put("description", description);
         List<String> images = (spa.images() == null ? List.<String>of() : spa.images()).stream()
                 .filter(url -> url != null && url.startsWith("https://")).limit(5).toList();
@@ -192,6 +207,9 @@ public class SeoPages {
                     .max(LocalDate::compareTo).orElse(null);
             url(xml, base + "/", newest);
             url(xml, base + "/spas", newest);
+            for (String path : List.of("/about", "/contact", "/packages", "/privacy", "/terms")) {
+                url(xml, base + path, null);
+            }
             Map<String, LocalDate> cities = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             for (Map<String, Object> row : rows) {
                 String city = blankToNull((String) row.get("city"));

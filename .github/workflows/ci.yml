@@ -94,6 +94,11 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npx vitest run
+      - run: npm run build
+        env:
+          VITE_PUBLIC_SITE_URL: https://nirvana-spa.in
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser
 
   scripts:
     name: Shell script checks

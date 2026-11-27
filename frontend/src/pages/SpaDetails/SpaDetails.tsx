@@ -4,6 +4,7 @@ import client from '../../api/client';
 import { getSpaDetails } from '../../api/spaApi';
 import Spinner from '../../components/common/Spinner';
 import SpaInformation from '../../components/spa/SpaInformation';
+import SpaPhoto from '../../components/spa/SpaPhoto';
 import SpaProfile, { type SpaProfileProps } from '../../components/spa/SpaProfile';
 import { Spa } from '../../types/spa';
 import type { GooglePlace } from '../Discovery/Discovery';
@@ -99,11 +100,7 @@ const SpaDetails = () => {
             }
           />
         ) : (
-        <img
-          src={
-            spa.data.coverImage ||
-            'https://images.unsplash.com/photo-1556228724-4a44ebcdf3a8?auto=format&fit=crop&w=1200&q=80'
-          }
+        <SpaPhoto src={spa.data.coverImage} sizes="(min-width:768px) 560px, 100vw"
           width={1200}
           height={720}
           alt={spa.data.coverImage ? spa.data.name : ''}

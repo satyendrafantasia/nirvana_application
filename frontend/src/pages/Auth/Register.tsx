@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { returnPath } from '../../auth/returnPath';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -64,6 +65,7 @@ export default function Register({ owner = false }: { owner?: boolean }) {
           username: data.user.email || data.user.phoneNumber
         })
       );
+      showToast('Your account is ready.', 'success');
       navigate(destination);
     }
   });

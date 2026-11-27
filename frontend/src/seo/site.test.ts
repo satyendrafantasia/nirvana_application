@@ -16,7 +16,7 @@ describe('public discovery metadata', () => {
     expect(head).toContain(origin + '/nirvana-social.png');
     expect(head).toContain('application/ld+json');
     expect(head).toContain('data-site-head');
-    expect(sitemap(origin).match(/<loc>/g)).toHaveLength(1);
+    expect(sitemap(origin).match(/<loc>/g)).toHaveLength(6);
   });
   it('keeps private pages and unconfigured deployments out of the index', () => {
     expect(robots('')).toContain('Disallow: /');

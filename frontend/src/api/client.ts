@@ -82,16 +82,19 @@ client.interceptors.response.use(
   }
 );
 
-export const errorMessage = (error: unknown): string =>
-  axios.isAxiosError(error)
-    ? error.response?.data?.fieldErrors
-        ?.map((field: { field: string; message: string }) => `${field.field}: ${field.message}`)
-        .join('; ') ||
-      error.response?.data?.message ||
-      (error.response?.status === 401
-        ? 'Please sign in again.'
-        : 'Unable to reach the spa service. Please retry.')
-    : error instanceof Error
-      ? error.message
-      : 'Something went wrong.';
+export const errorMessage = (error: unknown): string => {
+  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : 'Something went wrong.';
+  const response = error.response;
+  if (!response) return 'Connection interrupted. Check your connection and retry.';
+  if (response.status >= 500) return 'The service is temporarily unavailable. Please try again.';
+  if (response.status === 403) return 'Your account does not have access to this action.';
+  const fields = response.data?.fieldErrors;
+  if (Array.isArray(fields)) {
+    const messages = fields.filter(field => typeof field?.field === 'string' && typeof field?.message === 'string')
+      .map(field => field.field + ': ' + field.message);
+    if (messages.length) return messages.join('; ');
+  }
+  if (typeof response.data?.message === 'string' && response.data.message.trim()) return response.data.message;
+  return response.status === 401 ? 'Please sign in again.' : 'Unable to complete this request. Please retry.';
+};
 export default client;

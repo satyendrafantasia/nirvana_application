@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { FormEvent, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
@@ -35,6 +36,7 @@ export function RoomTools({ base, date, rooms, services, refresh }: Props) {
     },
     onSuccess: async (r) => {
       setReport(r);
+      showToast('Schedule updated.', 'success');
       await refresh();
     }
   });
@@ -172,6 +174,7 @@ export function WeeklyRoster({
   const save = useMutation({
     mutationFn: () => client.put(path, shifts),
     onSuccess: async () => {
+      showToast('Weekly roster saved.', 'success');
       await week.refetch();
       await refresh();
       setRows(null);

@@ -16,8 +16,8 @@ const Input = ({ label, helperText, className, ...props }: InputProps) => {
       <label htmlFor={props.id || id}>{label}{props.required && ' *'}</label>
       <div className="relative">
         <input {...props} id={props.id || id} type={password && visible ? 'text' : props.type}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error || helperText ? id + '-hint' : props['aria-describedby']}
+          aria-invalid={error ? true : props['aria-invalid']}
+          aria-describedby={[props['aria-describedby'], (error || helperText) && id + '-hint'].filter(Boolean).join(' ') || undefined}
           onInvalid={e => { setError(e.currentTarget.validationMessage); props.onInvalid?.(e); }}
           onChange={e => { if (error) setError(e.target.validationMessage); props.onChange?.(e); }}
           className={clsx('min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-slate-800 shadow-sm focus:ring-2 focus:ring-primary-400', password && 'pr-16', className)} />

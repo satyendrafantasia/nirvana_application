@@ -1,3 +1,4 @@
+import { showToast } from '../../components/common/Toast';
 import { returnPath } from '../../auth/returnPath';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -44,6 +45,7 @@ export default function OtpVerification() {
     mutationFn: async () => verifyOtp(verificationId, await phone.proof(otp)),
     onSuccess: (r) => {
       acceptAuth(r);
+      showToast('Verification complete. You’re signed in.', 'success');
       navigate(returnPath(params.get('redirect'), '/me/bookings'));
     }
   });

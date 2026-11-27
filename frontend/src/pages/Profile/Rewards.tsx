@@ -44,6 +44,7 @@ export function LoyaltyPoints() {
             <p className="text-sm text-slate-600">No points activity yet.</p>
           ) : (
             <>
+              <div className="table-scroll" tabIndex={0} role="region" aria-label="Rewards activity">
               <table className="w-full text-sm">
                 <caption className="sr-only">Points history</caption>
                 <thead>
@@ -75,6 +76,7 @@ export function LoyaltyPoints() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {loyalty.data.history.length > 8 && (
                 <button type="button" className="text-sm underline" onClick={() => setAll(!all)}>
                   {all ? 'Show fewer' : `Show all ${loyalty.data.history.length}`}
