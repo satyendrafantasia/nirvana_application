@@ -29,6 +29,7 @@ public class AppointmentOperations {
     private final com.nirvana.application.service.impl.SessionAllocation allocation;
     private final RoleRepository roles;
     private final BookingServiceImpl booking;
+    private final com.nirvana.application.service.AppointmentRequestAlerts requestAlerts;
     private long actor(){ return SecurityUtils.getCurrentUserId(); }
     private void lock(long spa){ spas.lockSchedule(spa).orElseThrow(); }
     @GetMapping("/admin/finance/spas") @PreAuthorize("@staffAccess.admin()")
@@ -60,19 +61,38 @@ public class AppointmentOperations {
     @PostMapping("/spas/{spa}/appointment-requests")
     public Map<String,Object> request(@PathVariable long spa,@Valid @RequestBody RequestTime input){
         lock(spa);
-        db.update("""
-            INSERT INTO appointment_request(spa_id,slot_id,user_id,state,deadline)
-            SELECT s.spa_id,s.id,?,'PENDING',LEAST(s.start_ts,UTC_TIMESTAMP()+INTERVAL 2 HOUR)
+        long guest=actor();
+        int attempt=1;
+        var prior=db.queryForList("""
+            SELECT id,state,deadline,attempt_no,CAST(deadline>UTC_TIMESTAMP() AS UNSIGNED) AS live FROM appointment_request
+            WHERE spa_id=? AND slot_id=? AND user_id=? ORDER BY attempt_no DESC LIMIT 1 FOR UPDATE
+            """,spa,input.slotId(),guest);
+        if (!prior.isEmpty()) {
+            var last=prior.get(0);
+            if ("ACCEPTED".equals(last.get("state"))) throw new IllegalStateException("You already have a booking for this request");
+            if ("PENDING".equals(last.get("state"))) {
+                if (num(last,"live")!=0) return Map.of("id",last.get("id"),"deadline",last.get("deadline"));
+                requestAlerts.expire(num(last,"id"));
+            }
+            attempt=((Number)last.get("attempt_no")).intValue()+1;
+        }
+        int created=db.update("""
+            INSERT INTO appointment_request(spa_id,slot_id,user_id,attempt_no,state,deadline)
+            SELECT s.spa_id,s.id,?,?,'PENDING',LEAST(s.start_ts,UTC_TIMESTAMP()+INTERVAL 2 HOUR)
             FROM slot s JOIN spa p ON p.id=s.spa_id WHERE p.id=? AND s.id=? AND p.booking_mode='REQUEST'
             AND p.is_active=1 AND s.is_blocked=0 AND s.booked_units<s.capacity_unit AND s.start_ts>UTC_TIMESTAMP()
-            ON DUPLICATE KEY UPDATE id=appointment_request.id
-            """,actor(),spa,input.slotId());
-        var found=db.queryForList("SELECT id,deadline FROM appointment_request WHERE spa_id=? AND slot_id=? AND user_id=?",spa,input.slotId(),actor());
-        if(found.isEmpty())throw new IllegalStateException("This time is unavailable for requests");
-        return found.get(0);
+            """,guest,attempt,spa,input.slotId());
+        if(created!=1)throw new IllegalStateException("This time is unavailable for requests");
+        var found=db.queryForMap("SELECT id,deadline FROM appointment_request WHERE spa_id=? AND slot_id=? AND user_id=? AND attempt_no=?",spa,input.slotId(),guest,attempt);
+        requestAlerts.enqueue(num(found,"id"),"REQUEST_NEW");
+        return found;
     }
     private static final String REQUESTS="""
-        SELECT r.id,r.booking_id AS bookingId,p.name AS spaName,s.name AS service,
+        SELECT r.id,r.booking_id AS bookingId,r.spa_id AS spaId,r.slot_id AS slotId,p.name AS spaName,s.name AS service,
+        CASE WHEN p.is_active=1 AND p.booking_mode='REQUEST' AND l.is_blocked=0 AND l.booked_units<l.capacity_unit
+          AND l.start_ts>UTC_TIMESTAMP() AND (r.state IN ('EXPIRED','DECLINED') OR (r.state='PENDING' AND r.deadline<=UTC_TIMESTAMP()))
+          AND NOT EXISTS(SELECT 1 FROM appointment_request later WHERE later.user_id=r.user_id AND later.slot_id=r.slot_id AND later.attempt_no>r.attempt_no)
+          THEN 1 ELSE 0 END AS canRequestAgain,
         DATE_FORMAT(l.start_ts,'%Y-%m-%dT%H:%i:%sZ') AS starts,
         DATE_FORMAT(r.deadline,'%Y-%m-%dT%H:%i:%sZ') AS deadline,
         CASE WHEN r.state='PENDING' AND r.deadline<=UTC_TIMESTAMP() THEN 'EXPIRED' ELSE r.state END AS status
@@ -93,6 +113,7 @@ public class AppointmentOperations {
         var row=rows.get(0);
         Long booked=input.accept()?reserve(spa,num(row,"slot_id"),num(row,"user_id"),null,"request-"+id):null;
         db.update("UPDATE appointment_request SET state=?,booking_id=?,answered_by=? WHERE id=?",input.accept()?"ACCEPTED":"DECLINED",booked,actor(),id);
+        if (!input.accept()) requestAlerts.enqueue(id,"REQUEST_DECLINED");
     }
     static long num(Map<String,Object> row,String key){return ((Number)row.get(key)).longValue();}
     private long reserve(long spa,long slot,long user,Long therapist,String key){

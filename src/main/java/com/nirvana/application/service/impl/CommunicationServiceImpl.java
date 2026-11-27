@@ -184,7 +184,7 @@ public class CommunicationServiceImpl implements CommunicationService {
     public ChatMessageResponse postMessage(Long threadId, Long userId, ChatMessageRequest request) {
         MessageThread thread = messageThreadRepository.findByIdAndUserId(threadId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Thread not found for user"));
-        if (thread.getStatus() == MessageThreadStatus.CLOSED) {
+        if (thread.getStatus() != MessageThreadStatus.OPEN) {
             throw new IllegalStateException("Thread is closed");
         }
 

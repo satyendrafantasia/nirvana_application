@@ -24,6 +24,14 @@ class OwnerFinance {
         SELECT f.recorded_at,b.booking_reference,NULL,'Appointment refund','ONLINE',p.gateway,p.currency,0,f.amount_cents,0
         FROM booking b JOIN payment p ON p.booking_id=b.id JOIN booking_refund_posting f ON f.payment_id=p.id WHERE b.spa_id=:spa AND f.recorded_at>=:start AND f.recorded_at<:end
         UNION ALL
+        SELECT w.spent_at,b.booking_reference,NULL,'Wallet payment','ONLINE','Nirvana wallet',w.currency,w.amount_cents,0,0
+        FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+        WHERE b.spa_id=:spa AND w.spent_at>=:start AND w.spent_at<:end
+        UNION ALL
+        SELECT w.returned_at,b.booking_reference,NULL,'Wallet return','ONLINE','Nirvana wallet',w.currency,0,w.returned_cents,0
+        FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+        WHERE b.spa_id=:spa AND w.returned_at>=:start AND w.returned_at<:end AND w.returned_cents>0
+        UNION ALL
         SELECT d.collected_at,b.booking_reference,d.receipt_reference,'Front desk','DESK',d.method,d.currency,d.amount_cents,0,d.tip_cents
         FROM spa_desk_receipt d JOIN booking b ON b.id=d.booking_id WHERE d.spa_id=:spa AND d.collected_at>=:start AND d.collected_at<:end
         UNION ALL

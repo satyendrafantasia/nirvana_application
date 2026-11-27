@@ -10,6 +10,15 @@ here=$(cd "$(dirname "$0")" && pwd)
 run() {
   local code=0
   "$here/backup-db.sh" || code=$?
+  local url=${BACKUP_HEARTBEAT_URL:-}
+  [[ $code == 0 ]] || url=${BACKUP_FAILURE_URL:-}
+  if [[ -n $url ]]; then
+    if [[ $url == https://* && $url != *[[:space:]\"]* ]]; then
+      printf 'url = "%s"\n' "$url" | curl --config - --proto '=https' --fail --silent --max-time 15 --retry 2 --output /dev/null || echo "Backup monitor did not acknowledge the check" >&2
+    else
+      echo "Backup monitor requires an HTTPS URL" >&2
+    fi
+  fi
   [[ $code == 0 ]] || echo "$(date '+%Y-%m-%dT%H:%M:%S%z') schedule: backup exited with $code" >&2
 }
 

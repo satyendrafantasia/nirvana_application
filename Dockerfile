@@ -26,6 +26,8 @@ COPY frontend/ ./
 # Baked into the bundle. Leave VITE_PUBLIC_SITE_URL empty for a preview build (noindex, no sitemap
 # entries); set it to the approved https:// origin for production.
 ARG VITE_PUBLIC_SITE_URL=
+ARG VITE_OPERATOR_NAME=
+ARG VITE_SUPPORT_EMAIL=
 ARG VITE_API_BASE_URL=
 ARG VITE_ANALYTICS_PATH=
 ARG VITE_GOOGLE_MAPS_EMBED_KEY=
@@ -70,7 +72,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # ---------------------------------------------------------------- backup tools
 FROM ${MARIADB_IMAGE} AS backup
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates tzdata \
+ && apt-get install -y --no-install-recommends curl ca-certificates tzdata python3-boto3 \
  && rm -rf /var/lib/apt/lists/*
 COPY --chmod=0755 scripts/backup-db.sh scripts/restore-db.sh scripts/backup-schedule.sh /opt/nirvana/scripts/
 ENV BACKUP_DIR=/backups TZ=Asia/Kolkata

@@ -78,6 +78,7 @@ public class BookingServiceImpl implements BookingService {
     private final com.nirvana.application.service.NotificationSchedulingService notifications;
     private final PackageSessionRestorer packageSessions;
     private final LoyaltyService loyalty;
+    private final com.nirvana.application.rewards.BookingWallet wallet;
     private final RefundService refundService;
     private final PricingService pricingService;
     private final BookingHoldRepository bookingHoldRepository;
@@ -247,10 +248,18 @@ public class BookingServiceImpl implements BookingService {
         int taxCents = calculateTax(spa, service, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
         // A gift card pays towards the total after tax; see rewards.CheckoutMath for the order.
+        boolean useWallet = request.isUseWalletCredit();
         boolean giftCard = StringUtils.hasText(request.getGiftCardCode());
+        if (useWallet && (giftCard || payWithPackage)) throw new IllegalArgumentException("Choose one of wallet credit, a gift card or a package");
+        String currency = service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency();
         if (giftCard && payWithPackage) throw new IllegalArgumentException("A package booking has nothing left to pay with a gift card");
         int giftCardCents = giftCard ? loyalty.giftCardShare(request.getGiftCardCode(), spa, totalCents) : 0;
-        int payableCents = payWithPackage ? 0 : totalCents - giftCardCents;
+        int walletCents = useWallet ? wallet.quote(userId, currency, totalCents) : 0;
+        if (useWallet && request.getExpectedWalletCents() != null && request.getExpectedWalletCents() != walletCents) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Your wallet contribution changed. Review the new balance before booking.");
+        }
+        int payableCents = payWithPackage ? 0 : totalCents - giftCardCents - walletCents;
         BookingSource bookingSource = resolveBookingSource(request.getBookingSource());
 
         Booking booking = new Booking();
@@ -259,7 +268,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setSlot(slot);
         booking.setUser(user);
         booking.setBookingReference(generateUniqueBookingReference());
-        booking.setCurrency(service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency());
+        booking.setCurrency(currency);
         booking.setGuestCount(guests);
         booking.setPriceCents(priceCents);
         booking.setDiscountCents(discountCents);
@@ -305,6 +314,7 @@ public class BookingServiceImpl implements BookingService {
             bookingHoldRepository.save(hold);
         }
 
+        if (walletCents > 0) wallet.spend(saved, walletCents);
         loyalty.redeemAtCheckout(saved, pricing.loyaltyPointsRedeemed(), request.getGiftCardCode(), giftCardCents);
 
         // reserve capacity immediately to prevent overbooking even while payment is pending
@@ -357,8 +367,17 @@ public class BookingServiceImpl implements BookingService {
                 ? bookingRepository.findWithDetailsByUserId(userId, pageable)
                 : bookingRepository.findWithDetailsByUserIdAndStatus(userId, status, pageable);
 
+        var ids = bookings.stream().map(Booking::getId).toList();
+        java.util.Set<Long> acknowledged = new java.util.HashSet<>();
+        if (!ids.isEmpty()) {
+            var named = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(operationsDb);
+            acknowledged.addAll(named.queryForList("""
+                SELECT c.booking_id FROM spa_booking_confirmation c JOIN booking b ON b.id=c.booking_id
+                WHERE c.booking_id IN (:ids) AND c.status='CONFIRMED' AND c.delivery_revision=b.notification_revision
+                """, java.util.Map.of("ids", ids), Long.class));
+        }
         List<BookingSummaryResponse> content = bookings.stream()
-                .map(booking -> toSummaryResponse(booking, CancellationEvaluator.evaluateCancellation(booking, now, CANCELLATION_CUTOFF_MINUTES)))
+                .map(booking -> toSummaryResponse(booking, acknowledged.contains(booking.getId()), CancellationEvaluator.evaluateCancellation(booking, now, CANCELLATION_CUTOFF_MINUTES)))
                 .toList();
 
         PagedResponse<BookingSummaryResponse> page = new PagedResponse<>(
@@ -448,6 +467,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setSlot(targetSlot);
         booking.setStartTs(targetSlot.getStartTs());
         booking.setEndTs(TherapistRoster.end(targetSlot));
+        booking.setNotificationRevision(booking.getNotificationRevision() + 1);
         if (byGuest) booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
         booking.setLastStatusChangedAt(now);
         booking.setCancellationReasonText(request.getReason());
@@ -479,11 +499,14 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private CancellationQuote quote(Booking booking, CancellationEligibility policy, com.nirvana.application.model.Payment payment) {
+        int feePercent = Optional.ofNullable(policy.feePercent()).orElse(0);
+        int returnPercent = 100 - Math.min(100, Math.max(0, feePercent));
         return CancellationQuote.calculate(payment == null ? 0 : payment.getAmountCents(),
                 payment == null ? 0 : Optional.ofNullable(payment.getRefundedCents()).orElse(0),
-                Optional.ofNullable(policy.feePercent()).orElse(0), payment == null ? booking.getCurrency() : payment.getCurrency(),
+                feePercent, payment == null ? booking.getCurrency() : payment.getCurrency(),
                 Optional.ofNullable(policy.refundRoute()).orElse(RefundRoute.ORIGINAL_METHOD),
-                booking.getPaymentType() == BookingPaymentType.PAID_BY_PACKAGE);
+                booking.getPaymentType() == BookingPaymentType.PAID_BY_PACKAGE)
+                .withTenders(wallet.quoteReturn(booking.getId(), returnPercent), loyalty.giftCardReturnQuote(booking, returnPercent));
     }
 
     @Override
@@ -508,7 +531,7 @@ public class BookingServiceImpl implements BookingService {
 
         var payment = capturedPayment(booking).orElse(null);
         var quote = quote(booking, eligibility, payment);
-        if (accepted != null && !accepted.equals(quote)) {
+        if ((accepted == null && quote.hasStoredTender()) || (accepted != null && !accepted.equals(quote))) {
             throw new IllegalStateException("Cancellation terms changed. Review the updated amounts before confirming.");
         }
         booking.setRefundRoute(quote.route());
@@ -517,11 +540,13 @@ public class BookingServiceImpl implements BookingService {
         if (refundInitiated) {
             int total = Optional.ofNullable(payment.getRefundedCents()).orElse(0) + refundAmountCents;
             refundService.processRefund(payment, booking, quote.route(), refundAmountCents);
-            payment.setRefundedCents(total);
-            payment.setPaymentStatus(total == payment.getAmountCents() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED);
-            payment.setRefundedAt(now);
-            paymentRepository.save(payment);
-            booking.setRefundStatus(quote.route() == RefundRoute.WALLET_CREDIT ? RefundStatus.COMPLETED : RefundStatus.PROCESSING);
+            if (quote.route() == RefundRoute.WALLET_CREDIT) {
+                payment.setRefundedCents(total);
+                payment.setPaymentStatus(total == payment.getAmountCents() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED);
+                payment.setRefundedAt(now);
+                paymentRepository.save(payment);
+                booking.setRefundStatus(RefundStatus.COMPLETED);
+            }
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
@@ -531,6 +556,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setLastStatusChangedAt(now);
         packageSessions.restoreFor(booking);
         loyalty.returnRedeemed(booking, Optional.ofNullable(eligibility.feePercent()).orElse(0));
+        int totalRefund = refundAmountCents + quote.walletRefundCents() + quote.giftCardRefundCents();
+        if (!refundInitiated && totalRefund > 0) booking.setRefundStatus(RefundStatus.COMPLETED);
         bookingRepository.save(booking);
 
         Slot slot = slotRepository.findByIdForUpdate(booking.getSlot().getId())
@@ -545,8 +572,11 @@ public class BookingServiceImpl implements BookingService {
                 .bookingId(booking.getId())
                 .bookingReference(booking.getBookingReference())
                 .status(booking.getStatus())
-                .refundInitiated(refundInitiated)
-                .refundAmountCents(refundAmountCents)
+                .refundInitiated(totalRefund > 0)
+                .refundAmountCents(totalRefund)
+                .paymentRefundCents(refundAmountCents)
+                .walletRefundCents(quote.walletRefundCents())
+                .giftCardRefundCents(quote.giftCardRefundCents())
                 .refundStatus(booking.getRefundStatus())
                 .refundRoute(booking.getRefundRoute())
                 .build();
@@ -572,14 +602,11 @@ public class BookingServiceImpl implements BookingService {
         Integer refundAmountCents = null;
         var payments = paymentRepository.findByBookingId(bookingId);
         for (var payment : payments) {
-            if (payment.getPaymentStatus() == PaymentStatus.CAPTURED || payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
+            if (payment.getPaymentStatus() == PaymentStatus.CAPTURED || payment.getPaymentStatus() == PaymentStatus.COMPLETED
+                    || payment.getPaymentStatus() == PaymentStatus.PARTIALLY_REFUNDED) {
                 int refundable = payment.getAmountCents() - Optional.ofNullable(payment.getRefundedCents()).orElse(0);
                 if (refundable > 0) {
                     paymentService.refundAuthorizedBookingPayment(bookingId, refundable, "Cancelled by the spa");
-                    payment.setPaymentStatus(PaymentStatus.REFUNDED);
-                    payment.setRefundedCents(payment.getAmountCents());
-                    payment.setRefundedAt(now);
-                    booking.setRefundStatus(RefundStatus.COMPLETED);
                     refundAmountCents = refundable;
                 }
             } else if (payment.getPaymentStatus() == PaymentStatus.INIT || payment.getPaymentStatus() == PaymentStatus.PENDING) {
@@ -631,7 +658,7 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    private BookingSummaryResponse toSummaryResponse(Booking booking, CancellationEligibility eligibility) {
+    private BookingSummaryResponse toSummaryResponse(Booking booking, boolean spaAcknowledged, CancellationEligibility eligibility) {
         String mode = booking.getTherapistPreference();
         String original = "";
         if ((mode == null || "NAMED".equals(mode)) && booking.getTherapist() != null)
@@ -654,6 +681,7 @@ public class BookingServiceImpl implements BookingService {
                 .paymentMode(booking.getPaymentMode())
                 .invoiceAvailable(paymentRepository.existsByBookingIdAndPaymentStatusIn(booking.getId(), java.util.List.of(PaymentStatus.CAPTURED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)))
                 .canCancel(eligibility.canCancel())
+                .spaAcknowledged(spaAcknowledged)
                 .refundStatus(booking.getRefundStatus().name())
                 .cancellationReason(eligibility.reason())
                 .build();
@@ -702,6 +730,7 @@ public class BookingServiceImpl implements BookingService {
         response.setTaxCents(booking.getTaxCents());
         response.setDiscountCents(booking.getDiscountCents());
         response.setGiftCardCents(booking.getGiftCardCents());
+        response.setWalletCents(wallet.netSpent(booking.getId()));
         response.setLoyaltyPointsRedeemed(booking.getLoyaltyPointsRedeemed());
         response.setTotalCents(totalCents);
         response.setCurrency(booking.getCurrency());

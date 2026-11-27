@@ -57,6 +57,15 @@ public class BookingCreateRequest {
     @Size(max = 32)
     @Schema(description = "Gift card code that pays towards the total after tax", example = "NVG-ABCD-EFGH-JKMN")
     private String giftCardCode;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
+    public boolean isUseWalletCredit() { return useWalletCredit; }
+    private boolean useWalletCredit;
+    @jakarta.validation.constraints.Min(0)
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private Integer expectedWalletCents;
+    public Integer getExpectedWalletCents() { return expectedWalletCents; }
+    public void setExpectedWalletCents(Integer amount) { expectedWalletCents = amount; }
+    public void setUseWalletCredit(boolean value) { useWalletCredit = value; }
     public String getGiftCardCode() { return giftCardCode; }
     public void setGiftCardCode(String value) { giftCardCode = value; }
 

@@ -14,10 +14,16 @@ export default function PushAlerts({ spa, user }: { spa: string; user: string })
   const config = useQuery({ queryKey: ['owner-push', user, spa],
     queryFn: async () => (await client.get<Config>(path)).data });
   const storedKey = 'owner-push-user';
-  const [enabled, setEnabled] = useState(() => localStorage.getItem(storedKey) === user
-    && 'Notification' in window && Notification.permission === 'granted');
+  const [storedToken, setStoredToken] = useState(() => localStorage.getItem(storedKey) === user
+    ? localStorage.getItem('owner-push-token') : null);
+  const device = useQuery({ queryKey: ['owner-device-status', spa, user, Boolean(storedToken)],
+    enabled: !!storedToken && !!config.data?.eligible,
+    queryFn: async () => (await client.post<{ subscribed: boolean }>(path + '/device-status', { token: storedToken })).data });
+  const enabled = !!storedToken && device.data?.subscribed && 'Notification' in window && Notification.permission === 'granted';
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  if (config.isError || device.isError) return <p role="alert">Booking alert settings could not be loaded.
+    {' '}<button className="underline" onClick={() => { void config.refetch(); if (storedToken) void device.refetch(); }}>Retry</button></p>;
   if (!config.data?.eligible) return null;
   const settings = config.data;
   async function toggle() {
@@ -28,7 +34,7 @@ export default function PushAlerts({ spa, user }: { spa: string; user: string })
         await client.post('/api/owner/push/unsubscribe', { token: localStorage.getItem('owner-push-token') });
         localStorage.removeItem('owner-push-token');
         localStorage.removeItem(storedKey);
-        setEnabled(false);
+        setStoredToken(null);
         return;
       }
       if (!('Notification' in window) || !('serviceWorker' in navigator) || !window.isSecureContext)
@@ -59,14 +65,15 @@ export default function PushAlerts({ spa, user }: { spa: string; user: string })
       await client.put(path, { token });
       localStorage.setItem('owner-push-token', token);
       localStorage.setItem(storedKey, user);
-      setEnabled(true);
+      setStoredToken(token);
+      if (storedToken) void device.refetch();
     } catch (e) { setMessage(errorMessage(e)); }
     finally { setBusy(false); }
   }
   return <section className="card p-4 space-y-2">
-    <button type="button" className="btn-secondary" disabled={busy || (!enabled && !settings.enabled)}
+    <button type="button" className="btn-secondary" disabled={busy || device.isFetching || (!enabled && !settings.enabled)}
       onClick={toggle}>{enabled ? 'Disable booking alerts' : 'Enable booking alerts'}</button>
     <p role="status">{message || (!settings.enabled ? 'Push notifications are awaiting setup.'
-      : enabled ? 'This device receives alerts for your claimed spas.' : 'Get new bookings on this device.')}</p>
+      : enabled ? 'This device is registered for alerts from your claimed spas.' : 'Get new bookings on this device.')}</p>
   </section>;
 }

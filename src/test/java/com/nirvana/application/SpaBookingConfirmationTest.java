@@ -122,20 +122,37 @@ class SpaBookingConfirmationTest {
         alerts.bookingConfirmed(b);
         jdbc.update("UPDATE spa_booking_confirmation SET reminder_due_at=UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE booking_id=?", b.getId());
         alerts.runDue();
+        assertTrue(alerts.remind(b));
+        assertFalse(alerts.remind(b));
         assertNotNull(jdbc.queryForObject("SELECT reminder_sent_at FROM spa_booking_confirmation WHERE booking_id=?", Object.class, b.getId()));
         assertEquals("PENDING", state(b.getId()), "still the spa's to answer until the deadline");
         jdbc.update("UPDATE spa_booking_confirmation SET deadline_at=UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE booking_id=?", b.getId());
         alerts.runDue();
-        assertEquals("AUTO_CONFIRMED", state(b.getId()));
+        assertEquals("NEEDS_CONTACT", state(b.getId()));
+        assertNull(jdbc.queryForObject("SELECT responded_at FROM spa_booking_confirmation WHERE booking_id=?",Object.class,b.getId()));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_alert_job WHERE booking_id=? AND event_kind='FOLLOW_UP' AND state='NEEDS_CONTACT'",Integer.class,b.getId()));
         assertEquals("CONFIRMED", jdbc.queryForObject("SELECT status FROM booking WHERE id=?", String.class, b.getId()));
     }
 
     @Test void aSpaWithoutAMobileIsNotTexted() {
         Booking b = booking("+91 124 423 4441");
-        alerts.bookingConfirmed(b);
+        assertThrows(com.nirvana.application.service.BookingContactUnavailable.class, () -> alerts.bookingConfirmed(b));
         assertEquals("NO_MOBILE", state(b.getId()));
         alerts.runDue();
         assertEquals("NO_MOBILE", state(b.getId()));
+    }
+
+    @Test void retryOfUnsentAlertReusesTheLinkAndRecordsDeliveryAfterSuccess() {
+        Booking b = booking("+91 98765 43210");
+        org.mockito.Mockito.doThrow(new com.nirvana.application.service.BookingContactUnavailable("SMS unavailable"))
+            .doNothing().when(sms).send(org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.eq(SpaAlertSms.Kind.NEW),org.mockito.ArgumentMatchers.anyString());
+        assertThrows(com.nirvana.application.service.BookingContactUnavailable.class, () -> alerts.bookingConfirmed(b));
+        var first=token(b.getId());
+        assertNull(jdbc.queryForObject("SELECT sent_at FROM spa_booking_confirmation WHERE booking_id=?",Object.class,b.getId()));
+        alerts.bookingConfirmed(b);
+        assertEquals(first,token(b.getId()));
+        assertNotNull(jdbc.queryForObject("SELECT sent_at FROM spa_booking_confirmation WHERE booking_id=?",Object.class,b.getId()));
     }
 
     @Test void theGuestCancellingClosesTheRequest() {

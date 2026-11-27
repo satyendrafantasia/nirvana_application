@@ -23,7 +23,7 @@ class SpaPackageCheckoutTest {
  @BeforeEach void setup() throws Exception {
   subscriptions=mock(UserSpaPackageSubscriptionRepository.class);packages=mock(SpaPackageRepository.class);em=mock(EntityManager.class);
   gateway=new RazorpayClient("key","secret");gateway.payments=mock(com.razorpay.PaymentClient.class);gateway.orders=mock(com.razorpay.OrderClient.class);
-  var props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("secret");props.setKeyId("key");
+  var props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("secret");props.setKeyId("key"); props.setWebhookSecret("test-webhook");
   service=new SpaPackageCheckoutService(packages,subscriptions,em,props,gateway);
   var p=SpaPackage.builder().id(1L).level(SpaPackageLevel.SILVER).build();
   subscription=UserSpaPackageSubscription.builder().id(9L).user(User.builder().id(2L).build()).spaPackage(p).level(p.getLevel())

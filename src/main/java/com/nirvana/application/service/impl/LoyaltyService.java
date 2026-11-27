@@ -6,6 +6,7 @@ import com.nirvana.application.model.enums.BookingPaymentType;
 import com.nirvana.application.model.enums.BookingStatus;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.rewards.GiftCardService;
+import com.nirvana.application.rewards.BookingWallet;
 import com.nirvana.application.rewards.LoyaltyLedger;
 import com.nirvana.application.rewards.ReferralService;
 import com.nirvana.application.rewards.RewardRules;
@@ -36,6 +37,7 @@ public class LoyaltyService {
 
     private final LoyaltyLedger ledger;
     private final GiftCardService giftCards;
+    private final BookingWallet wallet;
     private final ReferralService referrals;
     private final RewardRules rules;
     private final JdbcTemplate db;
@@ -44,6 +46,11 @@ public class LoyaltyService {
     // ------------------------------------------------------------------ checkout
 
     /** How much of the total a gift card code pays at this spa; validates the code, spends nothing. */
+    public com.nirvana.application.model.dto.CancellationQuote.Tender giftCardReturnQuote(Booking booking, int percent) {
+        return booking.getGiftCardCents() != null && booking.getGiftCardCents() > 0 ? giftCards.quoteReturn(booking.getId(), percent)
+                : new com.nirvana.application.model.dto.CancellationQuote.Tender(0, 0);
+    }
+
     public int giftCardShare(String code, Spa spa, int totalCents) {
         if (code == null || code.isBlank()) return 0;
         return giftCards.quote(code, spa.getId(), totalCents);
@@ -89,8 +96,10 @@ public class LoyaltyService {
             booking.setLoyaltyPointsRedeemed(0);
             log.info("Returned {} loyalty point(s) for cancelled booking {}", points, booking.getId());
         }
+        int percent = 100 - Math.max(0, Math.min(100, feePercent));
+        wallet.returnForBooking(booking, percent);
         if (booking.getGiftCardCents() != null && booking.getGiftCardCents() > 0) {
-            int back = giftCards.returnForBooking(booking.getId(), 100 - Math.max(0, Math.min(100, feePercent)));
+            int back = giftCards.returnForBooking(booking.getId(), percent);
             log.info("Returned {} paise to gift card for cancelled booking {}", back, booking.getId());
         }
         return points;
@@ -159,7 +168,7 @@ public class LoyaltyService {
                 Long.class, id);
         Long vouchers = db.queryForObject("SELECT COALESCE(SUM(amount_cents),0) FROM payment_refund WHERE booking_id=? AND status='COMPLETED'"
                 + " AND voucher_code IS NOT NULL", Long.class, id);
-        long gift = giftCards.netRedeemed(id);
+        long gift = giftCards.netRedeemed(id) + (long) wallet.netSpent(id);
         long total = (long) nz(booking.getPriceCents()) + nz(booking.getTaxCents()) - nz(booking.getDiscountCents());
         long paid = nz(online) + nz(desk) + gift - nz(vouchers);
         return Math.max(0, Math.min(paid, total));

@@ -33,7 +33,7 @@ public class PackageCheckoutService {
  public record SpaMatch(Long id,String name,String city,List<Long> packageIds) {}
  public record SpaMatches(long total,List<SpaMatch> spas) {}
  /** Guests only ever see published spas. */
- private static final String PUBLISHED="s.is_active=1 AND s.is_verified=1";
+ private static final String PUBLISHED=ServicePackageRepository.REDEEMABLE_SPA;
  public record Purchase(Long subscriptionId,String packageType,String status,String paymentStatus,int remainingSessions,
    Integer sessions,Integer amountCents,String currency,OffsetDateTime expiryDate,Long packageId) {}
  public record Checkout(Purchase purchase,String razorpayKeyId,String razorpayOrderId,Integer amountCents,String currency) {}
@@ -62,7 +62,9 @@ public class PackageCheckoutService {
  public SpaMatches findSpas(@Nullable String query,@Nullable Long packageId,int limit) {
   List<String> words=Arrays.stream((query==null?"":query.length()>100?query.substring(0,100):query).toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
     .filter(w->!w.isBlank()).limit(5).toList();
-  StringBuilder where=new StringBuilder(" WHERE "+PUBLISHED+" AND p.is_active=1");
+  StringBuilder where=new StringBuilder(" WHERE "+PUBLISHED);
+  // Existing subscribers can still find redemption locations for a retired package.
+  if(packageId==null) where.append(" AND p.is_active=1");
   List<Object> args=new ArrayList<>();
   if(packageId!=null){where.append(" AND ps.package_id=?");args.add(packageId);}
   for(String w:words){where.append(" AND LOWER(CONCAT(s.name,' ',COALESCE(s.city,''))) LIKE ?");args.add("%"+w.replace("\\","").replace("%","").replace("_","")+"%");}
@@ -96,7 +98,7 @@ public class PackageCheckoutService {
  }
  @Transactional
  public Checkout start(Long userId,Long packageId) {
-  enabled();
+  props.requireCheckout(); enabled();
   User user=em.find(User.class,userId,LockModeType.PESSIMISTIC_WRITE);
   if(user==null) throw new EntityNotFoundException("User not found");
   for(UserPackageSubscription s:subscriptions.findByUserIdOrderByPurchaseDateDesc(userId)) {
@@ -110,7 +112,7 @@ public class PackageCheckoutService {
   }
   ServicePackage p=packages.findById(packageId).filter(x->Boolean.TRUE.equals(x.getActive())).orElseThrow(()->new EntityNotFoundException("Package is unavailable"));
   if(p.getPriceCents()<=0 || p.getSessionCount()<=0) throw new IllegalStateException("Package pricing is not configured");
-  if(p.getEligibleSpas().isEmpty()) throw new IllegalStateException("This package does not have any eligible spas yet.");
+  requireSaleLocations(p);
   UserPackageSubscription s=new UserPackageSubscription();
   s.setUser(user);s.setServicePackage(p);s.setPackageType(p.getPackageType());s.setPurchaseDate(OffsetDateTime.now());
   s.setStatus(PackageStatus.PAYMENT_PENDING);s.setPaymentStatus(PaymentStatus.PENDING);s.setRemainingSessions(0);
@@ -125,12 +127,17 @@ public class PackageCheckoutService {
  private Checkout intent(UserPackageSubscription s) {return new Checkout(view(s),props.getKeyId(),s.getRazorpayOrderId(),s.getAmountCents(),s.getCurrency());}
  private UserPackageSubscription owned(Long userId,Long id) {return subscriptions.findOwnedForUpdate(id,userId).orElseThrow(()->new EntityNotFoundException("Package purchase not found"));}
  @Transactional
- public Checkout resume(Long userId,Long id) {enabled();return resumeInternal(owned(userId,id));}
+ public Checkout resume(Long userId,Long id) {props.requireCheckout(); enabled();return resumeInternal(owned(userId,id));}
  private Checkout resumeInternal(UserPackageSubscription s) {
   if(s.getStatus()==PackageStatus.PAYMENT_PENDING) try {
    for(com.razorpay.Payment p:gateway.orders.fetchPayments(s.getRazorpayOrderId())) if("captured".equals(p.get("status"))) {settle(s,p.get("id"));break;}
   } catch(Exception e) {throw new IllegalStateException("Unable to verify payment. Retry this purchase before paying again.",e);}
+  if(s.getStatus()==PackageStatus.PAYMENT_PENDING) requireSaleLocations(s.getServicePackage());
   return intent(s);
+ }
+ private void requireSaleLocations(ServicePackage p) {
+  if(!Boolean.TRUE.equals(p.getActive()) || packages.countRedeemableSpas(p.getId())==0)
+   throw new IllegalStateException("This package is currently unavailable for purchase. No payment has been requested.");
  }
  @Transactional
  public Purchase confirm(Long userId,Long id,RazorpayConfirmRequest request) {

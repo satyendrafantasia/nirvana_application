@@ -602,6 +602,7 @@ export default function OwnerDesk({
                         'PAID',
                         'PACKAGE',
                         'GIFT_CARD',
+                        'WALLET',
                         'PENDING',
                         'INIT',
                         'FAILED',
@@ -1063,7 +1064,7 @@ function Appointment({
   });
   const shape = { status: b.status, startTs: b.startUtc, endTs: b.endUtc };
   const actions = bookingActions(shape);
-  if (b.confirmation === 'PENDING' && b.status === 'CONFIRMED')
+  if (['PENDING', 'NEEDS_CONTACT', 'NO_MOBILE'].includes(b.confirmation ?? '') && b.status === 'CONFIRMED')
     actions.unshift(
       { path: 'confirm', label: 'Confirm appointment' },
       { path: 'decline', label: 'Decline appointment' }

@@ -100,7 +100,7 @@ public class GstInvoiceService {
         // Lock the booking so two requests for the same invoice queue and the second finds the first's.
         var rows = db.queryForList("""
                 SELECT b.id,b.spa_id,b.user_id,b.price_cents,b.discount_cents,b.tax_cents,b.currency,b.guest_count,
-                  b.payment_type,b.payment_mode,b.status,b.booking_reference,b.start_ts,
+                  b.payment_type,b.payment_mode,b.status,b.booking_reference,b.start_ts,b.remainder_cents,
                   s.name AS service_name,s.sac_code,s.gst_rate_pct
                 FROM booking b JOIN service s ON s.id=b.service_id WHERE b.id=? FOR UPDATE""", bookingId);
         if (rows.isEmpty()) throw new jakarta.persistence.EntityNotFoundException("Booking not found: " + bookingId);
@@ -156,6 +156,10 @@ public class GstInvoiceService {
                 SELECT COUNT(*) FROM payment WHERE booking_id=? AND payment_status IN ('CAPTURED','COMPLETED','PARTIALLY_REFUNDED','REFUNDED')""",
                 Integer.class, id);
         if (paid != null && paid > 0) return true;
+        if (num(b.get("remainder_cents")) == 0) {
+            Integer walletPaid = db.queryForObject("SELECT COUNT(*) FROM booking_wallet_spend WHERE booking_id=? AND amount_cents>0", Integer.class, id);
+            if (walletPaid != null && walletPaid > 0) return true;
+        }
         if (!"OFFLINE".equals(b.get("payment_mode"))) return false;
         Integer desk = db.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE booking_id=?", Integer.class, id);
         return (desk != null && desk > 0) || "COMPLETED".equals(b.get("status"));
@@ -221,6 +225,8 @@ public class GstInvoiceService {
                 WHERE p.booking_id=? ORDER BY f.recorded_at,f.cumulative_cents""", rs -> {
             refunds.add(new Refund("REFUND:BOOKING:" + rs.getLong(1) + ":" + rs.getInt(2), rs.getLong(3), "Refund"));
         }, bookingId);
+        db.query("SELECT returned_cents FROM booking_wallet_spend WHERE booking_id=? AND returned_cents>0",
+                rs -> { refunds.add(new Refund("REFUND:WALLET:" + bookingId, rs.getLong(1), "Returned to Nirvana wallet")); }, bookingId);
         db.query("SELECT id,amount_cents FROM spa_desk_receipt WHERE booking_id=? AND returned_at IS NOT NULL ORDER BY returned_at,id",
                 rs -> { refunds.add(new Refund("REFUND:DESK:" + rs.getLong(1), rs.getLong(2), "Amount returned at the spa")); }, bookingId);
         return credit(invoice.get(), refunds);
@@ -362,6 +368,12 @@ public class GstInvoiceService {
                   UNION ALL
                   SELECT 0,f.amount_cents FROM booking b JOIN payment p ON p.booking_id=b.id JOIN booking_refund_posting f ON f.payment_id=p.id
                    WHERE b.spa_id=:spa AND f.recorded_at>=:start AND f.recorded_at<:end AND p.currency='INR'
+                  UNION ALL
+                  SELECT w.amount_cents,0 FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+                   WHERE b.spa_id=:spa AND w.currency='INR' AND w.spent_at>=:start AND w.spent_at<:end
+                  UNION ALL
+                  SELECT 0,w.returned_cents FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+                   WHERE b.spa_id=:spa AND w.currency='INR' AND w.returned_at>=:start AND w.returned_at<:end
                   UNION ALL
                   SELECT ROUND(x.price_paid*100),0 FROM user_spa_package_subscription x
                    WHERE x.spa_id=:spa AND x.payment_status='SUCCESS' AND COALESCE(x.currency,'INR')='INR'

@@ -26,7 +26,7 @@ public class SpaPackageCheckoutService {
  private PackageCheckoutService.Checkout intent(UserSpaPackageSubscription s){return new PackageCheckoutService.Checkout(view(s),props.getKeyId(),s.getRazorpayOrderId(),amount(s),s.getCurrency());}
  private UserSpaPackageSubscription owned(Long userId,Long id){var s=subscriptions.findForUpdate(id).orElseThrow(()->new EntityNotFoundException("Purchase not found"));if(!s.getUser().getId().equals(userId))throw new EntityNotFoundException("Purchase not found");return s;}
  @Transactional public PackageCheckoutService.Checkout start(Long userId,Long spaId,Long packageId){
-  enabled();var user=em.find(User.class,userId,LockModeType.PESSIMISTIC_WRITE);if(user==null)throw new EntityNotFoundException("User not found");
+  props.requireCheckout(); enabled();var user=em.find(User.class,userId,LockModeType.PESSIMISTIC_WRITE);if(user==null)throw new EntityNotFoundException("User not found");
   for(var s:subscriptions.findByUserIdOrderByPurchaseDateDesc(userId))if(s.getSpa().getId().equals(spaId)){
    if(s.getStatus()==UserSpaPackageStatus.PAYMENT_PENDING){if(!s.getSpaPackage().getId().equals(packageId))throw new IllegalStateException("Resume your existing purchase for this spa first.");return resumeInternal(s);}
    if(s.getStatus()==UserSpaPackageStatus.ACTIVE&&s.getRemainingSessions()>0&&(s.getExpiryDate()==null||s.getExpiryDate().isAfter(OffsetDateTime.now())))throw new IllegalStateException("Use your active package for this spa before buying another.");
@@ -41,7 +41,7 @@ public class SpaPackageCheckoutService {
   try{s.setRazorpayOrderId(gateway.orders.create(new JSONObject().put("amount",amount(s)).put("currency",s.getCurrency()).put("receipt","spa-package-"+s.getId())).get("id"));}catch(Exception e){throw new IllegalStateException("Unable to start checkout",e);}
   return intent(s);
  }
- @Transactional public PackageCheckoutService.Checkout resume(Long userId,Long id){enabled();return resumeInternal(owned(userId,id));}
+ @Transactional public PackageCheckoutService.Checkout resume(Long userId,Long id){props.requireCheckout(); enabled();return resumeInternal(owned(userId,id));}
  private PackageCheckoutService.Checkout resumeInternal(UserSpaPackageSubscription s){
   if(s.getStatus()==UserSpaPackageStatus.PAYMENT_PENDING)try{for(com.razorpay.Payment p:gateway.orders.fetchPayments(s.getRazorpayOrderId()))if("captured".equals(p.get("status"))){settle(s,p.get("id"));break;}}catch(Exception e){throw new IllegalStateException("Unable to verify payment. Retry this purchase before paying again.",e);}
   return intent(s);

@@ -10,6 +10,7 @@ import java.util.List;
 public class ChatMessageRequest {
 
     @NotBlank
+    @jakarta.validation.constraints.Size(max = 4000)
     private String content;
 
     @Valid

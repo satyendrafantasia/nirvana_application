@@ -139,20 +139,24 @@ export function EligibleSpas({
   initiallyOpen = false
 }: {
   packageId: number;
-  spaCount: number;
+  spaCount?: number;
   initiallyOpen?: boolean;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   const [query, setQuery] = useState('');
   const found = useSpaSearch(query, packageId, open);
-  if (!spaCount) return <p className="text-slate-600">No eligible spas configured yet</p>;
+  if (spaCount === 0) return <p className="text-slate-600">No eligible spas configured yet</p>;
   const listId = `package-${packageId}-spas`;
   const spas = found.data?.spas ?? [];
   const more = (found.data?.total ?? 0) - spas.length;
   return (
     <div className="space-y-2 text-slate-600">
       <p className="flex flex-wrap items-center justify-between gap-2">
-        Available at {spaCount === 1 ? '1 spa' : `${count(spaCount)} spas`}
+        {spaCount == null
+          ? 'Book a visit with this package'
+          : spaCount === 1
+            ? 'Available at 1 spa'
+            : `Available at ${count(spaCount)} spas`}
         <button
           type="button"
           className="font-semibold text-primary-700 underline"
@@ -176,7 +180,13 @@ export function EligibleSpas({
           {found.isError && <p role="alert">{errorMessage(found.error)}</p>}
           {found.isLoading && <p className="text-sm">Loading spas…</p>}
           {found.data && !spas.length && (
-            <p className="text-sm">Not available at any spa matching “{query.trim()}”.</p>
+            <p className="text-sm">
+              {query.trim() ? (
+                <>No eligible spas match “{query.trim()}”.</>
+              ) : (
+                'No spas currently accept this package. Contact Nirvana for help with your remaining sessions.'
+              )}
+            </p>
           )}
           {spas.length > 0 && (
             <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-3 text-sm">

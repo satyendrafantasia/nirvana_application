@@ -34,6 +34,7 @@ public class RewardsController {
     private final RewardRules rules;
     private final ReferralService referrals;
     private final GiftCardService giftCards;
+    private final BookingWallet wallet;
     private final PricingService pricing;
     private final UserRepository users;
     private final SpaRepository spas;
@@ -70,7 +71,7 @@ public class RewardsController {
     }
 
     public record PreviewInput(@NotNull Long spaId, @NotNull Long serviceId, Long slotId, @NotNull @Min(1) @Max(20) Integer guests,
-                               @Size(max = 64) String couponCode, Boolean redeemLoyaltyPoints, @Size(max = 32) String giftCardCode) {
+                               @Size(max = 64) String couponCode, Boolean redeemLoyaltyPoints, @Size(max = 32) String giftCardCode, Boolean useWalletCredit) {
     }
 
     /**
@@ -80,7 +81,8 @@ public class RewardsController {
     /** discountCents is coupon plus off-peak; points are shown on their own line. */
     public record Preview(String currency, int priceCents, int discountCents, String couponCode, String couponError,
                          int pointsRedeemed, int pointsCents, int pointsBalance, int taxCents,
-                         int totalCents, int giftCardCents, int giftCardBalanceCents, String giftCardError, int payableCents) {
+                         int totalCents, int giftCardCents, int giftCardBalanceCents, String giftCardError, int payableCents,
+                         int walletCents, int walletBalanceCents, String walletError) {
     }
 
     @PostMapping("/api/v1/checkout/preview")
@@ -111,9 +113,13 @@ public class RewardsController {
 
         int giftBalance = 0;
         String giftError = null;
-        if (input.giftCardCode() != null && !input.giftCardCode().isBlank()) {
+        boolean useWallet = Boolean.TRUE.equals(input.useWalletCredit());
+        if (useWallet && input.giftCardCode() != null && !input.giftCardCode().isBlank()) throw new IllegalArgumentException("Choose either wallet credit or a gift card");
+        if (useWallet || input.giftCardCode() != null && !input.giftCardCode().isBlank()) {
             try {
-                giftBalance = giftCards.quote(input.giftCardCode(), spa.getId(), Integer.MAX_VALUE);
+                giftBalance = useWallet
+                        ? wallet.quote(userId, service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency(), Integer.MAX_VALUE)
+                        : giftCards.quote(input.giftCardCode(), spa.getId(), Integer.MAX_VALUE);
             } catch (ResponseStatusException rejected) {
                 giftError = rejected.getReason();
             }
@@ -124,6 +130,7 @@ public class RewardsController {
         String currency = service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency();
         return new Preview(currency, price, otherDiscount, priced.appliedCouponCode(), couponError,
                 lines.pointsRedeemed(), lines.pointsPaise(), ledger.spendable(userId), lines.taxPaise(), lines.totalPaise(),
-                lines.giftCardPaise(), giftBalance, giftError, lines.payablePaise());
+                useWallet ? 0 : lines.giftCardPaise(), useWallet ? 0 : giftBalance, useWallet ? null : giftError, lines.payablePaise(),
+                useWallet ? lines.giftCardPaise() : 0, useWallet ? giftBalance : 0, useWallet ? giftError : null);
     }
 }

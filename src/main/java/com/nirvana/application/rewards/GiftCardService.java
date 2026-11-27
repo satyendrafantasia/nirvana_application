@@ -88,6 +88,7 @@ public class GiftCardService {
 
     @Transactional
     public Checkout startPurchase(long userId, PurchaseInput input) {
+        props.requireCheckout();
         requireGateway();
         validateAmount(input.amountCents());
         String recipientEmail = requireEmail(input.recipientEmail());
@@ -290,6 +291,20 @@ public class GiftCardService {
         return amount;
     }
 
+    public com.nirvana.application.model.dto.CancellationQuote.Tender quoteReturn(long bookingId, int percent) {
+        var amounts = db.queryForList("""
+             SELECT -SUM(amount_cents) FROM gift_card_txn WHERE booking_id=? AND txn_type IN ('REDEEM','REVERSAL')
+             GROUP BY gift_card_id HAVING SUM(CASE WHEN txn_type='REVERSAL' THEN 1 ELSE 0 END)=0
+             """, Integer.class, bookingId);
+        int fee = 0, back = 0;
+        for (int paid : amounts) {
+            var portion = com.nirvana.application.model.dto.CancellationQuote.Tender.from(paid, percent);
+            fee += portion.fee();
+            back += portion.refund();
+        }
+        return new com.nirvana.application.model.dto.CancellationQuote.Tender(fee, back);
+    }
+
     /** Net amount a booking took from gift cards (redeemed less returned). */
     public int netRedeemed(long bookingId) {
         Integer net = db.queryForObject("SELECT COALESCE(-SUM(amount_cents),0) FROM gift_card_txn WHERE booking_id=? AND txn_type IN ('REDEEM','REVERSAL')",
@@ -308,8 +323,9 @@ public class GiftCardService {
         for (Long id : cards) {
             Map<String, Object> row = lockRow(id);
             Integer net = db.queryForObject("SELECT COALESCE(-SUM(amount_cents),0) FROM gift_card_txn WHERE booking_id=? AND gift_card_id=?"
-                    + " AND txn_type IN ('REDEEM','REVERSAL')", Integer.class, bookingId, id);
-            int back = (int) ((long) Math.max(0, net == null ? 0 : net) * Math.max(0, Math.min(100, percent)) / 100);
+                    + " AND txn_type='REDEEM' AND NOT EXISTS (SELECT 1 FROM gift_card_txn t WHERE t.booking_id=? AND t.gift_card_id=? AND t.txn_type='REVERSAL')",
+                    Integer.class, bookingId, id, bookingId, id);
+            int back = com.nirvana.application.model.dto.CancellationQuote.Tender.from(Math.max(0, net == null ? 0 : net), percent).refund();
             if (back <= 0) continue;
             int after = ((Number) row.get("balance_cents")).intValue() + back;
             String status = (String) row.get("status");

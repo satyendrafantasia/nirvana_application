@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+const Support = lazy(() => import('../pages/Support/Support'));
 import TrustPage from '../pages/Static/TrustPage';
 const Discovery = lazy(() => import('../pages/Discovery/Discovery'));
 import { Route, Routes } from 'react-router-dom';
@@ -165,6 +166,8 @@ const AppRouter = () => {
           </RequireAuth>
         }
       />
+      <Route path="/support" element={<Support />} />
+      <Route path="/admin/support" element={<RequireAuth><Support staff /></RequireAuth>} />
       <Route path="/privacy" element={<TrustPage kind="privacy" />} />
       <Route path="/terms" element={<TrustPage kind="terms" />} />
       <Route path="/404" element={<NotFound />} />

@@ -22,7 +22,7 @@ class PackageCheckoutTest {
  @BeforeEach void setup() throws Exception {
   subscriptions=mock(UserPackageSubscriptionRepository.class);packages=mock(ServicePackageRepository.class);em=mock(EntityManager.class);
   gateway=new RazorpayClient("key","secret");gateway.payments=mock(com.razorpay.PaymentClient.class);gateway.orders=mock(com.razorpay.OrderClient.class);
-  var props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("secret");props.setKeyId("key");
+  var props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("secret");props.setKeyId("key"); props.setWebhookSecret("test-webhook");
   service=new PackageCheckoutService(packages,subscriptions,em,props,gateway);
   var p=ServicePackage.builder().id(1L).packageType(PackageType.GLOBAL_BRONZE).sessionCount(5).build();
   subscription=UserPackageSubscription.builder().id(9L).user(User.builder().id(2L).build()).servicePackage(p).packageType(p.getPackageType())
@@ -41,6 +41,17 @@ class PackageCheckoutTest {
  }
  @Test void anotherCustomerCannotConfirm(){assertThrows(jakarta.persistence.EntityNotFoundException.class,()->service.confirm(8L,9L,request));verifyNoInteractions(gateway.payments);}
  @Test void wrongSignatureCannotActivate(){request.setRazorpaySignature("bad");assertThrows(Exception.class,()->service.confirm(2L,9L,request));assertEquals(0,subscription.getRemainingSessions());}
+ @Test void noSaleWhenAllMappedSpasCannotRedeemThePackage() throws Exception {
+  var user=subscription.getUser();
+  var plan=subscription.getServicePackage();
+  plan.setActive(true);plan.setPriceCents(20000);
+  when(em.find(User.class,2L,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)).thenReturn(user);
+  when(packages.findById(1L)).thenReturn(Optional.of(plan));
+  assertThrows(IllegalStateException.class,()->service.start(2L,1L));
+  verify(gateway.orders,never()).create(any());
+  when(gateway.orders.fetchPayments("order_1")).thenReturn(List.of());
+  assertThrows(IllegalStateException.class,()->service.resume(2L,9L));
+ }
  @Test void wrongOrderCannotActivate(){request.setRazorpayOrderId("other");assertThrows(IllegalArgumentException.class,()->service.confirm(2L,9L,request));}
  @Test void authorizedPaymentCannotActivate(){remote.put("status","authorized").put("captured",false);assertThrows(IllegalStateException.class,()->service.confirm(2L,9L,request));}
  @Test void wrongAmountCannotActivate(){remote.put("amount",1);assertThrows(IllegalStateException.class,()->service.confirm(2L,9L,request));}
@@ -49,6 +60,24 @@ class PackageCheckoutTest {
  @Test void resumeRecoversCapturedPaymentWithoutNewOrder() throws Exception {
   when(gateway.orders.fetchPayments("order_1")).thenReturn(List.of(new com.razorpay.Payment(remote)));
   assertEquals("ACTIVE",service.resume(2L,9L).purchase().status());verify(gateway.orders,never()).create(any());
+ }
+ @Test void legacyStandaloneRedemptionCanOnlyReadTheCustomersExistingReceipt() {
+  var history=mock(UserPackageUsageLogRepository.class);
+  var bookings=mock(BookingRepository.class);
+  var legacy=new PackageSubscriptionServiceImpl(packages,subscriptions,history,mock(UserRepository.class),bookings);
+  var request=new PackageUsageConsumeRequest();request.setBookingId(21L);request.setSpaId(4L);
+  var missing=assertThrows(org.springframework.web.server.ResponseStatusException.class,()->legacy.existingRedemption(2L,request));
+  assertEquals(409,missing.getStatusCode().value());
+  Booking booking=new Booking();booking.setId(21L);
+  subscription.setStatus(PackageStatus.ACTIVE);subscription.setRemainingSessions(4);
+  when(history.findFirstByBooking_IdAndUser_IdAndSpa_IdOrderByIdAsc(21L,2L,4L)).thenReturn(Optional.of(
+    UserPackageUsageLog.builder().subscription(subscription).booking(booking).sessionNumber(1).build()));
+  for(int i=0;i<2;i++){
+   var receipt=legacy.existingRedemption(2L,request);
+   assertEquals(4,receipt.getRemainingSessions());assertEquals(1,receipt.getSessionNumber());
+  }
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->legacy.existingRedemption(3L,request));
+  verifyNoInteractions(subscriptions,bookings);
  }
  @Test void legacyClientSuccessIsRejected(){
   var old=new PackageSubscriptionServiceImpl(packages,subscriptions,mock(UserPackageUsageLogRepository.class),mock(UserRepository.class),mock(BookingRepository.class));

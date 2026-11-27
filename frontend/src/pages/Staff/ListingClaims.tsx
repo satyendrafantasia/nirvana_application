@@ -27,6 +27,7 @@ export type Claim = {
   reviewedAt?: string;
   kycStatus?: string;
   phoneVerifiedAt?: string;
+  existingInventory?: boolean;
 };
 
 const statuses = [
@@ -54,12 +55,18 @@ export function ClaimCard({ claim }: { claim: Claim }) {
   const qc = useQueryClient();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+  const [verificationNote, setVerificationNote] = useState('');
+  const needsCallback = !!claim.existingInventory && !claim.phoneVerifiedAt;
   const [confirming, setConfirming] = useState(false);
   const decide = useMutation({
     mutationFn: async (decision: 'approve' | 'reject') =>
       client.post(
         `/api/admin/listing-claims/${claim.id}/${decision}`,
-        decision === 'reject' ? { reason: reason.trim() } : undefined
+        decision === 'reject'
+          ? { reason: reason.trim() }
+          : needsCallback
+            ? { verificationNote: verificationNote.trim() }
+            : undefined
       ),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['listing-claims'] })
   });
@@ -141,7 +148,9 @@ export function ClaimCard({ claim }: { claim: Claim }) {
                 />
               </label>
               <p className="text-xs text-slate-600">
-                Rejecting unpublishes the spa and frees the listing so someone else can claim it.
+                {claim.existingInventory
+                  ? 'Rejecting releases the claim and keeps the existing listing available.'
+                  : 'Rejecting unpublishes the spa and frees the listing so someone else can claim it.'}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={decide.isPending || !reason.trim()}>
@@ -154,8 +163,27 @@ export function ClaimCard({ claim }: { claim: Claim }) {
             </form>
           ) : confirming ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm">Publish this spa and mark it verified?</span>
-              <Button disabled={decide.isPending} onClick={() => decide.mutate('approve')}>
+              <span className="text-sm">
+                {claim.existingInventory
+                  ? 'Give this owner access to the existing spa and its booking history?'
+                  : 'Publish this spa and mark it verified?'}
+              </span>
+              {needsCallback && (
+                <label className="w-full text-sm">
+                  Ownership verification from the callback
+                  <textarea
+                    className="mt-1 w-full rounded-xl border p-2"
+                    required
+                    maxLength={1000}
+                    value={verificationNote}
+                    onChange={(e) => setVerificationNote(e.target.value)}
+                  />
+                </label>
+              )}
+              <Button
+                disabled={decide.isPending || (needsCallback && !verificationNote.trim())}
+                onClick={() => decide.mutate('approve')}
+              >
                 Yes, approve
               </Button>
               <Button variant="secondary" onClick={() => setConfirming(false)}>
@@ -231,7 +259,9 @@ export default function ListingClaims() {
         </p>
       )}
       <div className="space-y-4">
-        {claims.data?.map((c) => <ClaimCard key={c.id} claim={c} />)}
+        {claims.data?.map((c) => (
+          <ClaimCard key={c.id} claim={c} />
+        ))}
       </div>
     </div>
   );

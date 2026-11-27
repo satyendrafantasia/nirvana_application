@@ -21,6 +21,12 @@ const text = (p: Partial<CheckoutPreview>, payAtSpa = false) =>
   renderToStaticMarkup(<CheckoutSummary preview={{ ...base, ...p }} payAtSpa={payAtSpa} />).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 describe('checkout summary', () => {
+  it('identifies a wallet payment and the credit available for a later booking', () => {
+    const html = renderToStaticMarkup(<CheckoutSummary wallet preview={{ ...base, walletCents: 3000, walletBalanceCents: 5000, payableCents: 7856 }} />);
+    expect(html).toContain('Wallet credit');
+    expect(html).toContain('stays in your wallet');
+    expect(html).not.toContain('Gift card');
+  });
   it('shows the price, discounts, points, tax and total', () => {
     const t = text({});
     expect(t).toContain('Treatment ₹120.00');

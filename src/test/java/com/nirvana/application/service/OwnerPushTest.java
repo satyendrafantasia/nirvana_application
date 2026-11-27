@@ -24,7 +24,7 @@ class OwnerPushTest {
         push.project=push.apiKey=push.appId=push.sender=push.vapid="configured";
         when(db.queryForList(contains("m.user_id=c.user_id"),eq(String.class),eq(3L),eq(1L)))
                 .thenReturn(List.of());
-        push.send(3,42,1);
+        assertThrows(BookingContactUnavailable.class, () -> push.send(3,42,1,"CONFIRMED"));
         verify(db).queryForList(contains("m.user_id=c.user_id"),eq(String.class),eq(3L),eq(1L));
         verifyNoMoreInteractions(db);
     }

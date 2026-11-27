@@ -42,9 +42,15 @@ public class OwnerPush {
         http = RestClient.builder().requestFactory(factory).build();
     }
 
-    boolean ready() {
+    public boolean ready() {
         return enabled && !project.isBlank() && !apiKey.isBlank() && !appId.isBlank()
                 && !sender.isBlank() && !vapid.isBlank();
+    }
+
+    public synchronized boolean credentialsAvailable() {
+        if (!ready()) return false;
+        try { loadCredentials(); return true; }
+        catch (IOException | RuntimeException unavailable) { return false; }
     }
 
     public boolean claimed(long spa, long user) {
@@ -54,45 +60,54 @@ public class OwnerPush {
 
     public Map<String,Object> config(long spa, long user) {
         if (!claimed(spa,user)) return Map.of("eligible",false);
-        return Map.of("eligible",true,"enabled",ready(),"vapidKey",vapid,"firebase",
+        return Map.of("eligible",true,"enabled",credentialsAvailable(),"vapidKey",vapid,"firebase",
                 Map.of("apiKey",apiKey,"appId",appId,"projectId",project,"messagingSenderId",sender));
     }
 
     public void subscribe(long spa, long user, String token) {
         if (!claimed(spa,user)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        if (!ready()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
+        if (!credentialsAvailable()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Firebase sender credentials are unavailable");
         db.update("INSERT INTO owner_push_device(user_id,token_hash,registration_token) VALUES (?,SHA2(?,256),?) "
                 + "ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)",user,token,token);
+    }
+
+    public boolean subscribed(long spa,long user,String token) {
+        if (!claimed(spa,user)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM owner_push_device WHERE user_id=? AND token_hash=SHA2(?,256))",Boolean.class,user,token));
     }
 
     public void unsubscribe(long user,String token) {
         db.update("DELETE FROM owner_push_device WHERE user_id=? AND token_hash=SHA2(?,256)",user,token);
     }
 
-    public void enqueue(long booking,long spa,int revision) {
+    public void enqueue(long booking,long spa,int revision,String event) {
         if (!ready()) return;
         db.update("INSERT INTO booking_alert_job(booking_id,event_kind,audience,revision,device_id) "
-                + "SELECT DISTINCT ?, 'CONFIRMED', 'SPA_PUSH', ?, d.id FROM owner_push_device d "
+                + "SELECT DISTINCT ?, ?, 'SPA_PUSH', ?, d.id FROM owner_push_device d "
                 + "WHERE d.user_id IN (SELECT m.user_id " + CLAIM + " AND s.id=?) "
-                + "ON DUPLICATE KEY UPDATE id=booking_alert_job.id",booking,revision,spa);
+                + "ON DUPLICATE KEY UPDATE id=booking_alert_job.id",booking,event,revision,spa);
+    }
+
+    private void loadCredentials() throws IOException {
+        if (credentials == null) credentials = GoogleCredentials.getApplicationDefault()
+                .createScoped(List.of("https://www.googleapis.com/auth/firebase.messaging"));
     }
 
     private synchronized String accessToken() throws IOException {
-        if (credentials == null) credentials = GoogleCredentials.getApplicationDefault()
-                .createScoped(List.of("https://www.googleapis.com/auth/firebase.messaging"));
+        loadCredentials();
         credentials.refreshIfExpired();
         return credentials.getAccessToken().getTokenValue();
     }
 
-    public void send(long device,long booking,long spa) {
+    public void send(long device,long booking,long spa,String event) {
         if (!ready()) throw new IllegalStateException("Push is unavailable");
         var tokens=db.queryForList("SELECT registration_token FROM owner_push_device WHERE id=? "
                 + "AND user_id IN (SELECT m.user_id " + CLAIM + " AND s.id=?)",String.class,device,spa);
-        if (tokens.isEmpty()) return;
+        if (tokens.isEmpty()) throw new BookingContactUnavailable("Owner device is no longer subscribed");
         try {
             http.post().uri("https://fcm.googleapis.com/v1/projects/{project}/messages:send",project)
                     .headers(h -> h.setBearerAuth(accessTokenForRequest()))
-                    .body(Map.of("message",Map.of("token",tokens.get(0),"data",Map.of("bookingId",Long.toString(booking)),
+                    .body(Map.of("message",Map.of("token",tokens.get(0),"data",Map.of("bookingId",Long.toString(booking),"event",event),
                             "webpush",Map.of("headers",Map.of("TTL","3600","Urgency","high")))))
                     .retrieve().toBodilessEntity();
         } catch (RestClientResponseException e) {
@@ -102,7 +117,7 @@ public class OwnerPush {
             for (JsonNode detail : details) {
                 if ("UNREGISTERED".equals(detail.path("errorCode").asText())) {
                     db.update("DELETE FROM owner_push_device WHERE id=?",device);
-                    return;
+                    throw new BookingContactUnavailable("Owner device registration expired");
                 }
             }
             throw new IllegalStateException("FCM request failed: HTTP "+e.getStatusCode().value());

@@ -16,6 +16,8 @@ describe('privacy page', () => {
     const html = render();
     expect(html).toContain('Digital Personal Data Protection Act, 2023');
     expect(html).toContain('Download my data');
+    expect(html).toContain('mailto:contact@nirvana-spa.in');
+    expect(html).toContain('href="/support"');
     expect(html).toContain('deleted 7 days later');
     expect(html).toContain('sign in again before then');
     expect(html).toContain('tax and');

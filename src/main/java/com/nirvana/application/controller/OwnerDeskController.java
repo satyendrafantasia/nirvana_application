@@ -53,6 +53,7 @@ public class OwnerDeskController {
              WHEN d.receipts>0 AND (d.paid>=b.remainder_cents OR b.status NOT IN ('ARRIVED','CONFIRMED','COMPLETED')) THEN 'PAID_AT_SPA'
              WHEN p.payment_status IN ('CAPTURED','COMPLETED') THEN 'PAID'
              WHEN p.payment_status IN ('REFUNDED','PARTIALLY_REFUNDED') THEN p.payment_status
+             WHEN b.remainder_cents<=COALESCE(d.paid,0) AND EXISTS (SELECT 1 FROM booking_wallet_spend w WHERE w.booking_id=b.id AND w.amount_cents>COALESCE(w.returned_cents,0)) THEN 'WALLET'
              WHEN b.gift_card_cents>0 AND b.remainder_cents<=COALESCE(d.paid,0) THEN 'GIFT_CARD'
              WHEN b.payment_mode='OFFLINE' AND b.status IN ('ARRIVED','CONFIRMED','COMPLETED') AND b.remainder_cents>COALESCE(d.paid,0) THEN 'DUE_AT_SPA'
              ELSE COALESCE(p.payment_status,'UNPAID') END
@@ -91,7 +92,7 @@ public class OwnerDeskController {
             SELECT COUNT(*) AS bookings, COUNT(CASE WHEN b.status='COMPLETED' THEN 1 END) AS completed,
               COUNT(CASE WHEN b.status='CONFIRMED' THEN 1 END) AS confirmed,
               COUNT(CASE WHEN b.status='CANCELLED' THEN 1 END) AS cancelled,
-              COUNT(CASE WHEN c.status='PENDING' AND b.status='CONFIRMED' THEN 1 END) AS pending
+              COUNT(CASE WHEN c.status IN ('PENDING','NEEDS_CONTACT','NO_MOBILE') AND b.status='CONFIRMED' THEN 1 END) AS pending
             FROM booking b LEFT JOIN spa_booking_confirmation c ON c.booking_id=b.id
             WHERE b.spa_id=:spa AND b.start_ts>=:start AND b.start_ts<:end
             """,args);
@@ -187,7 +188,7 @@ public class OwnerDeskController {
         if(!status.isBlank()) filter+=" AND b.status=:status ";
         if(!payment.isBlank()) filter+=" AND ("+STATE+")=:payment ";
         if(upcoming) filter+=" AND b.start_ts>=UTC_TIMESTAMP() AND b.status='CONFIRMED' ";
-        if(pending) filter+=" AND c.status='PENDING' AND b.status='CONFIRMED' ";
+        if(pending) filter+=" AND c.status IN ('PENDING','NEEDS_CONTACT','NO_MOBILE') AND b.status='CONFIRMED' ";
         args.put("term",args.get("search"));args.put("packageId",packageId);
         String sql=switch(view) {
             case TRANSACTIONS -> "";
@@ -341,7 +342,7 @@ public class OwnerDeskController {
         var b=bookings.findByIdForUpdate(id).filter(v->v.getSpa().getId()==spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         if(!"CONFIRMED".equals(b.getStatus().name()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Refresh the booking before replying");
-        var tokens=db.queryForList("SELECT token FROM spa_booking_confirmation WHERE spa_id=:spa AND booking_id=:id AND status='PENDING' FOR UPDATE",Map.of("spa",spa,"id",id),String.class);
+        var tokens=db.queryForList("SELECT token FROM spa_booking_confirmation WHERE spa_id=:spa AND booking_id=:id AND status IN ('PENDING','NEEDS_CONTACT','NO_MOBILE') FOR UPDATE",Map.of("spa",spa,"id",id),String.class);
         if(tokens.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"The spa reply is already recorded or closed. Refresh this appointment.");
         if(input.accept)replies.confirm(tokens.get(0));else replies.decline(tokens.get(0),input.reason);
         audit.record(AdminActionType.STATUS_CHANGE,"BOOKING",id,SecurityUtils.getCurrentUserId(),null,Map.of("accepted",input.accept),input.reason);

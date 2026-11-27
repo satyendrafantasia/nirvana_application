@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** The package catalog stays small: counts of spas, a per-spa filter, and a server-side spa search. */
 @SpringBootTest @AutoConfigureMockMvc @Transactional
 class PackageCatalogTest {
-    private static final String PUBLISHED = "s.is_active=1 AND s.is_verified=1";
+    private static final String PUBLISHED = "s.is_active=1 AND s.is_verified=1 AND s.booking_mode='INSTANT'";
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
@@ -33,9 +33,9 @@ class PackageCatalogTest {
     @BeforeEach void anActivePackageAtAPublishedSpa() {
         packageId = jdbc.queryForObject("SELECT MIN(id) FROM packages", Long.class);
         jdbc.update("UPDATE packages SET is_active=1 WHERE id=?", packageId);
-        spaId = jdbc.queryForObject("SELECT MIN(id) FROM spa s WHERE " + PUBLISHED, Long.class);
+        spaId = jdbc.queryForObject("SELECT MIN(id) FROM spa", Long.class);
         jdbc.update("INSERT IGNORE INTO service_package_spa (package_id, spa_id) VALUES (?,?)", packageId, spaId);
-        jdbc.update("UPDATE spa SET name=?, city='Lucknow' WHERE id=?", spaSearchTerm + " Lotus Retreat", spaId);
+        jdbc.update("UPDATE spa SET name=?, city='Lucknow', is_active=1, is_verified=1, booking_mode='INSTANT' WHERE id=?", spaSearchTerm + " Lotus Retreat", spaId);
     }
 
     private JsonNode get(String url) throws Exception {
@@ -84,6 +84,15 @@ class PackageCatalogTest {
         assertEquals(1, get("/api/packages/spas?packageId=" + packageId + "&limit=1").get("spas").size());
     }
 
+    @Test void mappedEnquiryAndRequestSpasAreExcluded() throws Exception {
+        for (String mode : java.util.List.of("REQUEST", "ENQUIRY")) {
+            jdbc.update("UPDATE spa SET booking_mode=? WHERE id=?", mode, spaId);
+            assertEquals(0, search(spaSearchTerm).get("total").asLong());
+            assertEquals(0, get("/api/packages/catalog?spaId=" + spaId).size());
+            assertEquals(published(packageId), get("/api/packages/spas?packageId=" + packageId).get("total").asLong());
+        }
+    }
+
     @Test void unpublishedSpasNeverShow() throws Exception {
         long before = published(packageId);
         jdbc.update("UPDATE spa SET is_verified=0 WHERE id=?", spaId);
@@ -104,6 +113,20 @@ class PackageCatalogTest {
         long elsewhere = jdbc.queryForObject("SELECT MAX(id) + 1000 FROM spa", Long.class); // a spa the package doesn't cover
         assertTrue(subscriptions.canUsePackage(user, spaId).isCanUse());
         assertFalse(subscriptions.canUsePackage(user, elsewhere).isSpaEligible());
+        jdbc.update("UPDATE packages SET is_active=0 WHERE id=?", packageId);
+        assertTrue(subscriptions.canUsePackage(user, spaId).isCanUse(), "existing paid sessions survive package retirement");
+        for (String mode : java.util.List.of("ENQUIRY", "REQUEST")) {
+            jdbc.update("UPDATE spa SET booking_mode=? WHERE id=?", mode, spaId);
+            assertFalse(subscriptions.canUsePackage(user, spaId).isCanUse());
+        }
+    }
+
+    @Test void publicFixtureCleanupRetainsRecordsAndRemovesThemFromEligibleLocations() throws Exception {
+        jdbc.update("UPDATE spa SET meta=JSON_OBJECT('fictional',true) WHERE id=?", spaId);
+        new com.nirvana.application.service.PublicInventory(jdbc, "https://example.org", "").run(null);
+        assertEquals(0, get("/api/packages/catalog?spaId="+spaId).size());
+        assertEquals(0,search(spaSearchTerm).get("total").asLong());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_package_spa WHERE package_id=? AND spa_id=?",Integer.class,packageId,spaId));
     }
 
     @Test void browsersMayReusePublicPackageDataBriefly() throws Exception {
@@ -111,6 +134,16 @@ class PackageCatalogTest {
             mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                             .string("Cache-Control", org.hamcrest.Matchers.containsString("max-age=300")));
+    }
+
+    @Test void standaloneUseRequiresARedemptionFromBookingCheckout() throws Exception {
+        var principal = new com.nirvana.application.security.UserPrincipal(1L,"guest","guest@example.test","",true,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_CUSTOMER")));
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/packages/use")
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
+                .contentType("application/json").content("{\"bookingId\":9223372036854775807,\"spaId\":1}"))
+                .andExpect(status().isConflict());
     }
 
     @Test void guestsCanSearchWithoutSigningIn() throws Exception {

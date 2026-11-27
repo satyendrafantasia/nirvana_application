@@ -32,6 +32,6 @@ Use an approved test claimant and a device you control. Grant notification
 permission, book a future slot at its spa, and tap the alert. Verify that signing
 in as the claimant opens the correct booking and a different user cannot open
 it. Test decline with a disposable booking because it invokes cancellation.
-Check booking_alert_job for audience SPA_PUSH and state DONE or FAILED. DONE
-records provider acceptance or a stale subscription skipped by the worker;
-device display and the spa's answer are separate events.
+Open **Administration → Booking alerts needing attention** to check channel configuration, registered device count, and failed deliveries. Assign an alert to yourself to retry delivery or record a contact outcome. An expired device registration needs a fresh subscription. A successful push records provider acceptance. The customer sees **Confirmed by the spa** only after the spa accepts the appointment.
+
+For Docker, mount the ADC file read-only into the app container and set `GOOGLE_APPLICATION_CREDENTIALS` to its path inside the container. `SPA_BOOKING_SMS_ENABLED=true` enables the separate AWS SNS booking channel with its DLT templates even when Firebase handles guest sign-in.

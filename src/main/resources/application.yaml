@@ -293,8 +293,8 @@ gift-cards:
 spa-alerts:
   enabled: ${SPA_ALERTS_ENABLED:true}
   interval-ms: 120000
-  log-messages: false
   sms:
+    enabled: ${SPA_BOOKING_SMS_ENABLED:}
     sender-id: ${SPA_SMS_SENDER_ID:}
     dlt-entity-id: ${SPA_SMS_DLT_ENTITY_ID:}
     templates:

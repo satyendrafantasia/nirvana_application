@@ -59,6 +59,6 @@ describe('the page a spa opens from its booking SMS', () => {
     expect(html).toContain('You declined this booking');
     expect(html).not.toContain('Confirm booking');
     expect(headline({ ...booking, status: 'CLOSED', bookingStatus: 'CANCELLED' })).toContain('was cancelled');
-    expect(headline({ ...booking, status: 'AUTO_CONFIRMED' })).toContain('Please expect the guest');
+    expect(headline({ ...booking, status: 'AUTO_CONFIRMED' })).toContain('reply is overdue');
   });
 });

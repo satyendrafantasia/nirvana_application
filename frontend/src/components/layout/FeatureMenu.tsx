@@ -11,7 +11,7 @@ export const ACCOUNT_MENU: { to: string; label: string }[] = [
   { to: '/me/settings', label: 'Profile, points & referrals' },
   { to: '/gift-cards', label: 'Gift cards' },
   { to: '/features/notifications', label: 'Notifications' },
-  { to: '/features/messages', label: 'Help & messages' },
+  { to: '/support', label: 'Help & messages' },
   { to: '/features/payments', label: 'Payments & refunds' },
   { to: '/features/reviews', label: 'My reviews' },
   { to: '/features/privacy', label: 'Privacy & data' }
@@ -27,6 +27,7 @@ export const ADMIN_MENU: { group: string; items: { to: string; label: string }[]
     items: [
       { to: '/admin/spa-leads', label: 'Spa leads' },
       { to: '/admin/listing-claims', label: 'Listing claims' },
+      { to: '/admin/support', label: 'Support inbox' },
       { to: '/features/administration', label: 'Approvals, refunds & support' }
     ]
   },

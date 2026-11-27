@@ -26,9 +26,6 @@ email:
   enabled: false
 sms:
   enabled: false
-# With SMS off, spa booking SMS (and their confirm links) are written to the backend log.
-spa-alerts:
-  log-messages: true
 # With SMS off locally, listing-claim phone codes are written to the backend log instead.
 listing-claims:
   log-codes: ${LISTING_CLAIM_LOG_CODES:true}

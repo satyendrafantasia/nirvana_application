@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { publicOrigin, seoHead } from './site';
 const titles: Record<string, string> = {
+  '/support': 'Booking support',
+  '/admin/support': 'Support inbox',
   '/terms': 'Booking terms',
   '/privacy': 'Privacy policy',
   '/spas': 'Browse spas',

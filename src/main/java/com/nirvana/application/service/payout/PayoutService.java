@@ -47,6 +47,14 @@ public class PayoutService {
           FROM booking_refund_posting f JOIN payment p ON p.id=f.payment_id JOIN booking b ON b.id=p.booking_id
           WHERE f.recorded_at<:cutoff AND p.captured_at>=:since AND p.payment_status IN %1$s
           UNION ALL
+          SELECT 'WALLET',w.booking_id,0,b.spa_id,w.currency,w.amount_cents,w.spent_at,b.booking_reference
+          FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+          WHERE w.spent_at<:cutoff AND w.spent_at>=:since
+          UNION ALL
+          SELECT 'WALLET_RETURN',w.booking_id,0,b.spa_id,w.currency,-w.returned_cents,w.returned_at,b.booking_reference
+          FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id
+          WHERE w.returned_at<:cutoff AND w.spent_at>=:since AND w.returned_cents>0
+          UNION ALL
           SELECT 'PACKAGE',x.id,0,x.spa_id,COALESCE(x.currency,'INR'),ROUND(x.price_paid*100),COALESCE(x.collected_at,x.purchase_date),CONCAT('Package ',x.id)
           FROM user_spa_package_subscription x
           WHERE x.payment_status='SUCCESS' AND COALESCE(x.collected_at,x.purchase_date)<:cutoff AND COALESCE(x.collected_at,x.purchase_date)>=:since

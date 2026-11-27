@@ -57,6 +57,16 @@ public class PaymentRefund extends BaseEntity {
     @Column(name = "gateway_refund_id", length = 128)
     private String gatewayRefundId;
 
+    @Builder.Default
+    @Column(name = "gateway_attempt", nullable = false)
+    private int gatewayAttempt = 1;
+
+    @Column(name = "historical_posting", nullable = false)
+    private boolean historicalPosting;
+
+    @Column(name = "next_check_at")
+    private OffsetDateTime nextCheckAt;
+
     @Column(name = "voucher_code", length = 64)
     private String voucherCode;
 

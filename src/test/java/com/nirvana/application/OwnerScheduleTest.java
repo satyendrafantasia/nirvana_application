@@ -86,6 +86,7 @@ class OwnerScheduleTest {
         // Three moves by the spa: more than a guest may make, and none of them use up the guest's own changes.
         for(int i=1;i<slots.length;i++)ok(owner(post(desk+"/move"),Map.of("slotId",slots[i],"reason","Therapist running late")));
         entityManager.flush();
+        assertEquals(3,jdbc.queryForObject("SELECT COUNT(DISTINCT revision) FROM booking_alert_job WHERE booking_id=? AND event_kind='RESCHEDULED'",Integer.class,booking));
         assertEquals(slots[3],jdbc.queryForObject("SELECT slot_id FROM booking WHERE id=?",Long.class,booking));
         assertEquals(0,jdbc.queryForObject("SELECT COALESCE(reschedule_count,0) FROM booking WHERE id=?",Integer.class,booking));
 
@@ -167,6 +168,37 @@ class OwnerScheduleTest {
         ok(owner(post("/api/owner/spas/1/appointment-requests/"+id),Map.of("accept",true)));
         assertEquals("ACCEPTED",jdbc.queryForObject("select state from appointment_request where id=?",String.class,id));
         assertEquals(409,owner(post("/api/owner/spas/1/appointment-requests/"+id),Map.of("accept",true)).status());
+    }
+
+    @Test @Transactional void expiredOrDeclinedRequestCanBeRequestedAgainAndAlertsAreRecoverable() throws Exception {
+        ok(hours(List.of(interval("WORK",10,18))));
+        long target=slot(13,0,1);
+        var spa=entityManager.find(com.nirvana.application.model.Spa.class,1L);
+        spa.setBookingMode("REQUEST"); entityManager.flush();
+        String request="/api/spas/1/appointment-requests";
+        var params=Map.of("slotId",target);
+        long first=ok(call(post(request),3,"ROLE_USER",params)).get("id").asLong();
+        assertEquals(first,ok(call(post(request),3,"ROLE_USER",params)).get("id").asLong());
+        jdbc.update("UPDATE appointment_request SET deadline=UTC_TIMESTAMP()-INTERVAL 1 MINUTE WHERE id=?",first);
+        long second=ok(call(post(request),3,"ROLE_USER",params)).get("id").asLong();
+        assertNotEquals(first,second);
+        assertEquals("EXPIRED",jdbc.queryForObject("SELECT state FROM appointment_request WHERE id=?",String.class,first));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_alert_job WHERE request_id=? AND event_kind='REQUEST_EXPIRED'",Integer.class,first));
+        ok(owner(post("/api/owner/spas/1/appointment-requests/"+second),Map.of("accept",false)));
+        long third=ok(call(post(request),3,"ROLE_USER",params)).get("id").asLong();
+        assertNotEquals(second,third);
+        long alert=jdbc.queryForObject("SELECT id FROM booking_alert_job WHERE request_id=? AND event_kind='REQUEST_DECLINED'",Long.class,second);
+        jdbc.update("UPDATE booking_alert_job SET state='NEEDS_CONTACT' WHERE id=?",alert);
+        String action="/api/admin/operations/booking-alerts/"+alert;
+        assertEquals(403,call(post(action+"/assign"),3,"ROLE_USER",Map.of()).status());
+        assertEquals(409,call(post(action+"/retry"),2,"ROLE_ADMIN",Map.of()).status());
+        ok(call(post(action+"/assign"),2,"ROLE_ADMIN",Map.of()));
+        ok(call(post(action+"/retry"),2,"ROLE_ADMIN",Map.of()));
+        assertEquals("PENDING",jdbc.queryForObject("SELECT state FROM booking_alert_job WHERE id=?",String.class,alert));
+        jdbc.update("UPDATE booking_alert_job SET state='FAILED' WHERE id=?",alert);
+        ok(call(post(action+"/resolve"),2,"ROLE_ADMIN",Map.of("note","Guest contacted by phone")));
+        assertEquals("RESOLVED",jdbc.queryForObject("SELECT state FROM booking_alert_job WHERE id=?",String.class,alert));
+        assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM booking_alert_action WHERE job_id=?",Integer.class,alert));
     }
 
     @Test @Transactional void dailyCloseAndTransferHistory() throws Exception {

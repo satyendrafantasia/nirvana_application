@@ -114,6 +114,41 @@ class ListingClaimTest {
         mvc.perform(get("/api/owner/claims/places/claim_salon").with(authentication(auth(1, "ROLE_SPA_OWNER")))).andExpect(status().isUnprocessableEntity());
     }
 
+    @Test void claimImportedInventoryRequiresOwnershipProofAndPreservesExistingListing() throws Exception {
+        long userId = owner();
+        var owner = auth(userId, "ROLE_SPA_OWNER");
+        var admin = auth(1, "ROLE_ADMIN");
+        // Give an existing spa with inventory an imported Place ID for this transaction.
+        long spa = jdbc.queryForObject("SELECT MIN(spa_id) FROM service", Long.class);
+        jdbc.update("UPDATE spa SET name='Original name',meta=JSON_OBJECT('onboardedFromLead',1),google_place_id='claim_imported',spa_manager_id=NULL,is_active=1,booking_mode='ENQUIRY' WHERE id=?", spa);
+        jdbc.update("""
+                INSERT INTO spa_lead(name,source,status,spa_id,imported_at,updated_at)
+                VALUES ('Original name','test','ONBOARDED',?,NOW(),NOW())""", spa);
+        long serviceCount = jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=?",Long.class,spa);
+        when(places.claimDetails("claim_imported")).thenReturn(json.readTree(PLACE.replace("claim_place_1","claim_imported")));
+        var form = claim("claim_imported");
+        for (boolean reject : List.of(true, false)) {
+            mvc.perform(post("/api/owner/claims").with(authentication(owner)).contentType("application/json").content(form.toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.spaId").value(spa)).andExpect(jsonPath("$.existingInventory").value(true));
+            assertNull(jdbc.queryForObject("SELECT spa_manager_id FROM spa WHERE id=?", Long.class, spa));
+            mvc.perform(post("/api/owner/claims").with(authentication(owner)).contentType("application/json").content(form.toString())).andExpect(status().isConflict());
+            long id = jdbc.queryForObject("SELECT id FROM spa_listing_claim WHERE spa_id=? AND status='PENDING'", Long.class, spa);
+            String review = "/api/admin/listing-claims/" + id;
+            if (reject) {
+                mvc.perform(post(review + "/reject").with(authentication(admin)).contentType("application/json")
+                        .content("{\"reason\":\"Could not verify\"}")).andExpect(status().isOk());
+            } else {
+                mvc.perform(post(review + "/approve").with(authentication(admin))).andExpect(status().isConflict());
+                mvc.perform(post(review + "/approve").with(authentication(admin)).contentType("application/json")
+                        .content("{\"verificationNote\":\"Ownership independently confirmed by callback to published listing phone\"}")).andExpect(status().isOk());
+                assertEquals(userId, jdbc.queryForObject("SELECT m.user_id FROM spa s JOIN spa_manager m ON m.id=s.spa_manager_id WHERE s.id=?",Long.class,spa));
+                mvc.perform(get("/api/owner/claims/places/claim_imported").with(authentication(owner))).andExpect(status().isConflict());
+            }
+            assertEquals("Original name", jdbc.queryForObject("SELECT name FROM spa WHERE id=? AND google_place_id='claim_imported' AND is_active=1 AND booking_mode='ENQUIRY'", String.class, spa));
+            assertEquals(serviceCount,jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=?",Long.class,spa));
+        }
+    }
+
     @Test void ownerSubmitsConfirmedDetailsAndAdminReviews() throws Exception {
         long ownerId = owner();
         var owner = auth(ownerId, "ROLE_SPA_OWNER");

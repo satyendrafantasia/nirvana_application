@@ -134,7 +134,7 @@ Any other Spring property can also be set with Spring's relaxed binding (for exa
 | AWS (S3 media, SNS SMS, SES mail) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (prefer an instance/task role; region is `ap-south-1`) |
 | SMS / OTP | `SMS_PROVIDER` (`AWS_SNS`, `TWOFACTOR`, `FIREBASE`), `TWOFACTOR_API_KEY`, `TWOFACTOR_OTP_TEMPLATE`, `SMS_TEMPLATE_OTP` |
 | Firebase | `FIREBASE_PROJECT_ID`, `FIREBASE_WEB_API_KEY`, `FIREBASE_AUTH_DOMAIN` |
-| Spa booking alerts | `SPA_ALERTS_ENABLED`, `SPA_ALERTS_CHANNEL` (`SMS`/`WHATSAPP`), `SPA_SMS_SENDER_ID`, `SPA_SMS_DLT_ENTITY_ID`, `SPA_SMS_TEMPLATE_NEW`, `SPA_SMS_TEMPLATE_REMINDER`, `SPA_SMS_TEMPLATE_CANCELLED`, `SPA_SMS_TEMPLATE_MOVED` |
+| Spa booking alerts | `SPA_ALERTS_ENABLED`, `SPA_BOOKING_SMS_ENABLED` (SNS independently of phone OTP), `SPA_ALERTS_CHANNEL` (`SMS`/`WHATSAPP`), `SPA_SMS_SENDER_ID`, `SPA_SMS_DLT_ENTITY_ID`, `SPA_SMS_TEMPLATE_NEW`, `SPA_SMS_TEMPLATE_REMINDER`, `SPA_SMS_TEMPLATE_CANCELLED`, `SPA_SMS_TEMPLATE_MOVED` |
 | WhatsApp | `SPA_WHATSAPP_PHONE_NUMBER_ID`, `SPA_WHATSAPP_ACCESS_TOKEN`, `SPA_WHATSAPP_API_VERSION`, `SPA_WHATSAPP_LANGUAGE`, `SPA_WHATSAPP_TEMPLATE_*`, `GUEST_WHATSAPP_ENABLED`, `GUEST_WHATSAPP_TEMPLATE_*` |
 | SendGrid | `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`, `SPA_OWNER_EMAIL` |
 | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_MAPS_API_KEY`, `MAP_PROVIDER` (`google`/`mapbox`), `MAPBOX_ACCESS_TOKEN` |
@@ -162,13 +162,12 @@ repository.
    `BACKUP_WEEKLY_DAY` (and whenever `weekly/` is empty) the same file is copied to `weekly/`.
 4. Keep the newest `BACKUP_KEEP_DAILY` daily and `BACKUP_KEEP_WEEKLY` weekly files; older ones
    are deleted. Only files matching the backup name pattern are ever touched.
-5. Write the time of the last good backup to `$BACKUP_DIR/last-success` (alert if it is older than
-   ~26 hours).
-6. If `BACKUP_S3_BUCKET` is set, upload the file and checksum to
-   `s3://$BACKUP_S3_BUCKET/$BACKUP_S3_PREFIX/daily/` (and `weekly/`) with server-side encryption.
-   It uses the `aws` CLI when installed (any credential source, including roles), otherwise
-   `curl --aws-sigv4` with `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (`AWS_SESSION_TOKEN` optional).
-   A failed upload exits 2 and keeps the local file.
+5. A checked dump updates `last-local-success`. With a configured bucket the job uploads
+   each dump and checksum under the daily or weekly S3 prefix using server-side encryption.
+   A successful upload updates `last-remote-success`. `last-success` advances only after all required steps succeed.
+   Missing required remote storage or a failed upload exits 2 and retains the local dump.
+   The container supports the AWS credential chain (including an instance role) through boto3.
+   Windows uses AWS CLI, or curl with explicit credentials.
 
 The password is read from `DB_PASSWORD` or `DB_PASSWORD_FILE` and written only to a private
 temporary option file; it never appears on a command line, in `ps` output, or in logs.
@@ -192,6 +191,57 @@ S3 retention: the scripts only prune local files. Add a lifecycle rule on the bu
 example expire `nirvana/db/daily/` after 15 days and `nirvana/db/weekly/` after 60 days. Give the
 backup credentials `s3:PutObject` on that prefix only, and turn on bucket versioning or Object Lock
 so a compromised host cannot delete old backups.
+
+### Off-host recovery settings
+
+On production set `BACKUP_REQUIRE_REMOTE=true`, `BACKUP_S3_BUCKET`, and a prefix in `.env`.
+Use an EC2 instance role with write access to the designated prefix. With IMDSv2, verify the
+backup container can assume that role. A container on bridge networking generally needs an
+instance metadata response hop limit of 2. Use a separate recovery identity with read access.
+Configure a daily check on a monitor outside the EC2 instance. Put its HTTPS ping URL in
+`BACKUP_HEARTBEAT_URL` and its HTTPS failure endpoint in `BACKUP_FAILURE_URL`.
+Alert on a missed check after 26 hours so a stopped host or scheduler also raises an incident.
+Recreate the backup service after changing its environment. Run one backup and confirm the
+dump and checksum under the expected bucket prefix using the recovery identity.
+
+### Recovering host settings and HTTPS
+
+Keep the exact image tags or digests, production `.env` and `app.env`, host proxy configuration,
+mount definitions, and referenced credentials in an encrypted off-host copy. Make a fresh copy
+after changes. Keep the recovery decryption key and S3 read access outside the instance.
+The helper accepts a GnuPG **public** recipient key and a list of regular files relative to the
+current directory. Supply the real paths for the deployment and include any externally mounted
+Firebase credential files. The private recovery key belongs on the recovery workstation.
+
+```bash
+# Example host layout. Use the directories belonging to your installed release.
+cd /
+bundle="/var/backups/nirvana-config-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.gpg"
+sudo bash /opt/nirvana/scripts/backup-config.sh /etc/nirvana/recovery-public.asc "$bundle" \
+  opt/nirvana/.env opt/nirvana/app.env etc/nginx/sites-available/nirvana
+sudo aws s3 cp "$bundle" "s3://$RECOVERY_BUCKET/nirvana/config/" --sse AES256 --only-show-errors
+```
+
+On the recovery workstation, download a known release bundle. Decrypt into a new, private
+staging directory, review its file names, and install each file into its intended path with
+restricted ownership. This example uses the private key in the operator's GnuPG keyring.
+
+```bash
+set -o pipefail
+umask 077
+stage=$(mktemp -d)
+gpg --decrypt "$bundle" | tar -tzf -
+gpg --decrypt "$bundle" | tar -xzf - -C "$stage" --no-same-owner
+```
+
+On a replacement host, point the domain's A record or the Elastic IP at it. A host using
+Certbot and nginx can serve the domain over HTTP first, issue a new certificate for its DNS
+names using `sudo certbot --nginx -d nirvana-spa.in`, and validate renewal with
+`sudo certbot renew --dry-run`. Add `-d www.nirvana-spa.in` if that hostname also points here.
+Load a configuration referencing certificate files only after those files exist. Restore the
+loopback upstream and forwarded scheme settings, run `sudo nginx -t`, then reload nginx.
+Verify HTTPS, a spa page, sign-in and the signed webhook URL using the intended hostname.
+Validate restored upload/media storage independently of the SQL dump.
 
 ### Running backups
 
@@ -248,7 +298,7 @@ database on the same server and exits 3 if any table differs.
 4. Either point the app at it (`DB_NAME=nirvana_restored`, then grant `DB_APP_USER` access:
    `GRANT ALL ON nirvana_restored.* TO 'nirvana'@'%'`), or restore over the original with
    `--force` once you are sure.
-5. Start the app: `docker compose start app`. Flyway validates the schema at start-up; check
+5. Recreate the app and backup services with the restored database settings using `docker compose up -d --force-recreate app backup`. Flyway validates the schema at start-up; check
    `docker compose logs app` and the health endpoint.
 
 Anything written after the backup was taken is lost. For point-in-time recovery, enable the binary
@@ -304,3 +354,13 @@ Publishing uses the workflow's own `GITHUB_TOKEN` (`packages: write`), so no rep
 needed. The images are private by default under the owner's GitHub packages. Set the repository
 variable `VITE_PUBLIC_SITE_URL` to build the published `web` image for the production origin.
 Nothing deploys: pulling an image onto a host is a manual step until a deployment target is chosen.
+
+
+### Booking payments and refund recovery
+
+Set `RAZORPAY_ENABLED`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` on the backend.
+In the matching Razorpay test or live dashboard register the public HTTPS endpoint `/api/payments/razorpay/webhook` with the same webhook secret. Subscribe to `payment.captured`, `payment.failed`, `payment_link.paid`, `refund.created`, `refund.processed` and `refund.failed`. The signing secret is the secret chosen when registering the webhook. New online checkout requires all four settings. Check delivery using a test-mode booking and its event history in Razorpay.
+
+A late capture leaves the appointment closed and creates a finance case under **Admin → Spa payouts → Booking refunds**. Review the appointment and the online and front-desk collections before approving or declining the refund. Approved cases and cancellation refunds enter the same queue. The worker retries uncertain submissions using the same provider idempotency key and checks pending refunds every five minutes. Refunds post to the customer ledger after Razorpay confirms settlement. **Retry refund** is available after a verified provider failure.
+
+Historical cancellations that lack a provider refund ID appear as **Review required**. Enter the Razorpay refund ID for the displayed payment to verify the original transaction. When no refund exists, **Recover if never refunded** checks both the captured payment and its refund history before queuing a new submission.

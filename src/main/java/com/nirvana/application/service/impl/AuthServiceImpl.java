@@ -117,8 +117,7 @@ public class AuthServiceImpl implements AuthService {
                     .build();
         }
 
-        user.setLastLoginAt(OffsetDateTime.now());
-        userRepository.save(user);
+        userRepository.recordSignIn(user.getId());
 
         return buildAuthResponse(user);
     }
@@ -172,8 +171,7 @@ public class AuthServiceImpl implements AuthService {
                     "This email already has an account. Sign in with your password or a one-time code.");
         }
 
-        existing.setLastLoginAt(OffsetDateTime.now());
-        userRepository.save(existing);
+        userRepository.recordSignIn(existing.getId());
 
         return buildAuthResponse(existing);
     }

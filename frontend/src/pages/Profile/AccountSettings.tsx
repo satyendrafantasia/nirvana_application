@@ -127,7 +127,7 @@ function Profile({ account }: { account: Account }) {
       </dl>
       <p className="text-sm text-slate-600">
         To change your email or phone number,{' '}
-        <Link className="underline" to="/features/messages">
+        <Link className="underline" to="/support">
           contact support
         </Link>
         .

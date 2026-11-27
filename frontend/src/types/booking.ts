@@ -35,6 +35,8 @@ export interface BookingPayload {
   giftCardCode?: string;
   payWithPackage?: boolean;
   payWithSpaPackage?: boolean;
+  useWalletCredit?: boolean;
+  expectedWalletCents?: number;
   bookingSource?: string;
 }
 export interface BookingSummary {
@@ -50,6 +52,7 @@ export interface BookingSummary {
   status: string;
   canCancel?: boolean;
   invoiceAvailable?: boolean;
+  spaAcknowledged?: boolean;
   refundStatus?: string;
   totalCents?: number;
   currency?: string;

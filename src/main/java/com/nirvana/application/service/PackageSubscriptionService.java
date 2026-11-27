@@ -18,5 +18,7 @@ public interface PackageSubscriptionService {
 
     PackageUsageConsumeResponse consumePackageSession(Long userId, PackageUsageConsumeRequest request);
 
+    PackageUsageConsumeResponse existingRedemption(Long userId, PackageUsageConsumeRequest request);
+
     PackageUsageHistoryResponse getUsageHistory(Long userId);
 }

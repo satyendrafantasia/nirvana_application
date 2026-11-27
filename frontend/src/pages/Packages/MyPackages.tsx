@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { myPackages, resumePackage, payForPackage, packagePrice } from '../../api/packageApi';
 import { errorMessage } from '../../api/client';
+import { EligibleSpas } from './PackageSpaSearch';
 import Button from '../../components/common/Button';
 export default function MyPackages() {
   const qc = useQueryClient();
@@ -77,11 +78,7 @@ export default function MyPackages() {
               {retry.isPending ? 'Checking payment…' : 'Resume purchase'}
             </Button>
           )}
-          {p.status === 'ACTIVE' && (
-            <Button as={Link} to="/spas">
-              Book a spa visit
-            </Button>
-          )}
+          {p.status === 'ACTIVE' && <EligibleSpas packageId={p.packageId} />}
         </article>
       ))}
     </div>

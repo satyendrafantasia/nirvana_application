@@ -36,6 +36,7 @@ public class ListingClaimService {
     private final SpaOnboardingService onboarding;
     private final SpaRepository spas;
     private final JdbcTemplate jdbc;
+    private final ClaimableInventory inventory;
 
     public record ClaimRequest(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{1,255}") String placeId,
@@ -65,7 +66,7 @@ public class ListingClaimService {
         places.claimSearch(query, country).path("places").forEach(place -> {
             if (place.path("id").asText().matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isSpa(place)) found.add(place);
         });
-        Set<String> listed = listed(found.stream().map(p -> p.path("id").asText()).toList());
+        var listed = inventory.lookup(found.stream().map(p -> p.path("id").asText()).toList());
         List<Map<String, Object>> results = new ArrayList<>();
         for (JsonNode place : found) {
             String id = place.path("id").asText();
@@ -74,7 +75,9 @@ public class ListingClaimService {
             row.put("name", place.path("displayName").path("text").asText(""));
             row.put("address", place.path("formattedAddress").asText(""));
             row.put("businessStatus", place.path("businessStatus").asText(""));
-            row.put("alreadyListed", listed.contains(id));
+            var listing = listed.get(id);
+            row.put("alreadyListed", listing != null);
+            row.put("claimableExisting", listing != null && listing.claimable());
             results.add(row);
         }
         return results;
@@ -82,7 +85,7 @@ public class ListingClaimService {
 
     /** Google's details shaped as the claim form. Nothing here is stored. */
     public Map<String, Object> prefill(String placeId) {
-        if (!listed(List.of(placeId)).isEmpty()) throw alreadyListed();
+        inventory.available(placeId);
         JsonNode place = places.claimDetails(placeId);
         if (!SpaPlaceFilter.isSpa(place)) throw notSpa();
         Map<String, Object> form = new LinkedHashMap<>();
@@ -119,15 +122,36 @@ public class ListingClaimService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a valid time zone.");
         }
-        if (!listed(List.of(request.placeId())).isEmpty()) throw alreadyListed();
+        // The remote call must finish before locking a live spa and its booking schedule.
+        if (!SpaPlaceFilter.isSpa(places.claimDetails(request.placeId()))) throw notSpa();
+        jdbc.queryForList("SELECT id FROM spa WHERE google_place_id=? FOR UPDATE", Long.class, request.placeId());
+        var existing = inventory.available(request.placeId());
         Long pending = jdbc.queryForObject("SELECT COUNT(*) FROM spa_listing_claim WHERE user_id=? AND status='PENDING'", Long.class, userId);
         if (pending != null && pending >= MAX_PENDING_CLAIMS)
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "You have " + pending + " claims waiting for review. Please wait for those to be reviewed.");
-        // The listing must be a real spa on Google; checked live, not trusted from the browser.
-        if (!SpaPlaceFilter.isSpa(places.claimDetails(request.placeId()))) throw notSpa();
         String phoneCheck = trim(request.phoneVerificationId());
         java.time.LocalDateTime phoneVerifiedAt = phoneCheck == null ? null : phoneChecks.consume(userId, request.placeId(), phoneCheck);
 
+        if (existing != null) {
+            // Record the claimant’s confirmed details for review without editing the live profile.
+            var profile = new org.json.JSONObject();
+            profile.put("ownerName", trim(request.ownerName()));
+            profile.put("name", trim(request.name()));
+            profile.put("phone", trim(request.phone()));
+            profile.put("email", trim(request.email()));
+            profile.put("websiteUrl", trim(request.websiteUrl()));
+            profile.put("addressLine", trim(request.addressLine()));
+            profile.put("locality", trim(request.locality()));
+            profile.put("city", trim(request.city()));
+            profile.put("state", trim(request.state()));
+            profile.put("postalCode", trim(request.postalCode()));
+            profile.put("countryCode", request.countryCode());
+            profile.put("latitude", coordinate(request.latitude()));
+            profile.put("longitude", coordinate(request.longitude()));
+            profile.put("timezone", request.timezone());
+            profile.put("description", trim(request.description()));
+            return recordClaim(existing.spaId(), userId, request, phoneVerifiedAt, phoneCheck, clientIp, userAgent, profile.toString());
+        }
         AddressDTO address = AddressDTO.builder()
                 .addressLine(trim(request.addressLine())).locality(trim(request.locality())).city(trim(request.city()))
                 .state(trim(request.state())).postalCode(trim(request.postalCode()))
@@ -145,28 +169,60 @@ public class ListingClaimService {
         spa.setKycRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
         spas.saveAndFlush(spa);
 
-        jdbc.update("INSERT INTO spa_listing_claim (spa_id,user_id,google_place_id,terms_version,declaration,consented_at,phone_verified_at,phone_verification_id,client_ip,user_agent,status) VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING')",
-                spa.getId(), userId, request.placeId(), TERMS_VERSION, DECLARATION,
-                OffsetDateTime.now(ZoneOffset.UTC), phoneVerifiedAt, phoneCheck, cut(clientIp, 64), cut(userAgent, 255));
-        return Map.of("spaId", spa.getId(), "name", spa.getName(), "status", "PENDING", "phoneVerified", phoneVerifiedAt != null);
+        return recordClaim(spa.getId(), userId, request, phoneVerifiedAt, phoneCheck, clientIp, userAgent, null);
+    }
+
+    private Map<String, Object> recordClaim(long spaId, Long userId, ClaimRequest request,
+            java.time.LocalDateTime phoneVerifiedAt, String phoneCheck, String clientIp, String userAgent, String profile) {
+        jdbc.update("""
+                INSERT INTO spa_listing_claim (spa_id,user_id,google_place_id,terms_version,declaration,consented_at,
+                    phone_verified_at,phone_verification_id,client_ip,user_agent,status,existing_inventory,submitted_profile)
+                VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING',?,?)""",
+                spaId, userId, request.placeId(), TERMS_VERSION, DECLARATION, OffsetDateTime.now(ZoneOffset.UTC),
+                phoneVerifiedAt, phoneCheck, cut(clientIp, 64), cut(userAgent, 255), profile != null, profile);
+        return Map.of("spaId", spaId, "name", request.name(), "status", "PENDING",
+                "phoneVerified", phoneVerifiedAt != null, "existingInventory", profile != null);
     }
 
     /** Claims for the review queue, newest first. */
     public List<Map<String, Object>> list(String status) {
         return jdbc.queryForList("""
-                SELECT c.id, c.spa_id AS spaId, s.name AS spaName, s.city, c.google_place_id AS placeId,
+                SELECT c.id, c.spa_id AS spaId, c.existing_inventory AS existingInventory,
+                       COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.name')),s.name) AS spaName,
+                       COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.city')),s.city) AS city, c.google_place_id AS placeId,
                        c.status, c.consented_at AS consentedAt, c.terms_version AS termsVersion,
-                       u.email AS ownerEmail, s.owner_name AS ownerName, c.review_note AS reviewNote,
-                       c.reviewed_at AS reviewedAt, c.phone_verified_at AS phoneVerifiedAt, s.phone, s.email AS spaEmail, s.website_url AS websiteUrl,
-                       s.address_line1 AS addressLine, s.state, s.postal_code AS postalCode, s.kyc_status AS kycStatus
+                       u.email AS ownerEmail, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.ownerName')),s.owner_name) AS ownerName, c.review_note AS reviewNote,
+                       c.reviewed_at AS reviewedAt, c.phone_verified_at AS phoneVerifiedAt, CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.phone')) ELSE s.phone END AS phone,
+                       CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.email')) ELSE s.email END AS spaEmail,
+                       CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.websiteUrl')) ELSE s.website_url END AS websiteUrl,
+                       CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.addressLine')) ELSE s.address_line1 END AS addressLine,
+                       CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.state')) ELSE s.state END AS state,
+                       CASE WHEN c.existing_inventory THEN JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.postalCode')) ELSE s.postal_code END AS postalCode, s.kyc_status AS kycStatus
                 FROM spa_listing_claim c JOIN spa s ON s.id=c.spa_id JOIN app_user u ON u.id=c.user_id
                 WHERE c.status=? ORDER BY c.consented_at DESC LIMIT 200""", status);
     }
 
     @Transactional
-    public void approve(long claimId, Long adminId) {
+    public void approve(long claimId, Long adminId, String verificationNote) {
         var claim = pendingClaim(claimId);
         long spaId = ((Number) claim.get("spa_id")).longValue();
+        if (isExisting(claim)) {
+            String note = trim(verificationNote);
+            if (claim.get("phone_verified_at") == null && note == null)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Verify ownership using the listing’s phone and record the callback before approving.");
+            jdbc.update("INSERT INTO spa_manager(user_id) VALUES (?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)", claim.get("user_id"));
+            int assigned = jdbc.update("""
+                    UPDATE spa s JOIN spa_listing_claim c ON c.spa_id=s.id
+                    JOIN spa_manager m ON m.user_id=c.user_id JOIN app_user u ON u.id=m.user_id
+                    JOIN role r ON r.id=u.role_id AND r.role_type='Spa_MANAGER'
+                    SET s.spa_manager_id=m.id, s.owner_name=JSON_UNQUOTE(JSON_EXTRACT(c.submitted_profile,'$.ownerName')), s.version=s.version+1
+                    WHERE c.id=? AND s.google_place_id=c.google_place_id
+                      AND u.active=1 AND u.is_active=1 AND u.deleted_at IS NULL
+                    """ + " AND " + ClaimableInventory.UNASSIGNED_IMPORT, claimId);
+            if (assigned != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Ownership or listing eligibility changed. Review this claim again.");
+            review(claimId, "APPROVED", adminId, note);
+            return;
+        }
         var spa = spas.findById(spaId).orElseThrow();
         if (!java.util.Objects.equals(spa.getGooglePlaceId(), claim.get("google_place_id")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This spa is no longer linked to the claimed listing. Reject the claim instead.");
@@ -182,6 +238,10 @@ public class ListingClaimService {
     @Transactional
     public void reject(long claimId, Long adminId, String note) {
         var claim = pendingClaim(claimId);
+        if (isExisting(claim)) {
+            review(claimId, "REJECTED", adminId, note);
+            return;
+        }
         var spa = spas.findById(((Number) claim.get("spa_id")).longValue()).orElseThrow();
         spa.setIsActive(false);
         spa.setIsVerified(false);
@@ -206,12 +266,6 @@ public class ListingClaimService {
                 status, OffsetDateTime.now(ZoneOffset.UTC), adminId, note, claimId);
     }
 
-    private Set<String> listed(List<String> ids) {
-        if (ids.isEmpty()) return Set.of();
-        String slots = String.join(",", Collections.nCopies(ids.size(), "?"));
-        return new HashSet<>(jdbc.queryForList("SELECT google_place_id FROM spa WHERE google_place_id IN (" + slots + ")", String.class, ids.toArray()));
-    }
-
     private static String component(JsonNode place, String... types) {
         return findComponent(place, types).path("longText").asText("");
     }
@@ -228,7 +282,12 @@ public class ListingClaimService {
         return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
     }
 
-    private static ResponseStatusException alreadyListed() {
+    private static boolean isExisting(Map<String, Object> claim) {
+        Object value = claim.get("existing_inventory");
+        return Boolean.TRUE.equals(value) || (value instanceof Number n && n.intValue() == 1);
+    }
+
+    static ResponseStatusException alreadyListed() {
         return new ResponseStatusException(HttpStatus.CONFLICT,
                 "This spa is already on Nirvana or has a claim under review. If it is yours, contact partner support.");
     }

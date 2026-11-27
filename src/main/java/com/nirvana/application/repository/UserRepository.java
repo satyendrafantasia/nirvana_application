@@ -22,6 +22,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByDataErasureRequestedAtIsNotNullAndDataErasedAtIsNull();
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query(value = """
+            UPDATE app_user SET last_login_at=GREATEST(COALESCE(last_login_at,UTC_TIMESTAMP(6)),UTC_TIMESTAMP(6))
+            WHERE id=:userId AND data_erased_at IS NULL
+            """, nativeQuery = true)
+    void recordSignIn(@org.springframework.data.repository.query.Param("userId") long userId);
+
     /** Atomic balance change, so concurrent bookings for one customer cannot lose points. */
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
     @org.springframework.data.jpa.repository.Query(

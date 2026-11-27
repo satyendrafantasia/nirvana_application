@@ -28,7 +28,7 @@ export type Payout = {
 };
 
 export type PayoutItem = {
-  kind: 'BOOKING' | 'BOOKING_REFUND' | 'PACKAGE' | 'PACKAGE_REFUND';
+  kind: 'BOOKING' | 'BOOKING_REFUND' | 'WALLET' | 'WALLET_RETURN' | 'PACKAGE' | 'PACKAGE_REFUND';
   reference?: string;
   amount: number;
   occurredAt: string;
@@ -115,6 +115,8 @@ export const kindLabel = (k: PayoutItem['kind']) =>
   ({
     BOOKING: 'Online booking payment',
     BOOKING_REFUND: 'Booking refund',
+    WALLET: 'Nirvana wallet payment',
+    WALLET_RETURN: 'Nirvana wallet return',
     PACKAGE: 'Package sale',
     PACKAGE_REFUND: 'Package refund'
   })[k] ?? k;

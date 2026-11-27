@@ -304,10 +304,9 @@ public class OtpAuthService {
 
     private AuthResponse issueAuthResponse(User user) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
+        userRepository.recordSignIn(user.getId());
         var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());
         String token = jwtTokenService.generateToken(user, fingerprint);
-        user.setLastLoginAt(OffsetDateTime.now());
-        userRepository.save(user);
         return AuthResponse.builder()
                 .accessToken(token)
                 .refreshToken(refreshToken.getToken())

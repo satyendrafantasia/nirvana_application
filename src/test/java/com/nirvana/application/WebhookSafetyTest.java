@@ -25,12 +25,12 @@ class WebhookSafetyTest {
         var props=new RazorpayProperties();props.setWebhookSecret("secret");
         var service=mock(PaymentService.class);var payments=mock(PaymentRepository.class);var events=mock(PaymentWebhookEventRepository.class);
         var controller=new RazorpayWebhookController(props,service,payments,mock(com.nirvana.application.service.impl.PackageCheckoutService.class),events,mock(com.nirvana.application.service.impl.SpaPackageCheckoutService.class),mock(com.nirvana.application.rewards.GiftCardService.class),mock(com.nirvana.application.service.impl.LoyaltyService.class));
-        String payload="{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_1\",\"order_id\":\"order_1\"}}}}";
+        String payload="{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_1\",\"order_id\":\"order_1\",\"email\":\"private@example.test\"}}}}";
         var request=new MockHttpServletRequest();request.addHeader("X-Razorpay-Event-Id","evt_1");
         Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec("secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));request.addHeader("X-Razorpay-Signature",HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8))));
         assertEquals(200,controller.handleWebhook(request,payload).getStatusCode().value());
         verify(service).reconcileCapturedPayment("order_1","pay_1");
-        verify(events).save(argThat(e->"evt_1".equals(e.getEventId())));
+        verify(events).save(argThat(e->"evt_1".equals(e.getEventId()) && !e.getPayload().contains("private@example.test") && e.getPayload().contains("sha256")));
         when(events.findByEventId("evt_1")).thenReturn(Optional.of(new PaymentWebhookEvent()));
         assertEquals(200,controller.handleWebhook(request,payload).getStatusCode().value());
         verify(service,times(1)).reconcileCapturedPayment(anyString(),anyString());

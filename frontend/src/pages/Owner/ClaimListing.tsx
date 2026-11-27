@@ -12,6 +12,7 @@ export type ClaimResult = {
   address: string;
   businessStatus?: string;
   alreadyListed: boolean;
+  claimableExisting?: boolean;
 };
 
 export type ClaimForm = {
@@ -208,8 +209,12 @@ export function ClaimSearch({ onPick }: { onPick: (placeId: string) => void }) {
   const [countryCode, setCountryCode] = useState('IN');
   const search = useMutation({
     mutationFn: async () =>
-      (await client.post<ClaimResult[]>('/api/owner/claims/search', { query: query.trim(), countryCode }))
-        .data
+      (
+        await client.post<ClaimResult[]>('/api/owner/claims/search', {
+          query: query.trim(),
+          countryCode
+        })
+      ).data
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -270,7 +275,10 @@ export function ClaimSearch({ onPick }: { onPick: (placeId: string) => void }) {
           ) : (
             <ul className="divide-y rounded-xl border">
               {search.data.map((r) => (
-                <li key={r.placeId} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <li
+                  key={r.placeId}
+                  className="flex flex-wrap items-center justify-between gap-3 p-4"
+                >
                   <div className="min-w-0">
                     <p className="font-semibold">{r.name}</p>
                     <p className="text-sm text-slate-600">{r.address}</p>
@@ -280,13 +288,13 @@ export function ClaimSearch({ onPick }: { onPick: (placeId: string) => void }) {
                       </p>
                     )}
                   </div>
-                  {r.alreadyListed ? (
+                  {r.alreadyListed && !r.claimableExisting ? (
                     <span className="text-sm text-slate-600">
                       Already on Nirvana or under review
                     </span>
                   ) : (
                     <Button variant="secondary" onClick={() => onPick(r.placeId)}>
-                      This is my spa
+                      {r.claimableExisting ? 'Claim existing spa' : 'This is my spa'}
                     </Button>
                   )}
                 </li>
@@ -313,7 +321,7 @@ export function ClaimDetails({
 }: {
   initial: ClaimForm;
   onBack: () => void;
-  onDone: (spaId: number) => void;
+  onDone: (spaId: number, existingInventory?: boolean) => void;
 }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(initialFields);
@@ -327,7 +335,7 @@ export function ClaimDetails({
   const submit = useMutation({
     mutationFn: async () => {
       return (
-        await client.post<{ spaId: number }>('/api/owner/claims', {
+        await client.post<{ spaId: number; existingInventory?: boolean }>('/api/owner/claims', {
           ...form,
           authorised,
           phoneVerificationId
@@ -337,7 +345,7 @@ export function ClaimDetails({
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ['owner-spas'] });
       void qc.invalidateQueries({ queryKey: ['draft-spas'] });
-      onDone(data.spaId);
+      onDone(data.spaId, data.existingInventory);
     }
   });
   const pin =
@@ -353,8 +361,8 @@ export function ClaimDetails({
       }}
     >
       <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-        We filled this in from your Google Maps listing. Check every field and correct anything
-        that is out of date — what you submit becomes your spa’s details on Nirvana.
+        We filled this in from your Google Maps listing. Check every field and correct anything that
+        is out of date — what you submit becomes your spa’s details on Nirvana.
       </div>
       <fieldset className="grid gap-4 sm:grid-cols-2">
         <legend className="mb-2 text-lg font-semibold">Your spa</legend>
@@ -368,7 +376,13 @@ export function ClaimDetails({
           onChange={set('phone')}
           helperText="Guests see this only after opening more details."
         />
-        <Input label="Email" type="email" maxLength={200} value={form.email || ''} onChange={set('email')} />
+        <Input
+          label="Email"
+          type="email"
+          maxLength={200}
+          value={form.email || ''}
+          onChange={set('email')}
+        />
         <Input
           label="Website"
           type="url"
@@ -391,12 +405,28 @@ export function ClaimDetails({
       <fieldset className="grid gap-4 sm:grid-cols-2">
         <legend className="mb-2 text-lg font-semibold">Address</legend>
         <div className="sm:col-span-2">
-          <Input label="Street address" required maxLength={255} value={form.addressLine} onChange={set('addressLine')} />
+          <Input
+            label="Street address"
+            required
+            maxLength={255}
+            value={form.addressLine}
+            onChange={set('addressLine')}
+          />
         </div>
-        <Input label="Area / locality" maxLength={255} value={form.locality || ''} onChange={set('locality')} />
+        <Input
+          label="Area / locality"
+          maxLength={255}
+          value={form.locality || ''}
+          onChange={set('locality')}
+        />
         <Input label="City" required maxLength={100} value={form.city} onChange={set('city')} />
         <Input label="State" maxLength={100} value={form.state || ''} onChange={set('state')} />
-        <Input label="Postal code" maxLength={20} value={form.postalCode || ''} onChange={set('postalCode')} />
+        <Input
+          label="Postal code"
+          maxLength={20}
+          value={form.postalCode || ''}
+          onChange={set('postalCode')}
+        />
         <Input
           label="Country code"
           required
@@ -487,7 +517,26 @@ export function ClaimDetails({
   );
 }
 
-export function ClaimSubmitted({ spaId }: { spaId: number }) {
+export function ClaimSubmitted({
+  spaId,
+  existingInventory
+}: {
+  spaId: number;
+  existingInventory?: boolean;
+}) {
+  if (existingInventory)
+    return (
+      <section className="card space-y-3 p-6" role="status">
+        <h2 className="text-xl font-semibold">Ownership claim submitted</h2>
+        <p>
+          Our team will verify that you manage spa #{spaId}. Once approved, its existing services,
+          appointments and package records will be available in your owner dashboard.
+        </p>
+        <Link className="underline" to="/owner">
+          Go to owner dashboard
+        </Link>
+      </section>
+    );
   return (
     <section className="card space-y-4 p-6" role="status">
       <h2 className="text-xl font-semibold">Claim submitted — we’re reviewing it</h2>
@@ -521,6 +570,7 @@ export default function ClaimListing() {
   const [params, setParams] = useSearchParams();
   const placeId = params.get('place') || '';
   const [spaId, setSpaId] = useState<number>();
+  const [existingInventory, setExistingInventory] = useState(false);
   const prefill = useQuery({
     queryKey: ['claim-prefill', placeId],
     queryFn: async () =>
@@ -543,11 +593,19 @@ export default function ClaimListing() {
         <Steps current={current} />
       </div>
       {spaId ? (
-        <ClaimSubmitted spaId={spaId} />
+        <ClaimSubmitted spaId={spaId} existingInventory={existingInventory} />
       ) : !placeId ? (
         <ClaimSearch onPick={pick} />
       ) : prefill.data ? (
-        <ClaimDetails key={placeId} initial={prefill.data} onBack={back} onDone={setSpaId} />
+        <ClaimDetails
+          key={placeId}
+          initial={prefill.data}
+          onBack={back}
+          onDone={(id, existing) => {
+            setSpaId(id);
+            setExistingInventory(!!existing);
+          }}
+        />
       ) : prefill.isError ? (
         <div className="card space-y-3 p-6" role="alert">
           <p>{errorMessage(prefill.error)}</p>

@@ -30,7 +30,7 @@ class BookingNotificationTest {
     BookingRepository bookings = mock(BookingRepository.class);
     org.springframework.jdbc.core.JdbcTemplate jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
     NotificationSchedulingServiceImpl service = new NotificationSchedulingServiceImpl(sender, jdbc, bookings,
-            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class), guestWhatsApp, push);
+            mock(PlatformTransactionManager.class), mock(com.nirvana.application.service.SpaBookingAlerts.class), guestWhatsApp, push, mock(com.nirvana.application.service.AppointmentRequestAlerts.class));
     Booking booking;
 
     @BeforeEach void setUp() {
@@ -61,7 +61,7 @@ class BookingNotificationTest {
 
     @Test void confirmationQueuesEachRecipientWithoutSendingInsideBookingTransaction() {
         service.scheduleBookingNotifications(booking);
-        verify(push).enqueue(7L, 0L, 0);
+        verify(push).enqueue(7L, 0L, 0,"CONFIRMED");
         for (String audience : List.of("CUSTOMER_EMAIL", "SPA_EMAIL", "SPA_MOBILE"))
             verify(jdbc).update(contains("INSERT INTO booking_alert_job"), eq(7L), eq("CONFIRMED"), eq(audience), eq(0));
         verifyNoInteractions(sender);
@@ -72,7 +72,7 @@ class BookingNotificationTest {
         when(jdbc.queryForList(contains("FOR UPDATE"), eq(12L))).thenReturn(List.of(java.util.Map.of(
                 "booking_id",7L,"revision",0,"event_kind","CONFIRMED","audience","SPA_PUSH","device_id",42L)));
         service.drain();
-        verify(push).send(42L,7L,0L);
+        verify(push).send(42L,7L,0L,"CONFIRMED");
     }
 
     @Test void guestsWhoAgreedGetAWhatsAppJobToo() {

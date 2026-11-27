@@ -89,10 +89,12 @@ public class ListingClaimController {
         return claims.list(status);
     }
 
+    public record ApproveRequest(@Size(max = 1000) String verificationNote) {}
+
     @PostMapping("/api/admin/listing-claims/{id}/approve")
     @PreAuthorize("@staffAccess.admin()")
-    public Map<String, String> approve(@PathVariable long id) {
-        claims.approve(id, SecurityUtils.getCurrentUserId());
+    public Map<String, String> approve(@PathVariable long id, @Valid @RequestBody(required = false) ApproveRequest request) {
+        claims.approve(id, SecurityUtils.getCurrentUserId(), request == null ? null : request.verificationNote());
         return Map.of("status", "APPROVED");
     }
 

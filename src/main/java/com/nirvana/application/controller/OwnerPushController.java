@@ -28,6 +28,10 @@ public class OwnerPushController {
     public void subscribe(@PathVariable long spa,@Valid @RequestBody Device device) {
         push.subscribe(spa,SecurityUtils.getCurrentUserId(),device.token());
     }
+    @PostMapping("/spas/{spa}/device-status")
+    public Map<String,Boolean> deviceStatus(@PathVariable long spa,@Valid @RequestBody Device device) {
+        return Map.of("subscribed",push.subscribed(spa, SecurityUtils.getCurrentUserId(),device.token()));
+    }
     @PostMapping("/unsubscribe")
     public void unsubscribe(@Valid @RequestBody Device device) {
         push.unsubscribe(SecurityUtils.getCurrentUserId(),device.token());

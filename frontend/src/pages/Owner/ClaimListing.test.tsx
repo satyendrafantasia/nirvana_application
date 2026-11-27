@@ -96,4 +96,10 @@ describe('claiming a Google listing', () => {
     expect(claimUrl('ChIJ_x-1')).toBe('/owner/claim?place=ChIJ_x-1');
     expect(claimUrl()).toBe('/owner/claim');
   });
+  it('keeps management links out of the pending transfer screen', () => {
+    const html = render(<ClaimSubmitted spaId={42} existingInventory />);
+    expect(html).toContain('Ownership claim submitted');
+    expect(html).toContain('spa #42');
+    expect(html).not.toContain('/owner/services');
+  });
 });

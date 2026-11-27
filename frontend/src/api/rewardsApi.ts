@@ -94,6 +94,7 @@ export interface CheckoutPreviewInput {
   couponCode?: string;
   redeemLoyaltyPoints?: boolean;
   giftCardCode?: string;
+  useWalletCredit?: boolean;
 }
 
 export interface CheckoutPreview {
@@ -111,6 +112,9 @@ export interface CheckoutPreview {
   giftCardCents: number;
   giftCardBalanceCents: number;
   giftCardError?: string;
+  walletCents?: number;
+  walletBalanceCents?: number;
+  walletError?: string;
   payableCents: number;
 }
 
@@ -139,8 +143,9 @@ export function checkoutLines(p: CheckoutPreview): CheckoutLine[] {
     });
   if (p.taxCents > 0) lines.push({ label: 'Tax', cents: p.taxCents, kind: 'charge' });
   lines.push({ label: 'Total', cents: p.totalCents, kind: 'total' });
-  if (p.giftCardCents > 0) {
-    lines.push({ label: 'Gift card', cents: -p.giftCardCents, kind: 'payment' });
+  if (p.giftCardCents > 0 || (p.walletCents ?? 0) > 0) {
+    if (p.giftCardCents > 0) lines.push({ label: 'Gift card', cents: -p.giftCardCents, kind: 'payment' });
+    if (p.walletCents) lines.push({ label: 'Wallet credit', cents: -p.walletCents, kind: 'payment' });
     lines.push({ label: 'Left to pay', cents: p.payableCents, kind: 'total' });
   }
   return lines;

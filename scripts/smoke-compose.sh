@@ -67,6 +67,13 @@ address=$(compose port web 8080)
 [[ $address == 127.0.0.1:* ]]
 curl --fail --silent --show-error --max-time 10 "http://$address/healthz" | grep -Fx ok
 
+# A fresh production database hides the seeded demo inventory. Add one publishable
+# smoke listing so the sitemap and its detail route can be exercised.
+compose exec -T db sh -ec 'MYSQL_PWD="$MARIADB_PASSWORD" mariadb -u "$MARIADB_USER" "$MARIADB_DATABASE"' <<'SQL'
+INSERT INTO spa (created_at,updated_at,name,commission_pct,default_currency,is_active,is_featured,is_verified,kyc_status,tax_percent,timezone)
+VALUES (NOW(),NOW(),'Smoke Wellness',0,'INR',1,0,1,'APPROVED',0,'Asia/Kolkata');
+SQL
+
 # Check the public proxy, the database-backed API, the dynamic sitemap and the actual
 # JavaScript referenced by the server-rendered directory and detail pages.
 python3 - "$address" <<'PY'
@@ -90,7 +97,8 @@ def app_asset(html):
     return match.group(1)
 
 entry = app_asset(get("/"))
-assert app_asset(get("/owner")) == entry
+for route in ("/owner", "/gift-cards", "/admin/gift-cards", "/support", "/admin/support"):
+    assert app_asset(get(route)) == entry, route
 assert get(entry).strip()
 assert isinstance(json.loads(get("/api/packages/catalog")), list)
 assert "Sitemap: " + origin + "/sitemap.xml" in get("/robots.txt")
@@ -108,4 +116,5 @@ PY
 # Exercise the scheduler image and its dump/verification tools against the migrated test DB.
 compose exec -T backup /opt/nirvana/scripts/backup-db.sh
 compose exec -T backup sh -ec 'test -s /backups/last-success && cd /backups/daily && sha256sum -c ./*.sha256'
+compose exec -T backup bash -ec 'shopt -s nullglob; dumps=(/backups/daily/*.sql.gz); test "${#dumps[@]}" -eq 1; /opt/nirvana/scripts/restore-db.sh --compare-with "$DB_NAME" "${dumps[0]}" nirvana_smoke_restored'
 echo "Compose smoke test passed on $native."

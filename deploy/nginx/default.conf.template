@@ -54,7 +54,7 @@ server {
     }
 
     # Client-side routes: frontend/src/seo/routes.ts isAppRoute().
-    location ~ "^/(discover|admin/city-discovery|admin/listing-claims|admin/spa-leads|admin/payouts|staff/media|packages|me/packages|auth/login|auth/register|auth/otp|auth/email-link|auth/password|auth/social/callback|me/bookings|me/settings|privacy|terms)/*$" {
+    location ~ "^/(discover|admin/city-discovery|admin/listing-claims|admin/spa-leads|admin/payouts|staff/media|packages|me/packages|auth/login|auth/register|auth/otp|auth/email-link|auth/password|auth/social/callback|me/bookings|me/settings|gift-cards|admin/gift-cards|support|admin/support|privacy|terms)/*$" {
         try_files /app.html =404;
         add_header Cache-Control "no-cache" always;
         add_header X-Content-Type-Options nosniff always;

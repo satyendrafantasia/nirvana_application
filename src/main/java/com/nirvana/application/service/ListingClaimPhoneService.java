@@ -42,6 +42,7 @@ public class ListingClaimPhoneService {
 
     private final CityPlacesClient places;
     private final JdbcTemplate jdbc;
+    private final ClaimableInventory inventory;
     private final OtpGenerator generator;
     private final SmsSender sms;
     private final SmsProperties smsProperties;
@@ -61,10 +62,7 @@ public class ListingClaimPhoneService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Text messages are not available right now. Submit without verifying and our team will call the spa.");
         // Text only spas that can still be claimed, so this cannot be used to message any business on Google.
-        Long listed = jdbc.queryForObject("SELECT COUNT(*) FROM spa WHERE google_place_id=?", Long.class, placeId);
-        if (listed > 0)
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This spa is already on Nirvana or has a claim under review. If it is yours, contact partner support.");
+        inventory.available(placeId);
         JsonNode place = places.claimDetails(placeId);
         if (!SpaPlaceFilter.isSpa(place))
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,

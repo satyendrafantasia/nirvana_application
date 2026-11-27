@@ -17,7 +17,7 @@ import java.util.Optional;
 /**
  * Sends booking SMS to spas through AWS SNS as transactional messages. Indian carriers deliver
  * business SMS only from a DLT-registered sender and template, so those IDs are passed when set;
- * each message kind has its own template ID. With SMS off (local runs), the message is logged.
+ * each message kind has its own template ID. Failed deliveries enter the staff contact queue.
  */
 @Slf4j
 @Component
@@ -40,9 +40,13 @@ public class SpaAlertSms {
     private String cancelledTemplate;
     @Value("${spa-alerts.sms.templates.moved:}")
     private String movedTemplate;
-    /** Local runs only: write messages (with their links) to the log while SMS is off. */
-    @Value("${spa-alerts.log-messages:false}")
-    private boolean logMessages;
+    @Value("${spa-alerts.sms.enabled:}")
+    private String bookingSmsEnabled;
+
+    public boolean enabled() {
+        if (StringUtils.hasText(bookingSmsEnabled)) return Boolean.parseBoolean(bookingSmsEnabled);
+        return sms.isEnabled() && (sms.getProvider() == null || "AWS_SNS".equalsIgnoreCase(sms.getProvider()));
+    }
 
     /** An Indian mobile number in +91 form, or empty for a landline, a foreign or a malformed number. */
     public static Optional<String> mobile(String phone) {
@@ -54,17 +58,7 @@ public class SpaAlertSms {
     }
 
     public void send(String to, Kind kind, String message) {
-        if (!sms.isEnabled()) {
-            if (logMessages) log.info("Spa SMS ({}) not sent, SMS is off. To {}: {}", kind, to, message);
-            if (kind != Kind.REMINDER) throw new BookingContactUnavailable("Booking SMS transport unavailable");
-            return;
-        }
-        if (sms.getProvider() != null && !"AWS_SNS".equalsIgnoreCase(sms.getProvider())) {
-            // Booking alerts have their own DLT templates on AWS SNS; another OTP provider doesn't send them.
-            log.info("Spa SMS ({}) to {} not sent: booking alerts need AWS SNS, and SMS provider is {}", kind, to, sms.getProvider());
-            if (kind != Kind.REMINDER) throw new BookingContactUnavailable("Booking SMS transport unavailable");
-            return;
-        }
+        if (!enabled()) throw new BookingContactUnavailable("Booking SMS transport unavailable");
         Map<String, MessageAttributeValue> attributes = new HashMap<>();
         attributes.put("AWS.SNS.SMS.SMSType", text("Transactional"));
         if (StringUtils.hasText(senderId)) attributes.put("AWS.SNS.SMS.SenderID", text(senderId));

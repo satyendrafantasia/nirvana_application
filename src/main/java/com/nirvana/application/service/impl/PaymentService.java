@@ -23,7 +23,7 @@ import com.razorpay.Order;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
-import com.razorpay.Refund;
+
 import com.razorpay.Utils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -63,12 +63,15 @@ public class PaymentService {
     private final CurrencyConversionService currencyConversionService;
     private final NotificationSchedulingService notificationSchedulingService;
     private final PaymentMfaVerifier paymentMfaVerifier;
+    private final BookingRefundRecovery refundRecovery;
 
     public PaymentService(@org.springframework.lang.Nullable RazorpayClient razorpayClient,
                           RazorpayProperties razorpayProps, BookingRepository bookingRepository,
                           PaymentRepository paymentRepository, InvoiceService invoiceService,
                           NotificationService notificationService, CurrencyConversionService currencyConversionService,
-                          NotificationSchedulingService notificationSchedulingService, PaymentMfaVerifier paymentMfaVerifier) {
+                          NotificationSchedulingService notificationSchedulingService, PaymentMfaVerifier paymentMfaVerifier,
+                          BookingRefundRecovery refundRecovery) {
+        this.refundRecovery = refundRecovery;
         this.razorpayClient = razorpayClient;
         this.razorpayProps = razorpayProps;
         this.bookingRepository = bookingRepository;
@@ -151,6 +154,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentInitResponse initiateRazorpayPayment(Long bookingId, String idempotencyKey) {
+        razorpayProps.requireCheckout();
         ensureRazorpayEnabled();
         log.info("event=payment.verify_challenge");
         paymentMfaVerifier.verifyPaymentChallenge();
@@ -268,7 +272,7 @@ public class PaymentService {
     }
 
     /** Called only after webhook authentication; no browser-supplied success flag is trusted. */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reconcileCapturedPayment(String orderId, String paymentId) {
         Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElse(null);
         if (bookingId == null) return; // Other products and payment links use their own reconciliation paths.
@@ -279,7 +283,7 @@ public class PaymentService {
         settleCapturedPayment(booking, payment, paymentId);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reconcilePendingOrder(String orderId) {
         ensureRazorpayEnabled();
         paymentRepository.findByIntentId(orderId).filter(p -> p.getPaymentLinkId()!=null).ifPresent(p -> reconcilePaymentLink(p.getPaymentLinkId()));
@@ -294,7 +298,7 @@ public class PaymentService {
         } catch (RazorpayException ex) { throw new IllegalStateException("Payment reconciliation unavailable", ex); }
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reconcileFailedPayment(String orderId, String paymentId) {
         Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElse(null);
         if (bookingId == null) return;
@@ -310,26 +314,8 @@ public class PaymentService {
         } catch (RazorpayException ex) { throw new IllegalStateException("Payment verification unavailable", ex); }
     }
 
-    @Transactional
-    public void reconcileRefund(String paymentId) {
-        Long bookingId = paymentRepository.findBookingIdByTransactionId(paymentId).orElse(null);
-        if (bookingId == null) return;
-        Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElseThrow();
-        Payment payment = paymentRepository.findByTransactionId(paymentId).orElseThrow();
-        try {
-            com.razorpay.Payment remote = razorpayClient.payments.fetch(paymentId);
-            if ((!Objects.equals(payment.getIntentId(),remote.get("order_id")) && !Objects.equals(payment.getPaymentLinkOrderId(),remote.get("order_id"))) || ((Number)remote.get("amount")).intValue() != payment.getAmountCents()
-                    || !payment.getCurrency().equalsIgnoreCase(remote.get("currency"))) throw new IllegalArgumentException("Refund payment mismatch");
-            int refunded = ((Number)remote.get("amount_refunded")).intValue();
-            if (refunded <= 0 || refunded > payment.getAmountCents()) throw new IllegalArgumentException("Invalid refunded amount");
-            // Cumulative gateway total makes duplicate/out-of-order refund events harmless.
-            if (refunded < Optional.ofNullable(payment.getRefundedCents()).orElse(0)) return;
-            payment.setRefundedCents(refunded);
-            payment.setRefundedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            payment.setPaymentStatus(refunded == payment.getAmountCents() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED);
-            paymentRepository.save(payment);
-            if (refunded == payment.getAmountCents() || (booking.getStatus() == BookingStatus.CANCELLED && booking.getRefundStatus() == RefundStatus.PROCESSING)) {booking.setRefundStatus(RefundStatus.COMPLETED);bookingRepository.save(booking);}
-        } catch (RazorpayException ex) { throw new IllegalStateException("Refund verification unavailable", ex); }
+    public void reconcileRefund(String paymentId, String refundId) {
+        refundRecovery.webhook(paymentId, refundId);
     }
 
     private void settleCapturedPayment(Booking booking, Payment payment, String paymentId) {
@@ -348,6 +334,8 @@ public class PaymentService {
                     || !payment.getCurrency().equalsIgnoreCase(remote.get("currency"))) {
                 throw new IllegalArgumentException("Gateway payment does not match the stored order, amount and currency");
             }
+            boolean recordedCapture = paymentId.equals(payment.getTransactionId()) && payment.getCapturedAt() != null;
+            if (recordedCapture && "refunded".equals(remote.get("status"))) return;
             if (!"captured".equals(remote.get("status")) || !Boolean.TRUE.equals(remote.get("captured"))) {
                 throw new IllegalStateException("Payment is not captured yet. Please retry verification shortly.");
             }
@@ -374,7 +362,8 @@ public class PaymentService {
             }
             if (lateAtSpa || booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.NO_SHOW) {
                 // Keep released capacity released; record this capture for the existing refund workflow.
-                if (booking.getRefundStatus() == RefundStatus.NONE) booking.setRefundStatus(RefundStatus.REQUESTED);
+                if (!recordedCapture || booking.getRefundStatus() == RefundStatus.REQUESTED)
+                    refundRecovery.lateCapture(booking, payment);
                 bookingRepository.save(booking);
                 return;
             }
@@ -437,56 +426,19 @@ public class PaymentService {
      * refundAmountCents == null → full refund.
      */
     @Transactional
-    public Refund refundBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
+    public void refundBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
         ownedBooking(bookingId);
-        return refundAuthorizedBookingPayment(bookingId, refundAmountCents, reason);
+        refundAuthorizedBookingPayment(bookingId, refundAmountCents, reason);
     }
 
-    /**
-     * Refund without the customer-ownership check. Only for callers that have already
-     * authorized the action themselves, such as a spa cancelling one of its own bookings.
-     */
+    /** Caller has authorized the refund for this booking. Submission happens after commit. */
     @Transactional
-    public Refund refundAuthorizedBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
-        ensureRazorpayEnabled();
-
-        Payment payment = paymentRepository
-                .findFirstByBookingIdAndPaymentStatusIn(
-                        bookingId,
+    public void refundAuthorizedBookingPayment(Long bookingId, Integer refundAmountCents, String reason) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElseThrow();
+        Payment payment = paymentRepository.findFirstByBookingIdAndPaymentStatusIn(bookingId,
                         List.of(PaymentStatus.COMPLETED, PaymentStatus.CAPTURED, PaymentStatus.PARTIALLY_REFUNDED))
-                .orElseThrow(() -> new IllegalStateException(
-                        "No successful payment to refund for booking " + bookingId));
-
-        int remaining = payment.getAmountCents() - Optional.ofNullable(payment.getRefundedCents()).orElse(0);
-        if (remaining <= 0 || (refundAmountCents != null && (refundAmountCents <= 0 || refundAmountCents > remaining))) {
-            throw new IllegalArgumentException("Refund amount must be positive and within the remaining paid amount");
-        }
-        String paymentId = payment.getTransactionId();
-        if (paymentId == null || paymentId.isBlank()) {
-            throw new IllegalStateException("Payment has no transaction id to refund");
-        }
-
-        try {
-            JSONObject refundReq = new JSONObject();
-            refundReq.put("amount", refundAmountCents == null ? remaining : refundAmountCents);
-            if (reason != null && !reason.isBlank()) {
-                refundReq.put("notes", new JSONObject().put("reason", reason));
-            }
-
-            Refund refund = razorpayClient.payments.refund(paymentId, refundReq);
-
-            // You can store refund id/status in Payment.metaJson or create PaymentRefund entity.
-            log.info("Created refund {} for booking {} (payment {})",
-                    refund.get("id"), bookingId, paymentId);
-
-            // Optionally: update booking status → CANCELLED, and mark payment as REFUNDED/PARTIALLY_REFUNDED
-            // based on refund.get("amount") vs payment.getAmountCents()
-
-            return refund;
-        } catch (RazorpayException e) {
-            log.error("Error refunding Razorpay payment for booking {}", bookingId, e);
-            throw new RuntimeException("Error creating refund", e);
-        }
+                .orElseThrow(() -> new IllegalStateException("No captured payment for this booking"));
+        refundRecovery.enqueue(booking, payment, refundAmountCents == null ? BookingRefundRecovery.remaining(payment) : refundAmountCents, reason);
     }
 
     // ------------------ PAYMENT LINK FALLBACK ------------------
@@ -496,6 +448,7 @@ public class PaymentService {
      */
     @Transactional
     public PaymentLinkInitResponse createPaymentLinkForBooking(Long bookingId, String idempotencyKey) {
+        razorpayProps.requireCheckout();
         ensureRazorpayEnabled();
         Booking booking = ownedBooking(bookingId);
         if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getPaymentMode() != PaymentMode.ONLINE)
@@ -523,7 +476,7 @@ public class PaymentService {
         } catch (RazorpayException ex) { throw new IllegalStateException("Payment link unavailable", ex); }
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reconcilePaymentLink(String linkId) {
         var known = paymentRepository.findByPaymentLinkId(linkId);
         if (known.isEmpty()) return;

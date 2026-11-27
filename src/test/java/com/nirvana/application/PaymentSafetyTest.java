@@ -37,9 +37,10 @@ class PaymentSafetyTest {
         bookings=mock(BookingRepository.class); payments=mock(PaymentRepository.class);
         gateway=new RazorpayClient("test_key", "test_secret");
         gateway.payments=mock(com.razorpay.PaymentClient.class);
-        RazorpayProperties props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("test_secret");
+        RazorpayProperties props=new RazorpayProperties();props.setEnabled(true);props.setKeySecret("test_secret");props.setKeyId("test_key");props.setWebhookSecret("test-webhook");
         notifications=mock(NotificationSchedulingService.class);
-        service=new PaymentService(gateway,props,bookings,payments,mock(InvoiceService.class),mock(NotificationService.class),mock(CurrencyConversionService.class),notifications,mock(PaymentMfaVerifier.class));
+        service=new PaymentService(gateway,props,bookings,payments,mock(InvoiceService.class),mock(NotificationService.class),mock(CurrencyConversionService.class),notifications,mock(PaymentMfaVerifier.class),
+                new com.nirvana.application.service.impl.BookingRefundRecovery(bookings,mock(PaymentRefundRepository.class),payments,null,null));
         User owner=User.builder().id(1L).build();
         booking=new Booking();booking.setId(10L);booking.setUser(owner);booking.setStatus(BookingStatus.PENDING_PAYMENT);booking.setPaymentMode(PaymentMode.ONLINE);booking.setRefundStatus(RefundStatus.NONE);
         payment=new Payment();payment.setId(20L);payment.setBooking(booking);payment.setGateway("RAZORPAY");payment.setIntentId("order_test");payment.setAmountCents(125000);payment.setCurrency("INR");payment.setPaymentStatus(PaymentStatus.INIT);payment.setReceiptUrl("existing-receipt");
@@ -149,6 +150,12 @@ class PaymentSafetyTest {
     @Test void orderMismatchCannotConfirm() throws Exception {remote("captured",true,125000,"INR","order_other");var r=signed();assertThrows(IllegalArgumentException.class,()->service.confirmRazorpayPayment(10L,r));}
     @Test void verifiedCaptureConfirmsExactlyOnce() throws Exception {service.confirmRazorpayPayment(10L,signed());service.confirmRazorpayPayment(10L,signed());assertEquals(PaymentStatus.CAPTURED,payment.getPaymentStatus());assertEquals(BookingStatus.CONFIRMED,booking.getStatus());verify(notifications,times(1)).scheduleBookingNotifications(booking);}
     @Test void lateCaptureDoesNotReopenCancelledBooking() throws Exception {booking.setStatus(BookingStatus.CANCELLED);service.confirmRazorpayPayment(10L,signed());assertEquals(BookingStatus.CANCELLED,booking.getStatus());assertEquals(RefundStatus.REQUESTED,booking.getRefundStatus());assertEquals(PaymentStatus.CAPTURED,payment.getPaymentStatus());verifyNoInteractions(notifications);}
+    @Test void aReplayedCaptureAfterCancellationDoesNotCreateANewRefundEntitlement() {
+        service.reconcileCapturedPayment("order_test","pay_test");
+        booking.setStatus(BookingStatus.CANCELLED);
+        service.reconcileCapturedPayment("order_test","pay_test");
+        assertEquals(RefundStatus.NONE, booking.getRefundStatus());
+    }
     @Test void signedWebhookPathAlsoConfirmsBooking(){SecurityContextHolder.clearContext();service.reconcileCapturedPayment("order_test","pay_test");assertEquals(BookingStatus.CONFIRMED,booking.getStatus());}
     @Test void cannotReplayAnotherOrdersIdempotencyKey(){booking.setRemainderCents(125000);Payment other=new Payment();Booking b=new Booking();b.setId(99L);other.setBooking(b);other.setGateway("RAZORPAY");when(payments.findByIdempotencyKey("reused")).thenReturn(Optional.of(other));assertThrows(IllegalArgumentException.class,()->service.initiateRazorpayPayment(10L,"reused"));}
 }

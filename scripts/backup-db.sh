@@ -100,7 +100,12 @@ prune() { # dir keep
 prune "$daily" "$KEEP_DAILY"
 prune "$weekly" "$KEEP_WEEKLY"
 
-date -u '+%Y-%m-%dT%H:%M:%SZ' >"$BACKUP_DIR/last-success"
+mark_success() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ' >"$work/timestamp"
+  cp "$work/timestamp" "$BACKUP_DIR/.$1.tmp"
+  mv "$BACKUP_DIR/.$1.tmp" "$BACKUP_DIR/$1"
+}
+mark_success last-local-success
 
 upload() { # local-file s3-key
   local file=$1 key=$2
@@ -108,6 +113,15 @@ upload() { # local-file s3-key
     # Uses the normal AWS credential chain (env, profile, instance/task role).
     aws s3 cp "$file" "s3://$BACKUP_S3_BUCKET/$key" --only-show-errors --sse AES256 \
       ${BACKUP_S3_ENDPOINT:+--endpoint-url "$BACKUP_S3_ENDPOINT"}
+  elif python3 -c 'import boto3' 2>/dev/null; then
+    python3 - "$file" "$BACKUP_S3_BUCKET" "$key" <<'PY'
+import os, sys
+import boto3
+source, bucket, key = sys.argv[1:]
+client = boto3.client("s3", region_name=os.getenv("AWS_REGION", "ap-south-1"),
+                      endpoint_url=os.getenv("BACKUP_S3_ENDPOINT") or None)
+client.upload_file(source, bucket, key, ExtraArgs={"ServerSideEncryption": "AES256"})
+PY
   else
     [[ -n ${AWS_ACCESS_KEY_ID:-} && -n ${AWS_SECRET_ACCESS_KEY:-} ]] \
       || { log "no aws CLI and no AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY"; return 1; }
@@ -126,6 +140,10 @@ upload() { # local-file s3-key
   fi
 }
 
+if [[ ${BACKUP_REQUIRE_REMOTE:-false} == true && -z ${BACKUP_S3_BUCKET:-} ]]; then
+  log "ERROR: remote backup required; set BACKUP_S3_BUCKET"
+  exit 2
+fi
 if [[ -n ${BACKUP_S3_BUCKET:-} ]]; then
   prefix=${BACKUP_S3_PREFIX:-nirvana/db}
   prefix=${prefix%/}
@@ -141,7 +159,9 @@ if [[ -n ${BACKUP_S3_BUCKET:-} ]]; then
     log "ERROR: S3 upload failed; the local backup $daily/$name is kept"
     exit 2
   fi
+  mark_success last-remote-success
   log "uploaded to s3://$BACKUP_S3_BUCKET/$prefix/"
 fi
 
+mark_success last-success
 log "done"

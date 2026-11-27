@@ -25,6 +25,7 @@ public class BookingSummaryResponse {
     OffsetDateTime startTs;
     OffsetDateTime endTs;
     BookingStatus status;
+    boolean spaAcknowledged;
     String refundStatus;
     PaymentMode paymentMode;
     boolean invoiceAvailable;

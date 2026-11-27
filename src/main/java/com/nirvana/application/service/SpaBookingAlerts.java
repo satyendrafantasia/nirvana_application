@@ -22,7 +22,7 @@ import java.util.*;
  * confirm or decline it. Most
  * spas listed from Google Maps have no Nirvana account or email, but most have a mobile number.
  * The guest's booking stands meanwhile. A spa that hasn't replied gets one last reminder, and the
- * booking is then confirmed for it. Nothing here ever fails the booking: a lost SMS is logged.
+ * operations team follows up if the spa has not replied.
  */
 @Slf4j
 @Service
@@ -46,91 +46,117 @@ public class SpaBookingAlerts {
     @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
 
-    /** A new booking (pay at spa, package, or paid online once the payment is in). */
-    public void bookingConfirmed(Booking b) {
-        if (!enabled || jdbc.queryForObject("SELECT COUNT(*) FROM spa_booking_confirmation WHERE booking_id=?", Integer.class, b.getId()) > 0)
-            return;
-        Optional<String> to = SpaAlertSms.mobile(b.getSpa().getPhone());
-        String token = token();
-        Window w = window(b);
+    /** Establish the reply for this specific appointment time inside the booking transaction. */
+    public void prepare(Booking b) {
+        var w = window(b);
+        var phone = SpaAlertSms.mobile(b.getSpa().getPhone());
         jdbc.update("""
-                INSERT INTO spa_booking_confirmation (booking_id, spa_id, token, status, phone, sent_at, reminder_due_at, deadline_at, created_at, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))""",
-                b.getId(), b.getSpa().getId(), token, to.isPresent() ? "PENDING" : "NO_MOBILE", to.orElse(null),
-                to.isPresent() ? utc(Instant.now()) : null, to.isPresent() ? utc(w.reminder) : null, to.isPresent() ? utc(w.deadline) : null);
-        if (to.isEmpty()) {
-            log.warn("Spa {} has no mobile number for SMS; booking {} relies on email or a call", b.getSpa().getId(), b.getBookingReference());
-            return;
-        }
-        deliver(to.get(), SpaAlertSms.Kind.NEW, "Nirvana booking " + b.getBookingReference() + ": " + summary(b)
-                + ". Please confirm or decline: " + link(token), List.of(b.getBookingReference(), summary(b), time(w.deadline, b)), token, b);
+            INSERT INTO spa_booking_confirmation(booking_id,spa_id,token,status,phone,reminder_due_at,deadline_at,delivery_revision,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE booking_id=booking_id
+            """, b.getId(), b.getSpa().getId(), token(), phone.isPresent() ? "PENDING" : "NO_MOBILE",
+                phone.orElse(null), utc(w.reminder), utc(w.deadline), b.getNotificationRevision());
+        jdbc.update("""
+            UPDATE spa_booking_confirmation SET token=?,status=?,phone=?,sent_at=NULL,reminder_due_at=?,deadline_at=?,
+                reminder_sent_at=NULL,responded_at=NULL,decline_reason=NULL,delivery_revision=?,updated_at=UTC_TIMESTAMP(6)
+            WHERE booking_id=? AND delivery_revision<?
+            """, token(), phone.isPresent() ? "PENDING" : "NO_MOBILE", phone.orElse(null), utc(w.reminder), utc(w.deadline),
+                b.getNotificationRevision(), b.getId(), b.getNotificationRevision());
     }
 
-    /** A new time: the spa is asked again, with a fresh link. */
-    public void bookingRescheduled(Booking b) {
-        if (!enabled) return;
-        Optional<String> to = SpaAlertSms.mobile(b.getSpa().getPhone());
-        if (to.isEmpty()) return;
-        String token = token();
-        Window w = window(b);
-        int updated = jdbc.update("""
-                UPDATE spa_booking_confirmation SET token=?, status='PENDING', phone=?, sent_at=UTC_TIMESTAMP(6), reminder_due_at=?,
-                       reminder_sent_at=NULL, deadline_at=?, responded_at=NULL, updated_at=UTC_TIMESTAMP(6)
-                WHERE booking_id=? AND status<>'DECLINED'""", token, to.get(), utc(w.reminder), utc(w.deadline), b.getId());
-        if (updated == 0) {
-            bookingConfirmed(b);
-            return;
+    public void bookingConfirmed(Booking b) { invite(b, SpaAlertSms.Kind.NEW); }
+    public void bookingRescheduled(Booking b) { invite(b, SpaAlertSms.Kind.MOVED); }
+
+    private void invite(Booking b, SpaAlertSms.Kind kind) {
+        prepare(b);
+        var row = jdbc.queryForMap("SELECT token,status,sent_at,deadline_at FROM spa_booking_confirmation WHERE booking_id=? FOR UPDATE",b.getId());
+        if (row.get("sent_at") != null || List.of("CONFIRMED","DECLINED","CLOSED").contains(row.get("status"))) return;
+        if (!enabled) throw new BookingContactUnavailable("Spa mobile alerts are disabled");
+        var phone = SpaAlertSms.mobile(b.getSpa().getPhone());
+        if (phone.isEmpty()) throw new BookingContactUnavailable("Spa mobile number is unavailable");
+        String token = (String)row.get("token");
+        var deadlineAt=row.get("deadline_at");
+        if (deadlineAt == null) {
+            Window w=window(b);
+            jdbc.update("UPDATE spa_booking_confirmation SET deadline_at=?,reminder_due_at=? WHERE booking_id=?",utc(w.deadline),utc(w.reminder),b.getId());
+            deadlineAt=utc(w.deadline);
         }
-        deliver(to.get(), SpaAlertSms.Kind.MOVED, "Nirvana booking " + b.getBookingReference() + " has moved: " + summary(b)
-                + ". Please confirm or decline: " + link(token), List.of(b.getBookingReference(), summary(b), time(w.deadline, b)), token, b);
+        String deadline = time(fromUtc(deadlineAt), b);
+        String prefix = kind == SpaAlertSms.Kind.MOVED ? " has moved: " : ": ";
+        deliver(phone.get(), kind, "Nirvana booking " + b.getBookingReference() + prefix + summary(b)
+                + ". Please confirm or decline: " + link(token), List.of(b.getBookingReference(), summary(b), deadline), token, b);
+        jdbc.update("UPDATE spa_booking_confirmation SET status='PENDING',phone=?,sent_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6) WHERE booking_id=?", phone.get(), b.getId());
     }
 
     /** The guest (or Nirvana) cancelled: the spa is told, unless it was the spa that declined. */
     public void bookingCancelled(Booking b) {
-        if (!enabled) return;
-        jdbc.update("UPDATE spa_booking_confirmation SET status='CLOSED', updated_at=UTC_TIMESTAMP(6) WHERE booking_id=? AND status IN ('PENDING','CONFIRMED','AUTO_CONFIRMED')",
+        jdbc.update("UPDATE spa_booking_confirmation SET status='CLOSED', updated_at=UTC_TIMESTAMP(6) WHERE booking_id=? AND status IN ('PENDING','CONFIRMED','NEEDS_CONTACT','NO_MOBILE')",
                 b.getId());
         if (b.getCancelledBy() == CancellationActor.SPA) return;
         var phone = jdbc.queryForList("SELECT phone FROM spa_booking_confirmation WHERE booking_id=? AND phone IS NOT NULL AND status='CLOSED'",
                 String.class, b.getId());
-        if (phone.isEmpty()) return;
+        if (!enabled) throw new BookingContactUnavailable("Spa mobile alerts are disabled");
+        if (phone.isEmpty()) phone=SpaAlertSms.mobile(b.getSpa().getPhone()).stream().toList();
+        if (phone.isEmpty()) throw new BookingContactUnavailable("Spa mobile number is unavailable");
         deliver(phone.get(0), SpaAlertSms.Kind.CANCELLED, "Nirvana booking " + b.getBookingReference() + " for "
                 + when(b.getStartTs(), b) + " has been cancelled. The time is free again. No action needed.",
                 List.of(b.getBookingReference(), when(b.getStartTs(), b)), null, b);
     }
 
-    /**
-     * Sends the one last reminder that is due, then confirms bookings whose spa still hasn't
-     * replied. Each row is claimed before its SMS is sent, so instances never double up.
-     */
+    @org.springframework.transaction.annotation.Transactional
     public int runDue() {
-        if (!enabled) return 0;
-        int done = 0;
-        for (var row : jdbc.queryForList("""
-                SELECT c.booking_id, c.token, c.phone, c.deadline_at, b.booking_reference, b.start_ts, s.timezone
-                FROM spa_booking_confirmation c JOIN booking b ON b.id=c.booking_id JOIN spa s ON s.id=c.spa_id
-                WHERE c.status='PENDING' AND c.reminder_sent_at IS NULL AND c.reminder_due_at <= UTC_TIMESTAMP(6)
-                ORDER BY c.reminder_due_at LIMIT 500""")) {
-            long id = ((Number) row.get("booking_id")).longValue();
-            if (jdbc.update("UPDATE spa_booking_confirmation SET reminder_sent_at=UTC_TIMESTAMP(6), updated_at=UTC_TIMESTAMP(6) WHERE booking_id=? AND status='PENDING' AND reminder_sent_at IS NULL", id) == 0)
-                continue;
-            // Same link as the first SMS, so either one works.
-            String token = (String) row.get("token");
-            ZoneId zone = zone((String) row.get("timezone"));
-            String deadline = fromUtc(row.get("deadline_at")).atZone(zone).format(TIME);
-            OffsetDateTime start = fromUtc(row.get("start_ts")).atOffset(ZoneOffset.UTC);
-            String reference = (String) row.get("booking_reference");
-            String startsAt = start.atZoneSameInstant(zone).format(WHEN);
-            send((String) row.get("phone"), SpaAlertSms.Kind.REMINDER, "Last reminder: Nirvana booking " + reference
-                    + " on " + startsAt + " is waiting for you. Confirm or decline by " + deadline
-                    + ": " + link(token) + " If we don't hear back, it stays booked.", List.of(reference, startsAt, deadline), token, reference);
-            done++;
-        }
-        // One last reminder has gone and the time is up: the booking stands, confirmed for the spa.
-        done += jdbc.update("""
-                UPDATE spa_booking_confirmation SET status='AUTO_CONFIRMED', responded_at=UTC_TIMESTAMP(6), updated_at=UTC_TIMESTAMP(6)
-                WHERE status='PENDING' AND reminder_sent_at IS NOT NULL AND deadline_at <= UTC_TIMESTAMP(6)""");
-        return done;
+        int count = jdbc.update("""
+            INSERT INTO booking_alert_job(booking_id,event_kind,audience,revision)
+            SELECT c.booking_id,'REMINDER','SPA_MOBILE',c.delivery_revision
+            FROM spa_booking_confirmation c JOIN booking b ON b.id=c.booking_id
+            WHERE c.status='PENDING' AND c.sent_at IS NOT NULL AND c.reminder_sent_at IS NULL
+              AND c.reminder_due_at<=UTC_TIMESTAMP() AND c.deadline_at>UTC_TIMESTAMP()
+              AND b.status='CONFIRMED' AND b.end_ts>UTC_TIMESTAMP()
+            ON DUPLICATE KEY UPDATE id=booking_alert_job.id
+            """);
+        // An unanswered appointment still stands. Staff must contact the spa; only its reply acknowledges it.
+        count += jdbc.update("""
+            UPDATE spa_booking_confirmation c JOIN booking b ON b.id=c.booking_id
+            SET c.status='NEEDS_CONTACT',c.updated_at=UTC_TIMESTAMP(6)
+            WHERE c.status='PENDING' AND c.deadline_at<=UTC_TIMESTAMP() AND b.status='CONFIRMED'
+            """);
+        jdbc.update("""
+            INSERT INTO booking_alert_job(booking_id,event_kind,audience,revision,state)
+            SELECT c.booking_id,'FOLLOW_UP','SPA_MOBILE',c.delivery_revision,'NEEDS_CONTACT'
+            FROM spa_booking_confirmation c JOIN booking b ON b.id=c.booking_id
+            WHERE c.status='NEEDS_CONTACT' AND b.status='CONFIRMED' AND b.end_ts>UTC_TIMESTAMP()
+            ON DUPLICATE KEY UPDATE id=booking_alert_job.id
+            """);
+        jdbc.update("""
+            UPDATE booking_alert_job j JOIN booking b ON b.id=j.booking_id
+            LEFT JOIN spa_booking_confirmation c ON c.booking_id=b.id
+            SET j.state='OBSOLETE'
+            WHERE j.state IN ('NEEDS_CONTACT','FAILED') AND j.event_kind IN ('CONFIRMED','RESCHEDULED','FOLLOW_UP','REMINDER')
+              AND (j.revision<>b.notification_revision OR b.status NOT IN ('CONFIRMED','PENDING_PAYMENT','ARRIVED')
+                   OR b.end_ts<=UTC_TIMESTAMP() OR (j.audience IN ('SPA_EMAIL','SPA_MOBILE','SPA_PUSH') AND c.status='CONFIRMED'))
+            """);
+        jdbc.update("""
+            UPDATE booking_alert_job j JOIN appointment_request r ON r.id=j.request_id SET j.state='OBSOLETE'
+            WHERE j.event_kind='REQUEST_NEW' AND j.state IN ('NEEDS_CONTACT','FAILED') AND (r.state<>'PENDING' OR r.deadline<=UTC_TIMESTAMP())
+            """);
+        return count;
+    }
+
+    public boolean remind(Booking b) {
+        var rows = jdbc.queryForList("""
+            SELECT token FROM spa_booking_confirmation WHERE booking_id=? AND delivery_revision=? AND status='PENDING'
+              AND reminder_sent_at IS NULL AND sent_at IS NOT NULL AND deadline_at>UTC_TIMESTAMP() FOR UPDATE
+            """, b.getId(), b.getNotificationRevision());
+        if (rows.isEmpty()) return false;
+        var phone = SpaAlertSms.mobile(b.getSpa().getPhone());
+        if (!enabled || phone.isEmpty()) throw new BookingContactUnavailable("Spa mobile reminder unavailable");
+        var token = (String) rows.get(0).get("token");
+        var deadline = jdbc.queryForObject("SELECT deadline_at FROM spa_booking_confirmation WHERE booking_id=?",Timestamp.class,b.getId());
+        var starts = when(b.getStartTs(), b);
+        var replyBy = time(fromUtc(deadline), b);
+        deliver(phone.get(), SpaAlertSms.Kind.REMINDER, "Nirvana booking "+b.getBookingReference()+" on "+starts+
+                " is awaiting your reply. Confirm or decline: "+link(token),List.of(b.getBookingReference(),starts,replyBy),token,b);
+        jdbc.update("UPDATE spa_booking_confirmation SET reminder_sent_at=UTC_TIMESTAMP(6) WHERE booking_id=?", b.getId());
+        return true;
     }
 
     record Window(Instant reminder, Instant deadline) {}
@@ -172,7 +198,7 @@ public class SpaBookingAlerts {
 
     /**
      * WhatsApp first when it is set up, using the approved template for this kind of alert; if that
-     * fails, the same alert goes as an SMS. A lost alert is logged, never thrown.
+     * fails, the same alert goes as an SMS. Delivery failures return to the outbox for recovery.
      */
     private void send(String to, SpaAlertSms.Kind kind, String message, List<String> values, String token, String reference) {
         if (whatsApp.enabled()) {
@@ -180,15 +206,10 @@ public class SpaBookingAlerts {
                 whatsApp.send(to, kind, values, token);
                 return;
             } catch (RuntimeException e) {
-                log.warn("{} WhatsApp to the spa for booking {} failed, trying SMS: {}", kind, reference, e.getMessage());
+                log.warn("{} WhatsApp delivery failed for booking {}; trying SMS", kind, reference);
             }
         }
-        try {
-            sms.send(to, kind, message);
-        } catch (RuntimeException e) {
-            if (kind != SpaAlertSms.Kind.REMINDER) throw e;
-            log.warn("{} SMS to the spa for booking {} failed: {}", kind, reference, e.getMessage());
-        }
+        sms.send(to, kind, message);
     }
 
     private static String time(Instant at, Booking b) {

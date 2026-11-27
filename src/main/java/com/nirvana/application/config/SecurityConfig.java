@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/public/discovery/**",
                                 // A spa answers its booking SMS from a private link, without an account.
                                 "/api/public/spa-bookings/**",
+                                "/api/public/support/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",

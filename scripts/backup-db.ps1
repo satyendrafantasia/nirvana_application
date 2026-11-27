@@ -154,8 +154,9 @@ function Remove-OldBackups([string]$Dir, [int]$Keep) {
 Remove-OldBackups $daily $KeepDaily
 Remove-OldBackups $weekly $KeepWeekly
 
-[IO.File]::WriteAllText((Join-Path $BackupDir 'last-success'), (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'") + "`n")
+[IO.File]::WriteAllText((Join-Path $BackupDir 'last-local-success'), (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'") + "`n")
 
+if ($env:BACKUP_REQUIRE_REMOTE -eq 'true' -and -not $env:BACKUP_S3_BUCKET) { Write-Log 'ERROR: remote backup required; set BACKUP_S3_BUCKET'; exit 2 }
 if ($env:BACKUP_S3_BUCKET) {
     $prefix = if ($env:BACKUP_S3_PREFIX) { $env:BACKUP_S3_PREFIX.TrimEnd('/') } else { 'nirvana/db' }
     $ok = (Send-ToS3 $final "$prefix/daily/$name") -and (Send-ToS3 "$final.sha256" "$prefix/daily/$name.sha256")
@@ -163,7 +164,9 @@ if ($env:BACKUP_S3_BUCKET) {
         $ok = (Send-ToS3 $final "$prefix/weekly/$name") -and (Send-ToS3 "$final.sha256" "$prefix/weekly/$name.sha256")
     }
     if (-not $ok) { Write-Log "ERROR: S3 upload failed; the local backup $final is kept"; exit 2 }
+    Copy-Item -LiteralPath (Join-Path $BackupDir 'last-local-success') -Destination (Join-Path $BackupDir 'last-remote-success') -Force
     Write-Log "uploaded to s3://$($env:BACKUP_S3_BUCKET)/$prefix/"
 }
+Copy-Item -LiteralPath (Join-Path $BackupDir 'last-local-success') -Destination (Join-Path $BackupDir 'last-success') -Force
 Write-Log 'done'
 exit 0

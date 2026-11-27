@@ -78,7 +78,8 @@ public class User extends BaseEntity {
     @Column(name = "mfa_enabled", nullable = false)
     @Builder.Default
     private Boolean mfaEnabled = false;
-    @Column(name = "last_login_at")
+    // The sign-in update owns this column. A profile loaded before login must preserve its new timestamp.
+    @Column(name = "last_login_at", updatable = false)
     private OffsetDateTime lastLoginAt;
     /** Access tokens issued before this moment are no longer accepted. */
     @Column(name = "credentials_changed_at")

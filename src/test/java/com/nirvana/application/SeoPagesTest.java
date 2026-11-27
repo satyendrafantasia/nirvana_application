@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** What search engines and link previews get: sitemap, robots and server-rendered spa pages. */
 @SpringBootTest(properties = {
         "seo.public-origin=https://nirvana.example.com",
+        "inventory.hide-fixtures=false",
         "seo.app-shell=src/test/resources/seo/app-shell.html"})
 @AutoConfigureMockMvc @Transactional
 class SeoPagesTest {

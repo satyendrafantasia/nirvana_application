@@ -19,11 +19,13 @@ public class RazorpayConfig {
 
     @Bean
     public RazorpayClient razorpayClient() throws RazorpayException {
-        if (!props.readyForCheckout()) {
+        if (!props.credentialsConfigured()) {
             log.warn("Razorpay disabled via config");
             return null;
         }
-        log.info("event=payment.gateway_initialized gateway=razorpay");
+        if (!props.readyForCheckout())
+            log.warn("event=payment.checkout_disabled reason=missing_webhook_secret");
+        else log.info("event=payment.gateway_initialized gateway=razorpay");
         return new RazorpayClient(props.getKeyId(), props.getKeySecret());
     }
 }

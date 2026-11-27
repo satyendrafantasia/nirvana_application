@@ -1,9 +1,11 @@
 import { CheckoutPreview, checkoutLines, money } from '../../api/rewardsApi';
 
 /** The price, line by line, in the order the server applies discounts, points and gift cards. */
-export default function CheckoutSummary({ preview, payAtSpa }: { preview: CheckoutPreview; payAtSpa?: boolean }) {
+export default function CheckoutSummary({ preview, payAtSpa, wallet = false }: { preview: CheckoutPreview; payAtSpa?: boolean; wallet?: boolean }) {
   const lines = checkoutLines(preview);
   const last = lines[lines.length - 1];
+  const used = wallet ? preview.walletCents ?? 0 : preview.giftCardCents;
+  const balance = wallet ? preview.walletBalanceCents ?? 0 : preview.giftCardBalanceCents;
   return (
     <section aria-label="Price summary" className="rounded-xl border border-slate-200 bg-white p-4">
       <dl className="space-y-1 text-sm">
@@ -24,15 +26,15 @@ export default function CheckoutSummary({ preview, payAtSpa }: { preview: Checko
           Nothing left to pay. Your appointment is confirmed when you book.
         </p>
       ) : (
-        preview.giftCardCents > 0 && (
+        used > 0 && (
           <p className="mt-2 text-sm text-slate-600">
             {money(last.cents, preview.currency)} {payAtSpa ? 'to pay at the spa' : 'to pay now'}.
           </p>
         )
       )}
-      {preview.giftCardCents > 0 && preview.giftCardBalanceCents > preview.giftCardCents && (
+      {used > 0 && balance > used && (
         <p className="mt-1 text-xs text-slate-500">
-          {money(preview.giftCardBalanceCents - preview.giftCardCents, preview.currency)} stays on your gift card.
+          {money(balance - used, preview.currency)} {wallet ? 'stays in your wallet.' : 'stays on your gift card.'}
         </p>
       )}
       {preview.couponError && (
@@ -40,9 +42,9 @@ export default function CheckoutSummary({ preview, payAtSpa }: { preview: Checko
           Coupon not applied: {preview.couponError}
         </p>
       )}
-      {preview.giftCardError && (
+      {(preview.giftCardError || preview.walletError) && (
         <p role="alert" className="mt-2 text-sm text-rose-700">
-          Gift card not applied: {preview.giftCardError}
+          {wallet ? 'Wallet credit' : 'Gift card'} not applied: {preview.walletError || preview.giftCardError}
         </p>
       )}
     </section>

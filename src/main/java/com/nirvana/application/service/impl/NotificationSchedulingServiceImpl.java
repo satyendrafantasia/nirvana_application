@@ -32,14 +32,18 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     @Override public void bookingRescheduled(Booking booking) { enqueue(booking, Event.RESCHEDULED); }
 
     private final com.nirvana.application.service.OwnerPush ownerPush;
+    private final com.nirvana.application.service.AppointmentRequestAlerts requestAlerts;
 
     enum Audience { CUSTOMER_EMAIL, CUSTOMER_WHATSAPP, SPA_EMAIL, SPA_MOBILE, SPA_PUSH }
 
     private void enqueue(Booking booking, Event event) {
-        int revision = booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount();
+        int revision = booking.getNotificationRevision();
+        if (event != Event.CANCELLED && booking.getStatus() == BookingStatus.CONFIRMED) spaAlerts.prepare(booking);
         for (Audience audience : Audience.values()) {
+            boolean spaAudience = audience == Audience.SPA_EMAIL || audience == Audience.SPA_MOBILE || audience == Audience.SPA_PUSH;
+            if (spaAudience && event == Event.RESCHEDULED && booking.getStatus() == BookingStatus.PENDING_PAYMENT) continue;
             if (audience == Audience.SPA_PUSH) {
-                if (event == Event.CONFIRMED) ownerPush.enqueue(booking.getId(), booking.getSpa().getId(), revision);
+                if (event != Event.CANCELLED) ownerPush.enqueue(booking.getId(), booking.getSpa().getId(), revision,event.name());
                 continue;
             }
             if (event == Event.CANCELLED && (audience == Audience.SPA_EMAIL || audience == Audience.SPA_MOBILE) &&
@@ -78,13 +82,30 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
 
     private void process(long id) {
         var rows = jdbc.queryForList("""
-                SELECT booking_id,event_kind,audience,revision,device_id FROM booking_alert_job
+                SELECT booking_id,request_id,event_kind,audience,revision,device_id FROM booking_alert_job
                 WHERE id=? AND state='PENDING' AND next_attempt<=CURRENT_TIMESTAMP FOR UPDATE
                 """, id);
         if (rows.isEmpty()) return;
         var row = rows.get(0);
+        String kind = (String)row.get("event_kind");
+        if (row.get("request_id") instanceof Number request) {
+            String state;
+            try { state = requestAlerts.deliver(request.longValue(),kind) ? "DONE" : "OBSOLETE"; }
+            catch (com.nirvana.application.service.BookingContactUnavailable unavailable) { state = "NEEDS_CONTACT"; }
+            jdbc.update("UPDATE booking_alert_job SET state=? WHERE id=?",state,id);
+            return;
+        }
         var booking = bookingRepository.findById(((Number)row.get("booking_id")).longValue()).orElse(null);
-        var event = Event.valueOf((String)row.get("event_kind"));
+        if ("REMINDER".equals(kind)) {
+            String state = "OBSOLETE";
+            if (booking != null && booking.getStatus() == BookingStatus.CONFIRMED && sameRevision(booking,row)) {
+                try { state = spaAlerts.remind(booking) ? "DONE" : "OBSOLETE"; }
+                catch (com.nirvana.application.service.BookingContactUnavailable unavailable) { state = "NEEDS_CONTACT"; }
+            }
+            jdbc.update("UPDATE booking_alert_job SET state=? WHERE id=?",state,id);
+            return;
+        }
+        var event = Event.valueOf(kind);
         var audience = Audience.valueOf((String)row.get("audience"));
         boolean current = booking != null && switch (event) {
             case CANCELLED -> booking.getStatus() == BookingStatus.CANCELLED;
@@ -97,12 +118,10 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
         if (current) {
             try {
                 if (audience == Audience.SPA_PUSH) {
-                    ownerPush.send(((Number)row.get("device_id")).longValue(), booking.getId(), booking.getSpa().getId());
+                    ownerPush.send(((Number)row.get("device_id")).longValue(), booking.getId(), booking.getSpa().getId(),event.name());
                 } else dispatch(booking, event, audience);
                 state = "DONE";
-                if (audience == Audience.SPA_MOBILE && event != Event.CANCELLED
-                        && com.nirvana.application.service.SpaAlertSms.mobile(booking.getSpa().getPhone()).isEmpty())
-                    state = "NEEDS_CONTACT";
+
             } catch (com.nirvana.application.service.BookingContactUnavailable unavailable) {
                 state = "NEEDS_CONTACT";
             }
@@ -111,7 +130,7 @@ public class NotificationSchedulingServiceImpl implements NotificationScheduling
     }
 
     private boolean sameRevision(Booking booking, java.util.Map<String,Object> row) {
-        return ((Number)row.get("revision")).intValue() == (booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount());
+        return ((Number)row.get("revision")).intValue() == booking.getNotificationRevision();
     }
 
     private void dispatch(Booking booking, Event event, Audience audience) {

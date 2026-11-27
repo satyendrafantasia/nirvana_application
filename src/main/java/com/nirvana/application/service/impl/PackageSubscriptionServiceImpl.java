@@ -93,6 +93,17 @@ public class PackageSubscriptionServiceImpl implements PackageSubscriptionServic
         return response;
     }
 
+    /** Older clients may confirm the result of checkout without creating another debit. */
+    @Override
+    @Transactional(readOnly = true)
+    public PackageUsageConsumeResponse existingRedemption(Long userId, PackageUsageConsumeRequest request) {
+        var usage = usageLogRepository.findFirstByBooking_IdAndUser_IdAndSpa_IdOrderByIdAsc(
+                request.getBookingId(), userId, request.getSpaId()).orElseThrow(() ->
+                new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                        "Choose your Nirvana package during appointment checkout to redeem a session."));
+        return redemption(usage.getBooking().getId(), usage.getSubscription(), usage.getSessionNumber());
+    }
+
     @Override
     @Transactional
     public PackageUsageConsumeResponse consumePackageSession(Long userId, PackageUsageConsumeRequest request) {
@@ -146,12 +157,16 @@ public class PackageSubscriptionServiceImpl implements PackageSubscriptionServic
         booking.setLastStatusChangedAt(now);
         bookingRepository.save(booking);
 
+        return redemption(booking.getId(), subscription, nextSessionNumber);
+    }
+
+    private PackageUsageConsumeResponse redemption(Long bookingId, UserPackageSubscription subscription, int session) {
         PackageUsageConsumeResponse response = new PackageUsageConsumeResponse();
-        response.setBookingId(booking.getId());
+        response.setBookingId(bookingId);
         response.setSubscriptionId(subscription.getId());
         response.setRemainingSessions(subscription.getRemainingSessions());
         response.setStatus(subscription.getStatus());
-        response.setSessionNumber(nextSessionNumber);
+        response.setSessionNumber(session);
         return response;
     }
 

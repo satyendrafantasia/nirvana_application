@@ -55,6 +55,7 @@ export interface CreatedBooking {
   totalCents: number;
   currency: string;
   /** Paid from a gift card; totalCents is what is still to pay. */
+  walletCents?: number;
   giftCardCents?: number;
   loyaltyPointsRedeemed?: number;
   razorpay?: PaymentIntent;
@@ -88,6 +89,7 @@ interface BookingWire {
   paymentMode: 'ONLINE' | 'OFFLINE';
   canCancel: boolean;
   invoiceAvailable?: boolean;
+  spaAcknowledged?: boolean;
   refundStatus?: string;
 }
 export const getUserBookings = async (
@@ -117,12 +119,17 @@ export const getUserBookings = async (
       status: b.status,
       paymentMode: b.paymentMode,
       invoiceAvailable: b.invoiceAvailable,
-      canCancel: b.canCancel
-      ,refundStatus:b.refundStatus
+      canCancel: b.canCancel,
+      spaAcknowledged: b.spaAcknowledged,
+      refundStatus: b.refundStatus
     }))
   };
 };
 export interface CancellationQuote {
+  walletFeeCents?: number;
+  walletRefundCents?: number;
+  giftCardFeeCents?: number;
+  giftCardRefundCents?: number;
   feeCents: number;
   refundCents: number;
   currency: string;

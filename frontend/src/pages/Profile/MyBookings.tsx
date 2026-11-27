@@ -1,3 +1,4 @@
+import CancellationBreakdown from './CancellationBreakdown';
 import { Requests } from '../Owner/AppointmentOperations';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -99,6 +100,7 @@ export default function MyBookings() {
             {b.status.replaceAll('_', ' ')} ·{' '}
             {b.paymentMode === 'OFFLINE' ? 'Pay at spa' : 'Online payment'}
           </p>
+          {b.status === 'CONFIRMED' && <p>{b.spaAcknowledged ? 'Confirmed by the spa' : 'Awaiting a reply from the spa'}</p>}
           {b.therapistName && <p>Therapist: {b.therapistName}</p>}
           {b.refundStatus && b.refundStatus !== 'NONE' && <p>Refund: {b.refundStatus.toLowerCase()}</p>}
           <div className="flex gap-2 flex-wrap">
@@ -145,12 +147,7 @@ export default function MyBookings() {
               <p>Cancel this appointment?</p>
               {quote.isFetching && <p role="status">Checking cancellation terms…</p>}
               {quote.isError && <p role="alert">{errorMessage(quote.error)}</p>}
-              {quote.data && <div>
-                <p>Cancellation fee: {money(quote.data.feeCents, quote.data.currency)}</p>
-                <p>Expected refund: {money(quote.data.refundCents, quote.data.currency)}
-                  {quote.data.refundCents > 0 && (quote.data.route === 'WALLET_CREDIT' ? ' to your Nirvana wallet' : ' to your original payment method')}</p>
-                {quote.data.packageSession && <p>Your package session will be returned.</p>}
-              </div>}
+              {quote.data && <CancellationBreakdown quote={quote.data} />}
               <Button
                 disabled={action.isPending || !quote.data || quote.isError || quote.isFetching}
                 onClick={() => action.mutate({ kind: 'cancel', b })}

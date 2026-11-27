@@ -22,6 +22,12 @@ describe('owner booking push', () => {
     listeners.get('notificationclick')!({ notification: { data: options.data, close: vi.fn() }, waitUntil: vi.fn() });
     expect(openWindow).toHaveBeenCalledWith('/owner/booking-alerts/42');
   });
+  it('opens the updated booking when its time changes', () => {
+    const { listeners, showNotification } = worker();
+    listeners.get('push')!({ data: { json: () => ({ data: { bookingId: '42', event: 'RESCHEDULED' } }) }, waitUntil: vi.fn() });
+    expect(showNotification.mock.calls[0][0]).toBe('Nirvana booking rescheduled');
+  });
+
   it('ignores invalid booking IDs', () => {
     const { listeners, showNotification } = worker();
     listeners.get('push')!({ data: { json: () => ({ data: { bookingId: 'https://example.org' } }) } });

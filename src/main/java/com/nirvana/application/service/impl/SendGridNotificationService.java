@@ -32,6 +32,11 @@ public class SendGridNotificationService implements NotificationService {
     private final SendGridProperties properties;
 
     @Override
+    public void sendRequestUpdate(String email, String subject, String html) {
+        sendEmail(email, subject, html, "BOOKING_REQUEST");
+    }
+
+    @Override
     public void notifySpaOwnerBookingConfirmed(Booking booking) {
         toSpa(booking, BookingEmailContent.ownerConfirmed(booking, properties.getOwnerSubject()));
     }

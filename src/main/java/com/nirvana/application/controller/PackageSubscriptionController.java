@@ -48,7 +48,7 @@ public class PackageSubscriptionController {
     @PostMapping("/use")
     public PackageUsageConsumeResponse usePackage(@Valid @RequestBody PackageUsageConsumeRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
-        return packageSubscriptionService.consumePackageSession(userId, request);
+        return packageSubscriptionService.existingRedemption(userId, request);
     }
 
     @GetMapping("/usage-history")

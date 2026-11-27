@@ -1,9 +1,10 @@
 // Firebase sends a data message; the private booking details are fetched after sign-in.
 self.addEventListener('push', event => {
-  let id;
-  try { id = event.data?.json()?.data?.bookingId; } catch { return; }
+  let data;
+  try { data = event.data?.json()?.data; } catch { return; }
+  const id = data?.bookingId;
   if (typeof id !== 'string' || !/^[1-9][0-9]{0,18}$/.test(id)) return;
-  event.waitUntil(self.registration.showNotification('New Nirvana booking', {
+  event.waitUntil(self.registration.showNotification(data.event === 'RESCHEDULED' ? 'Nirvana booking rescheduled' : 'New Nirvana booking', {
     body: 'Open the booking to confirm or decline.',
     tag: 'nirvana-booking-' + id,
     icon: '/apple-touch-icon.png',

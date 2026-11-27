@@ -170,6 +170,18 @@ class GstInvoiceTest {
         assertFalse(html.contains("CGST"), "no GST lines on a bill of supply");
     }
 
+    @Test void aWalletFundedAppointmentGetsItsInvoiceAndOneCreditForTheReturnedTender() {
+        long b = booking(10000, 0, 1800);
+        db.update("UPDATE booking SET remainder_cents=0 WHERE id=?", b);
+        long user = db.queryForObject("SELECT user_id FROM booking WHERE id=?", Long.class, b);
+        db.update("INSERT INTO booking_wallet_balance(user_id,currency,balance_cents) VALUES(?,'INR',0) ON DUPLICATE KEY UPDATE user_id=user_id", user);
+        db.update("INSERT INTO booking_wallet_spend(booking_id,user_id,currency,amount_cents) VALUES(?,?,'INR',11800)", b,user);
+        assertEquals(11800, gst.issueForBooking(b).orElseThrow().totalCents());
+        db.update("UPDATE booking_wallet_spend SET returned_at=UTC_TIMESTAMP(), returned_cents=5900 WHERE booking_id=?", b);
+        assertEquals(5900, gst.creditBookingRefunds(b).get(0).totalCents());
+        assertTrue(gst.creditBookingRefunds(b).isEmpty());
+    }
+
     @Test void anUnpaidBookingHasNoInvoiceYet() {
         long b = booking(250000, 0, 45000);
         assertTrue(gst.issueForBooking(b).isEmpty());

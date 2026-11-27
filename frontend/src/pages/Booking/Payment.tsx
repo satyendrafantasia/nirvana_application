@@ -106,6 +106,11 @@ export default function Payment({
   const [coupon, setCoupon] = useState('');
   const [loyalty, setLoyalty] = useState(false);
   const [giftCard, setGiftCard] = useState('');
+  const [useWallet, setUseWallet] = useState(false);
+  const wallet = useQuery({
+    queryKey: ['my-wallet'],
+    queryFn: async () => (await client.get<{currency: string; balance: number}[]>('/api/me/wallet')).data
+  });
   // Codes are priced when the field is left, not on every key press.
   const [applied, setApplied] = useState({ coupon: '', giftCard: '' });
   const [usePackage, setUsePackage] = useState(false);
@@ -118,7 +123,7 @@ export default function Payment({
   const method = options.data?.online ? (state.paymentMode ?? 'ONLINE') : 'OFFLINE';
   const byPackage = usePackage || useSpaPackage;
   const preview = useQuery({
-    queryKey: ['checkout-preview', state.spaId, state.service?.id, state.selectedSlot?.id, state.guests, applied, loyalty],
+    queryKey: ['checkout-preview', state.spaId, state.service?.id, state.selectedSlot?.id, state.guests, applied, loyalty, useWallet],
     enabled: !!state.spaId && !!state.service && !byPackage && !created,
     placeholderData: (previous) => previous,
     queryFn: () =>
@@ -129,7 +134,8 @@ export default function Payment({
         guests: state.guests,
         couponCode: applied.coupon || undefined,
         redeemLoyaltyPoints: loyalty,
-        giftCardCode: applied.giftCard || undefined
+        giftCardCode: useWallet ? undefined : applied.giftCard || undefined,
+        useWalletCredit: useWallet || undefined
       })
   });
   const points = preview.data?.pointsBalance;
@@ -164,13 +170,16 @@ export default function Payment({
           specialRequest: state.notes,
           couponCode: coupon.trim() || undefined,
           redeemLoyaltyPoints: loyalty,
-          giftCardCode: byPackage ? undefined : giftCard.trim() || undefined,
+          giftCardCode: byPackage || useWallet ? undefined : giftCard.trim() || undefined,
+          useWalletCredit: !byPackage && useWallet || undefined,
+          expectedWalletCents: !byPackage && useWallet ? preview.data?.walletCents : undefined,
           payWithPackage: usePackage,
           payWithSpaPackage: useSpaPackage,
           bookingSource: 'WEB'
         }));
       if (!created && coupon.trim() && !usePackage && !useSpaPackage) track('coupon_applied');
       setCreated(booking);
+      if (useWallet) void qc.invalidateQueries({ queryKey: ['my-wallet'] });
       let status = booking.status;
       let paymentMode = booking.paymentMode;
       if (created && method === 'OFFLINE' && booking.status === 'PENDING_PAYMENT') {
@@ -192,7 +201,18 @@ export default function Payment({
         status
       };
     },
-    onError: err => {track('booking_failed');void qc.invalidateQueries({queryKey:['slots']});if(!created && axios.isAxiosError(err) && err.response?.status === 409){setSlot(undefined);onTimeConflict();}},
+    onError: err => {
+      track('booking_failed');
+      if (axios.isAxiosError(err) && err.response?.status === 422 && useWallet) {
+        setUseWallet(false);
+        void qc.invalidateQueries({ queryKey: ['my-wallet'] });
+        void qc.invalidateQueries({ queryKey: ['checkout-preview'] });
+      } else if (!created && axios.isAxiosError(err) && err.response?.status === 409) {
+        void qc.invalidateQueries({ queryKey: ['slots'] });
+        setSlot(undefined);
+        onTimeConflict();
+      }
+    },
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['my-bookings'] });
       if (loyalty) void qc.invalidateQueries({ queryKey: ['loyalty'] }); // the balance changed
@@ -242,13 +262,17 @@ export default function Payment({
             </span>
           )}
         </label>
+        {wallet.data?.some(w => w.currency === preview.data?.currency && w.balance > 0) && <label className="block">
+          <input type="checkbox" disabled={byPackage} checked={useWallet} onChange={e => setUseWallet(e.target.checked)} />{' '}
+          Use my cancellation wallet credit ({money(wallet.data.find(w => w.currency === preview.data?.currency)!.balance, preview.data!.currency)})
+        </label>}
         <label className="block">
           Gift card code
           <input
             className="block border rounded-xl p-3 w-full uppercase"
             value={giftCard}
             maxLength={32}
-            disabled={byPackage}
+            disabled={byPackage || useWallet}
             placeholder="NVG-XXXX-XXXX-XXXX"
             onChange={(e) => setGiftCard(e.target.value)}
             onBlur={() => setApplied((a) => ({ ...a, giftCard: giftCard.trim() }))}
@@ -297,12 +321,13 @@ export default function Payment({
                 : eligibility.data?.reason || 'This package cannot be used for this appointment.'}
         </p>
       )}
-      {!created && !byPackage && preview.data && <CheckoutSummary preview={preview.data} payAtSpa={method === 'OFFLINE'} />}
+      {!created && !byPackage && preview.data && <CheckoutSummary wallet={useWallet} preview={preview.data} payAtSpa={method === 'OFFLINE'} />}
       {created && (
         <p>
           Reference: {created.bookingReference} ·{' '}
           {created.giftCardCents ? `Gift card ${money(created.giftCardCents, created.currency)} · ` : ''}
-          {created.giftCardCents ? 'Left to pay' : 'Total'}: {money(created.totalCents, created.currency)}
+          {created.walletCents ? `Wallet credit ${money(created.walletCents, created.currency)} · ` : ''}
+          {created.giftCardCents || created.walletCents ? 'Left to pay' : 'Total'}: {money(created.totalCents, created.currency)}
         </p>
       )}
       {mutation.isError && (
@@ -317,6 +342,7 @@ export default function Payment({
         <Button
           disabled={
             mutation.isPending || options.isPending ||
+            (!created && !byPackage && useWallet && (preview.isFetching || !preview.data?.walletCents || !!preview.data.walletError)) ||
             (!created && (usePackage || useSpaPackage) && eligibility.data?.canUse !== true)
           }
           onClick={() => {

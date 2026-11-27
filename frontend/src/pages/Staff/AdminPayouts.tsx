@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BookingRefunds from './BookingRefunds';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../../api/client';
@@ -75,6 +76,7 @@ export default function AdminPayouts() {
         </p>
       )}
       {run.isError && <p role="alert">{errorMessage(run.error)}</p>}
+      <BookingRefunds />
       <nav aria-label="Payout status" className="flex flex-wrap gap-2">
         {FILTERS.map(([value, text]) => (
           <button

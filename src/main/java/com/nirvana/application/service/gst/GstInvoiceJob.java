@@ -36,6 +36,7 @@ public class GstInvoiceJob {
                 SELECT b.id FROM booking b WHERE b.payment_type<>'PAID_BY_PACKAGE' AND b.updated_at>=UTC_TIMESTAMP()-INTERVAL ? DAY
                   AND NOT EXISTS (SELECT 1 FROM gst_document g WHERE g.source_key=CONCAT('BOOKING:',b.id))
                   AND (EXISTS (SELECT 1 FROM payment p WHERE p.booking_id=b.id AND p.payment_status IN ('CAPTURED','COMPLETED','PARTIALLY_REFUNDED','REFUNDED'))
+                    OR (b.remainder_cents=0 AND EXISTS (SELECT 1 FROM booking_wallet_spend w WHERE w.booking_id=b.id))
                     OR (b.payment_mode='OFFLINE' AND (b.status='COMPLETED' OR EXISTS (SELECT 1 FROM spa_desk_receipt d WHERE d.booking_id=b.id))))
                 ORDER BY b.id LIMIT 500""", Long.class, lookbackDays), gst::issueForBooking);
         // Refunds with no credit note yet.
@@ -44,9 +45,12 @@ public class GstInvoiceJob {
                 WHERE f.recorded_at>=UTC_TIMESTAMP()-INTERVAL ? DAY
                   AND NOT EXISTS (SELECT 1 FROM gst_document g WHERE g.source_key=CONCAT('REFUND:BOOKING:',f.payment_id,':',f.cumulative_cents))
                 UNION
+                SELECT w.booking_id FROM booking_wallet_spend w WHERE w.returned_cents>0 AND w.returned_at>=UTC_TIMESTAMP()-INTERVAL ? DAY
+                  AND NOT EXISTS (SELECT 1 FROM gst_document g WHERE g.source_key=CONCAT('REFUND:WALLET:',w.booking_id))
+                UNION
                 SELECT DISTINCT d.booking_id FROM spa_desk_receipt d WHERE d.returned_at>=UTC_TIMESTAMP()-INTERVAL ? DAY
                   AND NOT EXISTS (SELECT 1 FROM gst_document g WHERE g.source_key=CONCAT('REFUND:DESK:',d.id))
-                LIMIT 500""", Long.class, lookbackDays, lookbackDays), gst::creditBookingRefunds);
+                LIMIT 500""", Long.class, lookbackDays, lookbackDays, lookbackDays), gst::creditBookingRefunds);
         each("package invoice", db.queryForList("""
                 SELECT x.id FROM user_spa_package_subscription x WHERE x.payment_status='SUCCESS'
                   AND COALESCE(x.collected_at,x.purchase_date)>=UTC_TIMESTAMP()-INTERVAL ? DAY
@@ -68,9 +72,11 @@ public class GstInvoiceJob {
                 SELECT s.id FROM spa s WHERE s.commission_pct>0
                   AND NOT EXISTS (SELECT 1 FROM gst_document g WHERE g.source_key=CONCAT('COMMISSION:',s.id,':',?))
                   AND (EXISTS (SELECT 1 FROM booking b JOIN payment p ON p.booking_id=b.id WHERE b.spa_id=s.id AND p.captured_at BETWEEN ? AND ?)
+                    OR EXISTS (SELECT 1 FROM booking_wallet_spend w JOIN booking b ON b.id=w.booking_id WHERE b.spa_id=s.id
+                               AND (w.spent_at BETWEEN ? AND ? OR w.returned_at BETWEEN ? AND ?))
                     OR EXISTS (SELECT 1 FROM user_spa_package_subscription x WHERE x.spa_id=s.id AND x.payment_status='SUCCESS'
                                AND COALESCE(x.collected_at,x.purchase_date) BETWEEN ? AND ?))
-                ORDER BY s.id LIMIT 500""", Long.class, last.toString(), from, to, from, to), id -> gst.issueCommission(id, last));
+                ORDER BY s.id LIMIT 500""", Long.class, last.toString(), from, to, from, to, from, to, from, to), id -> gst.issueCommission(id, last));
     }
 
     /** Each in its own transaction (through the service's proxy), so one failure doesn't stop the rest. */

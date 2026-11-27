@@ -14,6 +14,9 @@ public class BookingCancelResponse {
     BookingStatus status;
     boolean refundInitiated;
     Integer refundAmountCents;
+    Integer paymentRefundCents;
+    Integer walletRefundCents;
+    Integer giftCardRefundCents;
     RefundStatus refundStatus;
     RefundRoute refundRoute;
 }

@@ -250,7 +250,11 @@ class RewardsTest {
         // A late cancellation keeps the fee share of the gift card amount, like a card payment.
         sync();
         var booking = bookings.findById(firstId).orElseThrow();
+        var giftReturn = loyalty.giftCardReturnQuote(booking, 50);
+        assertEquals(PLAIN_TOTAL / 2, giftReturn.refund());
+        assertEquals(PLAIN_TOTAL - giftReturn.refund(), giftReturn.fee());
         loyalty.returnRedeemed(booking, 50);
+        assertEquals(0, loyalty.giftCardReturnQuote(booking, 50).refund());
         assertEquals(5_000 + PLAIN_TOTAL / 2, ((Number) card(code).get("balance_cents")).intValue());
 
         var report = call(get("/api/owner/spas/1/gift-cards"), 2, "ROLE_SPA_OWNER", null);
@@ -303,7 +307,7 @@ class RewardsTest {
                 .put("currency", "INR").put("status", "captured").put("captured", true).put("amount_refunded", 0);
         org.mockito.Mockito.when(gateway.payments.fetch("pay_gift_1")).thenAnswer(i -> new com.razorpay.Payment(remote));
         var props = new com.nirvana.application.config.RazorpayProperties();
-        props.setEnabled(true); props.setKeyId("key"); props.setKeySecret("secret");
+        props.setEnabled(true); props.setKeyId("key"); props.setWebhookSecret("test-webhook"); props.setKeySecret("secret");
         var mail = org.mockito.Mockito.mock(com.nirvana.application.otp.sender.EmailSender.class);
         @SuppressWarnings("unchecked")
         org.springframework.beans.factory.ObjectProvider<com.nirvana.application.otp.sender.EmailSender> mailer =

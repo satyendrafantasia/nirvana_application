@@ -90,14 +90,12 @@ public class BookingLifecycleJob {
     }
 
     private boolean gatewayConfirmsUnpaid(Long bookingId) {
-        if (!razorpayProperties.isEnabled()) {
-            return true; // no gateway is connected, so nothing can have been captured
-        }
         for (Payment payment : paymentRepository.findByBookingId(bookingId)) {
             boolean open = payment.getPaymentStatus() == PaymentStatus.INIT || payment.getPaymentStatus() == PaymentStatus.PENDING;
             if (!open || !"RAZORPAY".equals(payment.getGateway()) || payment.getIntentId() == null) {
                 continue;
             }
+            if (!razorpayProperties.credentialsConfigured()) return false;
             try {
                 paymentService.reconcilePendingOrder(payment.getIntentId());
             } catch (RuntimeException ex) {

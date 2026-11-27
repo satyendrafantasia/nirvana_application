@@ -45,7 +45,7 @@ public class BookingController {
 
     @GetMapping("/me/wallet")
     public java.util.List<java.util.Map<String,Object>> wallet() {
-        return jdbc.queryForList("SELECT currency,SUM(amount_cents) AS balance FROM booking_wallet_credit WHERE user_id=? GROUP BY currency",
+        return jdbc.queryForList("SELECT currency,balance_cents AS balance FROM booking_wallet_balance WHERE user_id=? AND balance_cents>0 ORDER BY currency",
                 SecurityUtils.getCurrentUserId());
     }
 

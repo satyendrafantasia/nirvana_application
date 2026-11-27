@@ -26,10 +26,10 @@ export const DECLINE_REASONS = [
 
 /** What the spa needs to know first, in a sentence. */
 export function headline(b: SpaBookingView) {
-  if (b.status === 'DECLINED') return 'You declined this booking. The guest has been told.';
+  if (b.status === 'DECLINED') return 'You declined this booking. The appointment is cancelled.';
   if (b.bookingStatus === 'CANCELLED' || b.status === 'CLOSED') return 'This booking was cancelled. The time is free again.';
   if (b.status === 'CONFIRMED') return 'You confirmed this booking. Thank you!';
-  if (b.status === 'AUTO_CONFIRMED') return 'This booking is confirmed. Please expect the guest.';
+  if (['NEEDS_CONTACT', 'AUTO_CONFIRMED'].includes(b.status)) return 'Your reply is overdue. Can you still take this booking?';
   return 'New booking. Can you take it?';
 }
 
@@ -127,7 +127,7 @@ const SpaBookingReply = ({ owner = false }: { owner?: boolean }) => {
                 </Button>
               )}
               <Button size="lg" variant="secondary" disabled={answer.isPending} onClick={() => setDeclining(true)}>
-                {b.status === 'CONFIRMED' || b.status === 'AUTO_CONFIRMED' ? "We can't take it after all" : 'Decline'}
+                {b.status === 'CONFIRMED' ? "We can't take it after all" : 'Decline'}
               </Button>
               {b.status === 'PENDING' && (
                 <p className="text-sm text-slate-600">

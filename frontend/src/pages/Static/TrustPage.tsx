@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { deletionDate } from '../../api/accountApi';
 import { TrackingChoice } from '../../telemetry';
+const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL?.trim() || 'contact@nirvana-spa.in';
+
 export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
   // Set by account settings right after a deletion request.
   const requested = (useLocation().state as { deletionDate?: string } | null)?.deletionDate;
@@ -13,7 +15,7 @@ export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
         </p>
       )}
       <h1 className="text-3xl">{kind === 'privacy' ? 'Privacy policy' : 'Booking terms'}</h1>
-      <p>Draft for business and legal review.</p>
+      {import.meta.env.VITE_OPERATOR_NAME && <p>Operated by {import.meta.env.VITE_OPERATOR_NAME}.</p>}
       {kind === 'privacy' ? (
         <>
           <h2>Accounts and appointments</h2>
@@ -83,8 +85,7 @@ export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
             it.
           </p>
           <p>
-            The operator must confirm other retention periods and a public privacy contact before
-            launch.
+            For questions about your records or their retention, open a privacy request through booking support.
           </p>
           <Link to="/me/settings" className="underline">
             Account settings
@@ -110,13 +111,13 @@ export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
             and total before submitting an appointment.
           </p>
           <p>
-            The operator must approve the final cancellation, refund and dispute terms before
-            launch.
+            Before confirming a cancellation, review the amount and refund route shown for your appointment. Include your booking reference when asking support about a charge or a refund.
           </p>
         </>
       )}
+      <p>For privacy or booking enquiries, email <a className="underline" href={'mailto:' + supportEmail}>{supportEmail}</a>.</p>
       <p>
-        <Link to="/features/messages" className="underline">
+        <Link to="/support" className="underline">
           Contact booking support
         </Link>
       </p>

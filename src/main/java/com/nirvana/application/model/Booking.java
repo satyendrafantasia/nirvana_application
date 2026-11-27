@@ -184,6 +184,9 @@ public class Booking extends BaseEntity {
     @Column(name = "reschedule_count", nullable = false)
     private Integer rescheduleCount = 0;
 
+    @Column(name = "notification_revision", nullable = false)
+    private int notificationRevision;
+
     // -------- FINANCIALS --------
 
     @Column(name = "price_cents", nullable = false)

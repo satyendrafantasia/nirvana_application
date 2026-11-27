@@ -35,7 +35,7 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
-    private final PaymentService paymentService;
+
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
     private final AuditTrailService auditTrailService;
@@ -44,26 +44,27 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     @Override
     @Transactional
     public RefundResponseDto requestRefund(Long bookingId, Long userId, RefundRequestDto request) {
-        Booking booking = bookingRepository.findByIdAndUserId(bookingId, userId)
+        Booking booking = bookingRepository.findOwnedForUpdate(bookingId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found for user"));
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.NO_SHOW) {
             throw new IllegalStateException("Booking already cancelled or closed");
         }
 
-        if (paymentRefundRepository.existsByBookingIdAndStatus(bookingId, RefundRequestStatus.REQUESTED)) {
+        if (paymentRefundRepository.existsByBookingIdAndStatusIn(bookingId, List.of(RefundRequestStatus.REQUESTED,
+                RefundRequestStatus.PROCESSING, RefundRequestStatus.FAILED, RefundRequestStatus.REVIEW_REQUIRED))) {
             throw new IllegalStateException("Refund already requested for this booking");
         }
 
         Payment payment = paymentRepository
                 .findFirstByBookingIdAndPaymentStatusIn(
                         bookingId,
-                        List.of(PaymentStatus.CAPTURED, PaymentStatus.COMPLETED))
+                        List.of(PaymentStatus.CAPTURED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED))
                 .orElseThrow(() -> new IllegalStateException("No successful payment found for booking"));
 
-        int cappedAmount = request.amountCents() != null
-                ? Math.min(request.amountCents(), payment.getAmountCents())
-                : payment.getAmountCents();
+        int available = BookingRefundRecovery.remaining(payment) - paymentRefundRepository.voucherTotal(payment.getId());
+        int cappedAmount = request.amountCents() == null ? available : request.amountCents();
+        if (cappedAmount <= 0 || cappedAmount > available) throw new IllegalArgumentException("Amount exceeds the remaining refundable balance");
 
         PaymentRefund refund = PaymentRefund.builder()
                 .booking(booking)
@@ -89,10 +90,25 @@ public class RefundManagementServiceImpl implements RefundManagementService {
     @Override
     @Transactional
     public RefundResponseDto approveOrProcessRefund(Long bookingId, Long adminUserId, AdminRefundDecisionRequest request) {
-        PaymentRefund refund = paymentRefundRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId)
+        return decide(bookingId, adminUserId, request, null, null, null);
+    }
+
+    @Transactional
+    public RefundResponseDto decide(long bookingId, long adminUserId, AdminRefundDecisionRequest request,
+                                    Long expectedCase, RefundRequestStatus expectedStatus, Integer expectedAttempt) {
+        bookingRepository.findByIdForUpdate(bookingId).orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+        PaymentRefund refund = (expectedCase == null ? paymentRefundRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId)
+                : paymentRefundRepository.findById(expectedCase).filter(r -> r.getBooking().getId().equals(bookingId)))
                 .orElseThrow(() -> new EntityNotFoundException("No refund request found for booking"));
 
-        if (refund.getStatus() == RefundRequestStatus.COMPLETED) {
+        if (expectedCase != null && (!expectedCase.equals(refund.getId()) || expectedStatus != refund.getStatus()
+                || !java.util.Objects.equals(expectedAttempt, refund.getGatewayAttempt())))
+            throw new IllegalStateException("This refund has changed. Refresh its status before making a decision.");
+        if (refund.getStatus() == RefundRequestStatus.REVIEW_REQUIRED)
+            throw new IllegalStateException("Verify and attach the original Razorpay refund before deciding this case.");
+        if (refund.getStatus() == RefundRequestStatus.FAILED && expectedStatus != RefundRequestStatus.FAILED)
+            throw new IllegalStateException("Review the failed attempt in the booking refund worklist before retrying.");
+        if (List.of(RefundRequestStatus.COMPLETED, RefundRequestStatus.REJECTED, RefundRequestStatus.PROCESSING).contains(refund.getStatus())) {
             return toDto(refund);
         }
 
@@ -114,12 +130,26 @@ public class RefundManagementServiceImpl implements RefundManagementService {
             return toDto(saved);
         }
 
+        int amount = request.amountCents() == null ? refund.getAmountCents() : request.amountCents();
+        int available = BookingRefundRecovery.remaining(refund.getPayment()) - paymentRefundRepository.voucherTotal(refund.getPayment().getId());
+        // Historical cases already posted to the customer ledger. Retry only the positively identified failed amount.
+        boolean historicalRetry = refund.getStatus() == RefundRequestStatus.FAILED && refund.isHistoricalPosting()
+                && refund.getGatewayRefundId() != null && amount == refund.getAmountCents() && !request.issueVoucher();
+        if (amount <= 0 || amount > refund.getAmountCents() || (!historicalRetry && amount > available))
+            throw new IllegalArgumentException("Approval exceeds the remaining refundable balance");
+        if (refund.getStatus() == RefundRequestStatus.FAILED) {
+            refund.setGatewayAttempt(refund.getGatewayAttempt() + 1);
+            refund.setGatewayRefundId(null);
+        }
         refund.setStatus(RefundRequestStatus.PROCESSING);
+        refund.setAmountCents(amount);
+        refund.setReason(request.reason());
         refund.setProcessedBy(resolveUser(adminUserId));
-        refund = paymentRefundRepository.save(refund);
+        refund.setProcessedAt(null);
+        refund.setNextCheckAt(null);
 
         if (Boolean.TRUE.equals(refund.getPreferVoucher()) || request.issueVoucher()) {
-            Voucher voucher = issueVoucherInternal(refund.getBooking(), request.reason(), request.amountCents(), adminUserId);
+            Voucher voucher = issueVoucherInternal(refund.getBooking(), request.reason(), amount, adminUserId);
             refund.setVoucherCode(voucher.getCode());
             refund.setStatus(RefundRequestStatus.COMPLETED);
             refund.setReason(request.reason());
@@ -137,35 +167,12 @@ public class RefundManagementServiceImpl implements RefundManagementService {
             return toDto(saved);
         }
 
-        int amountCents = request.amountCents() != null ? request.amountCents() : refund.getAmountCents();
-        var gatewayRefund = paymentService.refundBookingPayment(bookingId, amountCents, request.reason());
-
-        Payment payment = refund.getPayment();
-        payment.setRefundedCents(payment.getRefundedCents() + amountCents);
-        payment.setPaymentStatus(amountCents < payment.getAmountCents()
-                ? PaymentStatus.PARTIALLY_REFUNDED
-                : PaymentStatus.REFUNDED);
-        paymentRepository.save(payment);
-
-        refund.setGatewayRefundId(gatewayRefund.get("id"));
-        refund.setStatus(RefundRequestStatus.COMPLETED);
-        refund.setReason(request.reason());
-        refund.setProcessedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        PaymentRefund saved = paymentRefundRepository.save(refund);
-
-        auditTrailService.record(
-                AdminActionType.UPDATE,
-                "REFUND",
-                refund.getId(),
-                adminUserId,
-                Map.of("previousStatus", RefundRequestStatus.PROCESSING.name()),
-                Map.of("status", RefundRequestStatus.COMPLETED.name(),
-                        "amountCents", amountCents,
-                        "paymentId", payment.getId()),
-                request.reason());
-
-        updateBookingRefundStatus(refund.getBooking(), RefundStatus.COMPLETED);
-        return toDto(saved);
+        if (!"RAZORPAY".equals(refund.getPayment().getGateway()) || refund.getPayment().getTransactionId() == null)
+            throw new IllegalStateException("Cannot submit a refund without a captured Razorpay payment");
+        updateBookingRefundStatus(refund.getBooking(), RefundStatus.PROCESSING);
+        auditTrailService.record(AdminActionType.UPDATE, "REFUND", refund.getId(), adminUserId, null,
+                Map.of("status", RefundRequestStatus.PROCESSING.name(), "amountCents", amount), request.reason());
+        return toDto(paymentRefundRepository.save(refund));
     }
 
     @Override

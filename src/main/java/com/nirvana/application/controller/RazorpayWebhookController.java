@@ -46,15 +46,17 @@ public class RazorpayWebhookController {
                 return ResponseEntity.badRequest().build();
             }
         } catch (Exception e) {
-            log.warn("Invalid Razorpay webhook signature", e);
+            log.warn("event=payment.webhook_signature_invalid");
             return ResponseEntity.badRequest().build();
         }
 
         try {
             JsonNode root = objectMapper.readTree(payload);
+            String payloadHash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             String eventId = request.getHeader("X-Razorpay-Event-Id");
             if (eventId == null || eventId.isBlank()) {
-                eventId = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                eventId = payloadHash;
             }
             if (eventId != null && !eventId.isBlank()
                     && webhookEventRepository.findByEventId(eventId).isPresent()) {
@@ -68,19 +70,23 @@ public class RazorpayWebhookController {
                 case "payment.captured" -> handlePaymentCaptured(root);
                 case "payment_link.paid" -> paymentService.reconcilePaymentLink(root.path("payload").path("payment_link").path("entity").path("id").asText());
                 case "payment.failed" -> handlePaymentFailed(root);
-                case "refund.processed" -> handleRefundProcessed(root);
+                case "refund.processed", "refund.failed", "refund.created" -> handleRefund(root, event);
                 default -> log.info("Ignoring unsupported Razorpay event: {}", event);
             }
             if (eventId != null && !eventId.isBlank()) {
                 PaymentWebhookEvent record = new PaymentWebhookEvent();
                 record.setEventId(eventId);
                 record.setGateway("razorpay");
-                record.setPaymentId(root.path("payload").path("payment").path("entity").path("id").asText(null));
-                record.setPayload(payload);
+                JsonNode body = root.path("payload");
+                JsonNode refund = body.path("refund").path("entity");
+                record.setPaymentId(body.path("payment").path("entity").path("id").asText(refund.path("payment_id").asText(null)));
+                var metadata = objectMapper.createObjectNode().put("event", event).put("sha256", payloadHash);
+                if (refund.hasNonNull("id")) metadata.put("refund_id", refund.path("id").asText());
+                record.setPayload(metadata.toString());
                 webhookEventRepository.save(record);
             }
         } catch (Exception e) {
-            log.error("Error processing Razorpay webhook payload", e);
+            log.error("event=payment.webhook_failed errorType={}", e.getClass().getSimpleName());
             return ResponseEntity.internalServerError().build();
         }
 
@@ -108,8 +114,10 @@ public class RazorpayWebhookController {
         paymentService.reconcileFailedPayment(payment.path("order_id").asText(), payment.path("id").asText());
     }
 
-    private void handleRefundProcessed(JsonNode root) {
-        paymentService.reconcileRefund(root.path("payload").path("refund").path("entity").path("payment_id").asText());
+    private void handleRefund(JsonNode root, String event) {
+        JsonNode refund = root.path("payload").path("refund").path("entity");
+        paymentService.reconcileRefund(refund.path("payment_id").asText(), refund.path("id").asText());
+        if (!"refund.processed".equals(event)) return;
         spaPackageCheckoutService.refunded(root.path("payload").path("refund").path("entity").path("payment_id").asText());
         packageCheckoutService.refunded(root.path("payload").path("refund").path("entity").path("payment_id").asText());
         giftCardService.refunded(root.path("payload").path("refund").path("entity").path("payment_id").asText());

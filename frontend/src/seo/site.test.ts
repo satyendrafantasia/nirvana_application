@@ -6,6 +6,7 @@ describe('public discovery metadata', () => {
   it('separates SPA navigation from unknown paths', () => {
     expect(isAppRoute('/spas/12')).toBe(true);
     expect(isAppRoute('/booking/receipt')).toBe(true);
+    for (const path of ['/gift-cards', '/admin/gift-cards', '/support', '/admin/support']) expect(isAppRoute(path)).toBe(true);
     expect(isAppRoute('/unexpected')).toBe(false);
     expect(isAppRoute('/spas/12/missing')).toBe(false);
   });

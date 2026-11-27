@@ -78,6 +78,9 @@ export function BookingPolicy({ spa }: { spa: string }) {
 }
 interface RequestRow {
   id: number;
+  spaId: number;
+  slotId: number;
+  canRequestAgain: number;
   spaName: string;
   service: string;
   starts: string;
@@ -100,6 +103,10 @@ export function Requests({ spa }: { spa?: string }) {
       client.post(path + '/' + id, { accept }),
     onSuccess: () => qc.invalidateQueries()
   });
+  const retry = useMutation({
+    mutationFn: (r: RequestRow) => client.post('/api/spas/' + r.spaId + '/appointment-requests', { slotId: r.slotId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [path] })
+  });
   if (rows.isError) return <p role="alert">{errorMessage(rows.error)}</p>;
   if (!rows.data?.length) return null;
   return (
@@ -111,6 +118,8 @@ export function Requests({ spa }: { spa?: string }) {
             {r.service} · {r.spaName}
           </strong>{' '}
           · {new Date(r.starts).toLocaleString()} · {r.status}
+          {!spa && !!r.canRequestAgain && <button className="ml-2 underline" disabled={retry.isPending}
+            onClick={() => retry.mutate(r)}>Request this time again</button>}
           {r.status === 'PENDING' && (
             <>
               {' '}
@@ -130,7 +139,7 @@ export function Requests({ spa }: { spa?: string }) {
           )}
         </div>
       ))}
-      {answer.isError && <p role="alert">{errorMessage(answer.error)}</p>}
+      {(answer.isError || retry.isError) && <p role="alert">{errorMessage(answer.error || retry.error)}</p>}
     </section>
   );
 }

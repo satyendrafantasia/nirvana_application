@@ -12,6 +12,7 @@ public interface MessageThreadRepository extends JpaRepository<MessageThread, Lo
 
     Page<MessageThread> findByUserIdOrderByUpdatedAtDesc(Long userId, Pageable pageable);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<MessageThread> findByIdAndUserId(Long id, Long userId);
 
     long countByUserIdAndStatus(Long userId, MessageThreadStatus status);

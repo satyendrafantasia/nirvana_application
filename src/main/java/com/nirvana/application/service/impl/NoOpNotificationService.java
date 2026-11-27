@@ -42,6 +42,11 @@ public class NoOpNotificationService implements NotificationService {
     private final SendGridProperties properties;
 
     @Override
+    public void sendRequestUpdate(String email, String subject, String html) {
+        deliver(null, email, new Email("BOOKING_REQUEST", subject, html), "Appointment request update");
+    }
+
+    @Override
     public void notifySpaOwnerBookingConfirmed(Booking booking) {
         send(booking, null, spaDestination(booking), BookingEmailContent.ownerConfirmed(booking, properties.getOwnerSubject()));
     }

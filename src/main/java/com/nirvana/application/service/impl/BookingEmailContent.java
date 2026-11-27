@@ -25,7 +25,7 @@ public final class BookingEmailContent {
 
     public static Email customerConfirmed(Booking b, String subject) {
         return new Email("BOOKING_CONFIRMED", subject + " - " + b.getBookingReference(),
-                greeting(b) + "<p>Your booking is confirmed.</p>" + summary(b, false)
+                greeting(b) + "<p>Your appointment is booked on Nirvana. Open My bookings to see whether the spa has acknowledged it.</p>" + summary(b, false)
                         + (payAtSpa(b) ? "<p>Payment is due at the spa.</p>" : "")
                         + "<p>We look forward to seeing you!</p>");
     }
@@ -33,7 +33,7 @@ public final class BookingEmailContent {
     public static Email ownerConfirmed(Booking b, String subject) {
         return new Email("BOOKING_CONFIRMED_SPA", subject + " - " + b.getBookingReference(),
                 "<p>Hello,</p><p>A new booking has been confirmed.</p>" + summary(b, true)
-                        + "<p>Please prepare to welcome the guest.</p>");
+                        + "<p>Open this appointment in your Nirvana owner dashboard to confirm or decline.</p>");
     }
 
     public static Email customerCancelled(Booking b) {
@@ -65,7 +65,7 @@ public final class BookingEmailContent {
 
     public static Email ownerRescheduled(Booking b) {
         return new Email("BOOKING_RESCHEDULED_SPA", "Booking moved - " + b.getBookingReference(),
-                "<p>Hello,</p><p>A guest moved their booking. The new details are below.</p>" + summary(b, true));
+                "<p>Hello,</p><p>The appointment time changed. Review the new time in your Nirvana owner dashboard.</p>" + summary(b, true));
     }
 
     public static Email customerReminder(Booking b) {

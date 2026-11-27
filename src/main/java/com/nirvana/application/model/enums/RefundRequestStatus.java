@@ -5,5 +5,7 @@ public enum RefundRequestStatus {
     PROCESSING,
     APPROVED,
     REJECTED,
+    FAILED,
+    REVIEW_REQUIRED,
     COMPLETED
 }

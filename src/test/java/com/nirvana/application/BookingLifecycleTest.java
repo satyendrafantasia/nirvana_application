@@ -42,6 +42,70 @@ class BookingLifecycleTest {
     @Autowired EntityManager em;
     @Autowired BookingLifecycleService lifecycle;
     @Autowired BookingRepository bookings;
+    @Autowired com.nirvana.application.rewards.BookingWallet wallet;
+
+    @Test void customerCanSpendCancellationCreditAndItsReturnIsIdempotent() throws Exception {
+        long original = book(slot(10));
+        var first = bookings.findById(original).orElseThrow();
+        String currency = first.getCurrency();
+        int before = jdbc.queryForObject("SELECT COALESCE(SUM(balance_cents),0) FROM booking_wallet_balance WHERE user_id=3 AND currency=?", Integer.class,currency);
+        wallet.credit(first,currency,500);
+        wallet.credit(first,currency,500);
+        long nextSlot = slot(12);
+        var stale = call(post("/api/bookings"),3,"ROLE_USER",Map.of("slotId",nextSlot,"spaId",1,"serviceId",1,"guests",1,"paymentMode","OFFLINE","useWalletCredit",true,"expectedWalletCents",1));
+        assertEquals(422,stale.status());
+        var paid = call(post("/api/bookings"),3,"ROLE_USER",Map.of("slotId",nextSlot,"spaId",1,"serviceId",1,"guests",1,"paymentMode","OFFLINE","useWalletCredit",true));
+        assertEquals(2,paid.status()/100,() -> paid.body().toString());
+        long next = paid.body().get("bookingId").asLong();
+        int spent = wallet.netSpent(next);
+        assertTrue(spent >= 500);
+        var booking = bookings.findById(next).orElseThrow();
+        booking.setPolicySnapshotJson("{\"defaultFeePercent\":0}");
+        sync();
+        String url = "/api/bookings/" + next;
+        var preview = call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url + "/cancellation-quote"), 3, "ROLE_USER", null);
+        assertEquals(200, preview.status());
+        assertEquals(spent, preview.body().path("walletRefundCents").asInt());
+        assertEquals(0, preview.body().path("walletFeeCents").asInt());
+        var oldQuote = (com.fasterxml.jackson.databind.node.ObjectNode) preview.body().deepCopy();
+        oldQuote.remove("walletRefundCents");
+        assertEquals(409, call(post(url + "/cancel"), 3, "ROLE_USER", oldQuote).status());
+        assertEquals(409, call(post(url + "/cancel"), 3, "ROLE_USER", null).status());
+        assertEquals("CONFIRMED", status(next));
+        var cancelled = call(post(url + "/cancel"), 3, "ROLE_USER", preview.body());
+        assertEquals(200, cancelled.status(), () -> cancelled.body().toString());
+        assertEquals(spent, cancelled.body().path("refundAmountCents").asInt());
+        assertEquals(spent, cancelled.body().path("walletRefundCents").asInt());
+        assertEquals(0, wallet.returnForBooking(booking,100));
+        assertEquals(0, wallet.netSpent(next));
+        assertEquals(before+500,wallet.quote(3,currency,Integer.MAX_VALUE));
+    }
+
+    @Test void supportRoutesKeepGuestAccountAndStaffConversationsPrivate() throws Exception {
+        var created = mvc.perform(post("/api/public/support/cases").contentType("application/json")
+                .content(json.writeValueAsString(Map.of("subject","Appointment question","message","How can I change the time?")))).andReturn().getResponse();
+        assertEquals(201, created.getStatus());
+        var token = json.readTree(created.getContentAsString());
+        long id = token.get("caseId").asLong();
+        String key = token.get("accessKey").asText();
+        String staff = "/api/admin/support/cases/"+id;
+        assertEquals(403, call(post(staff+"/replies"),3,"ROLE_USER", Map.of("message","Staff reply")).status());
+        assertEquals(200, call(post(staff+"/replies"),1,"ROLE_PLATFORM_ADMIN",Map.of("message","We can help")).status());
+        assertEquals(409,call(post(staff+"/assign"),2,"ROLE_ADMIN",null).status());
+        assertEquals(409,call(post(staff+"/replies"),2,"ROLE_ADMIN",Map.of("message","Conflicting reply")).status());
+        assertEquals(200,call(post(staff+"/assign?takeOverFrom=1"),2,"ROLE_ADMIN",null).status());
+        assertEquals(409,call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(staff+"/state?state=CLOSED"),1,"ROLE_PLATFORM_ADMIN",null).status());
+        assertEquals(200,call(post(staff+"/assign?takeOverFrom=2"),1,"ROLE_PLATFORM_ADMIN",null).status());
+        var get = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/public/support/case");
+        var tracked = mvc.perform(get.header("X-Support-Key",key)).andReturn().getResponse();
+        assertTrue(tracked.getContentAsString().contains("We can help"));
+        assertEquals(404,call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/me/support/"+id),3,"ROLE_USER",null).status());
+        assertEquals(404,mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/public/support/case")
+                .header("X-Support-Key","wrong")).andReturn().getResponse().getStatus());
+        assertEquals(200,call(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(staff+"/state?state=RESOLVED"),1,"ROLE_PLATFORM_ADMIN",null).status());
+        assertEquals(409,mvc.perform(post("/api/public/support/case/replies").header("X-Support-Key",key)
+                .contentType("application/json").content("{\"message\":\"another reply\"}")).andReturn().getResponse().getStatus());
+    }
 
     record Reply(int status, JsonNode body) {}
 

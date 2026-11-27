@@ -26,6 +26,8 @@ class PayoutTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired PayoutService payouts;
+    @Autowired com.nirvana.application.rewards.BookingWallet wallet;
+    @Autowired com.nirvana.application.repository.BookingRepository bookings;
     PayoutFixtures f;
 
     @BeforeEach void setUp() {
@@ -110,6 +112,45 @@ class PayoutTest {
         assertEquals("MANUAL", list.get("mode").asText());
         assertEquals(id, list.at("/items/0/id").asLong());
         assertEquals("XXXX9012", ok(f.admin(get("/api/admin/payouts/" + id), null)).at("/account/accountMasked").asText());
+    }
+
+    @Test @Transactional void walletRefundAndSpendSettleAtTheirOwnSpasAndOnlyOnce() {
+        String name = "Wallet destination " + java.util.UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO spa(created_at,updated_at,name,commission_pct,default_currency,is_active,is_featured,is_verified,kyc_status,tax_percent,timezone)
+            VALUES(NOW(),NOW(),?,20,'INR',true,false,true,'APPROVED',0,'Asia/Kolkata')
+            """, name);
+        long destination = jdbc.queryForObject("SELECT id FROM spa WHERE name=?", Long.class, name);
+        long original = f.booking(), visit = f.booking();
+        // Seed bookings use the local spa's currency, which can differ from this INR payment fixture.
+        jdbc.update("UPDATE booking SET currency='INR' WHERE id IN (?,?)", original, visit);
+        jdbc.update("UPDATE booking SET spa_id=? WHERE id=?", destination, visit);
+        long payment = f.payment(original, 20_000, daysAgo(5));
+        var first = bookings.findById(original).orElseThrow();
+        var next = bookings.findById(visit).orElseThrow();
+        wallet.credit(first, "INR", 20_000);
+        // Cancellation posts this original-payment reversal through Payment.setRefundedCents.
+        f.refund(payment, 20_000, daysAgo(4));
+        wallet.spend(next, 15_000);
+        assertEquals(7_500, wallet.returnForBooking(next, 50));
+        assertEquals(0, wallet.returnForBooking(next, 50));
+        jdbc.update("UPDATE booking_wallet_spend SET spent_at=?,returned_at=? WHERE booking_id=?", daysAgo(3),daysAgo(2),visit);
+
+        var cutoff = daysAgo(1);
+        payouts.run(cutoff);
+        payouts.run(cutoff);
+        var origin = f.latest();
+        assertEquals(0, ((Number)origin.get("amount_cents")).intValue());
+        var target = jdbc.queryForMap("""
+            SELECT p.* FROM payout p JOIN payout_item i ON i.payout_id=p.id
+            WHERE i.kind='WALLET' AND i.source_id=?
+            """, visit);
+        assertEquals(destination, ((Number)target.get("spa_id")).longValue());
+        assertEquals(15_000, ((Number)target.get("gross_cents")).intValue());
+        assertEquals(7_500, ((Number)target.get("refunds_cents")).intValue());
+        assertEquals(1_500, ((Number)target.get("commission_cents")).intValue());
+        assertEquals(6_000, ((Number)target.get("amount_cents")).intValue());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM payout_item WHERE payout_id=?",Integer.class,target.get("id")));
     }
 
     @Test @Transactional void refundsBiggerThanTakingsAreCarriedToTheNextPayout() {

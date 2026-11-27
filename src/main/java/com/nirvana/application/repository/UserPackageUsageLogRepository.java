@@ -9,5 +9,7 @@ public interface UserPackageUsageLogRepository extends JpaRepository<UserPackage
 
     List<UserPackageUsageLog> findByUserIdOrderByUsedAtDesc(Long userId);
 
+    java.util.Optional<UserPackageUsageLog> findFirstByBooking_IdAndUser_IdAndSpa_IdOrderByIdAsc(Long bookingId, Long userId, Long spaId);
+
     List<UserPackageUsageLog> findByBooking_Id(Long bookingId);
 }

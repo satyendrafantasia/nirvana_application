@@ -17,6 +17,10 @@ const paths = new Set([
   '/auth/social/callback',
   '/me/bookings',
   '/me/settings',
+  '/support',
+  '/admin/support',
+  '/gift-cards',
+  '/admin/gift-cards',
   '/privacy',
   '/terms'
 ]);

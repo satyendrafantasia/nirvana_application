@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class RefundServiceImpl implements RefundService {
 
-    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+    private final com.nirvana.application.rewards.BookingWallet wallet;
     private final PaymentService paymentService;
 
     @Override
@@ -32,10 +32,7 @@ public class RefundServiceImpl implements RefundService {
         }
 
         if (route == RefundRoute.WALLET_CREDIT) {
-            jdbc.update("""
-                    INSERT INTO booking_wallet_credit (booking_id,user_id,currency,amount_cents)
-                    VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE booking_id=booking_id
-                    """, booking.getId(), booking.getUser().getId(), payment.getCurrency(), refundAmountCents);
+            wallet.credit(booking, payment.getCurrency(), refundAmountCents);
             booking.setRefundStatus(RefundStatus.COMPLETED);
             return;
         }

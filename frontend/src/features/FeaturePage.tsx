@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { canOpen, isAdmin, isStaff } from '../auth/roles';
 import { features, Operation, resolve, Schema, buildRequest } from './model';
 import Fields, { Choice } from './Fields';
+import BookingAlertQueue from './BookingAlertQueue';
 import Results from './Results';
 import SpaSettings from '../pages/Staff/SpaSettings';
 import Drafts from '../pages/Staff/Drafts';
@@ -168,7 +169,7 @@ export function Workspace({
           </button>
         ))}
       </nav>
-      <Action
+      {item.actions[active].path === '/api/admin/operations/booking-alerts' ? <BookingAlertQueue /> : <Action
         key={item.actions[active].title}
         op={item.actions[active]}
         values={values}
@@ -177,7 +178,7 @@ export function Workspace({
           spaId ? { ...choices, spaId: choices.spaId.filter((s) => s.value === spaId) } : choices
         }
         remember={remember}
-      />
+      />}
     </div>
   );
 }
