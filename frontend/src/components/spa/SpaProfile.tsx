@@ -140,7 +140,11 @@ function NotListed({
   );
 }
 
-function SpaServices({ spaId, spaName }: { spaId: string; spaName: string }) {
+function SpaServices({ spaId, spaName, canBook }: {
+  spaId: string;
+  spaName: string;
+  canBook: boolean;
+}) {
   const navigate = useNavigate();
   const { setSpa, setService } = useBookingFlow();
   const services = useQuery({
@@ -164,10 +168,10 @@ function SpaServices({ spaId, spaName }: { spaId: string; spaName: string }) {
           </button>
         </p>
       )}
-      {services.data?.length === 0 && <p>No treatments are currently available to book.</p>}
+      {services.data?.length === 0 && <p>This spa has no published treatments yet.</p>}
       <div className="space-y-3">
         {services.data?.map((service) => (
-          <ServiceCard key={service.id} service={service} onBook={book} />
+          <ServiceCard key={service.id} service={service} onBook={canBook ? book : undefined} />
         ))}
       </div>
     </>
@@ -363,8 +367,12 @@ export function SpaPackages({ spaId }: { spaId: string }) {
 
 /** The full page for one spa: the same layout whether the facts come from Google or from Nirvana. */
 export default function SpaProfile(p: SpaProfileProps) {
-  const policy=usePolicy(p.spaId);
-  const mode=policy.data?.mode;
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  const policy = usePolicy(user ? p.spaId : undefined);
+  const mode = user ? policy.data?.mode : undefined;
+  const signInFor = (section: string) =>
+    '/auth/login?redirect=' + encodeURIComponent(location.pathname + location.search + '#' + section);
   // Mount the contact details on first expansion, then allow closing transitions to reverse.
   const [more, setMore] = useState<boolean>();
   const directions = directionsUrl(p.mapQuery, p.googlePlaceId);
@@ -498,17 +506,33 @@ export default function SpaProfile(p: SpaProfileProps) {
 
       <Section id="services" eyebrow="THE MENU" title="Services and prices">
         {p.spaId ? (
-          mode==='INSTANT' ? <SpaServices spaId={p.spaId} spaName={p.name} /> :
-          mode==='REQUEST' ? <AppointmentForm key={p.spaId} spa={p.spaId}/> :
-          mode==='ENQUIRY' ? <p>Contact the spa to check prices and availability. {p.phone && <a href={'tel:'+p.phone}>{p.phone}</a>} {p.email && <a href={'mailto:'+p.email}>{p.email}</a>}</p> :
-          <p role="status">{policy.isError?'Unable to load booking options.':'Loading booking options…'}</p>
+          <>
+            <SpaServices spaId={p.spaId} spaName={p.name} canBook={mode === 'INSTANT'} />
+            {!user && !isLoading && (
+              <Link className="mt-4 inline-block font-semibold text-primary-700 underline" to={signInFor('services')}>
+                Sign in for booking options
+              </Link>
+            )}
+            {mode === 'REQUEST' && <AppointmentForm key={p.spaId} spa={p.spaId} />}
+            {mode === 'ENQUIRY' && (
+              <p>
+                Contact the spa for availability. {p.phone && <a href={'tel:' + p.phone}>{p.phone}</a>}{' '}
+                {p.email && <a href={'mailto:' + p.email}>{p.email}</a>}
+              </p>
+            )}
+            {user && !mode && (
+              <p role="status">{policy.isError ? 'Unable to load booking options.' : 'Loading booking options…'}</p>
+            )}
+          </>
         ) : (
           <NotListed what="treatments and prices" website={p.website} placeId={p.googlePlaceId} />
         )}
       </Section>
 
       <Section id="packages" eyebrow="SAVE ON REGULAR VISITS" title="Packages">
-        {p.spaId && mode==='INSTANT' ? (
+        {p.spaId && !user ? (
+          !isLoading && <Link className="underline" to={signInFor('packages')}>Sign in to check package availability</Link>
+        ) : p.spaId && mode==='INSTANT' ? (
           <SpaPackages spaId={p.spaId} />
         ) : (
           <NotListed what="packages" placeId={p.googlePlaceId} />

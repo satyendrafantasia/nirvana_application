@@ -7,9 +7,16 @@ import SpaProfile, { SpaPackages, directionsUrl, embedUrl } from './SpaProfile';
 import { placeProfile } from '../../pages/Discovery/PlacePage';
 import { spaProfile } from '../../pages/SpaDetails/SpaDetails';
 import { AuthContext } from '../../contexts/AuthContext';
+import { BookingProvider } from '../../contexts/BookingContext';
 
 const render = (node: React.ReactNode) =>
-  renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><StaticRouter location="/discover/places/abc">{node}</StaticRouter></QueryClientProvider>);
+  renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <AuthContext.Provider value={auth(false)}>
+        <StaticRouter location="/discover/places/abc">{node}</StaticRouter>
+      </AuthContext.Provider>
+    </QueryClientProvider>
+  );
 
 const place = {
   id: 'ChIJ_test-1',
@@ -126,6 +133,37 @@ describe('the spa page', () => {
   it('turns on services and packages only for a place linked to a Nirvana spa', () => {
     expect(placeProfile(place).spaId).toBeUndefined();
     expect(placeProfile({ ...place, nirvanaSpaId: 42 }).spaId).toBe('42');
+  });
+  it.each([
+    { signedIn: false, mode: undefined, canBook: false },
+    { signedIn: false, mode: 'INSTANT', canBook: false },
+    { signedIn: true, mode: 'INSTANT', canBook: true },
+    { signedIn: true, mode: 'REQUEST', canBook: false },
+    { signedIn: true, mode: 'ENQUIRY', canBook: false }
+  ])('shows the public menu for signedIn=$signedIn and mode=$mode', ({ signedIn, mode, canBook }) => {
+    const qc = new QueryClient();
+    qc.setQueryData(['spa-services', '7'], [
+      { id: '2', name: 'Swedish Massage', durationMinutes: 60, price: 1999, currency: 'INR' }
+    ]);
+    if (mode) qc.setQueryData(['booking-policy', '7'], { mode });
+    const out = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <AuthContext.Provider value={auth(signedIn)}>
+          <StaticRouter location="/spas/7">
+            <BookingProvider>
+              <SpaProfile {...placeProfile(place)} spaId="7" back={{ to: '/spas', label: 'All spas' }} media={null} />
+            </BookingProvider>
+          </StaticRouter>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    );
+    expect(out).toContain('Swedish Massage');
+    expect(out).toContain('₹1,999.00');
+    expect(out).toContain('60 mins');
+    expect(out.includes('Book this service')).toBe(canBook);
+    expect(out.includes('Request an appointment')).toBe(signedIn && mode === 'REQUEST');
+    expect(out.includes('/auth/login?redirect=%2Fspas%2F7%23services')).toBe(!signedIn);
+    if (!signedIn) expect(out).not.toContain('Loading booking options');
   });
   it('builds the same page from a Nirvana spa record', () => {
     const profile = spaProfile({
