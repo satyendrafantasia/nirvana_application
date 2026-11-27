@@ -105,6 +105,39 @@ footer { background:#eef2e8 !important; border-color:#dfe5d8 !important; }
 }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { transition:none !important; } }
 
+:root {
+  --booking-quick: 120ms;
+  --booking-panel: 200ms;
+  --booking-ease: cubic-bezier(.2,.7,.25,1);
+  --booking-travel: 4px;
+}
+.ui-button.booking-press:hover { transform: none; }
+.booking-press-label { display: inline-block; }
+.booking-step h2 { scroll-margin-top: 8rem; }
+.booking-slot { position: relative; }
+.booking-slot-check { position: absolute; inset-inline-start: .45rem; top: 50%; margin-top: -.7em; opacity: 0; }
+.booking-slot[aria-pressed="true"] .booking-slot-check { opacity: 1; }
+.spa-details-reveal { display: grid; grid-template-rows: 0fr; opacity: 0; }
+.spa-details-reveal[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
+.spa-details-clip { min-height: 0; overflow: hidden; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking-press-label { transition: transform var(--booking-quick) var(--booking-ease); }
+  .booking-press:enabled:active .booking-press-label { transform: scale(1.01,.98); }
+  .booking-slot-check { transition: opacity var(--booking-quick) var(--booking-ease); }
+  .booking-step { animation: booking-step-in var(--booking-panel) var(--booking-ease); }
+  .booking-confirmed { animation: booking-settle var(--booking-panel) var(--booking-ease) var(--booking-panel); }
+  .booking-confirmed path { stroke-dasharray: 1; animation: booking-check-in var(--booking-panel) var(--booking-ease); }
+  .spa-details-reveal { transition: grid-template-rows var(--booking-quick) var(--booking-ease), opacity var(--booking-quick); }
+  .spa-details-reveal[data-open="true"] { transition-duration: var(--booking-panel); }
+}
+@keyframes booking-step-in {
+  from { opacity: .75; transform: translateY(var(--booking-travel)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes booking-check-in { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes booking-settle { 50% { transform: scale(1.05); } }
+
 .search-panel .search-heading { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
 .search-panel .search-heading h2 { margin:0; }
 .browse-search-panel { margin-top:0; }

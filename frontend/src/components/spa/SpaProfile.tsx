@@ -365,7 +365,8 @@ export function SpaPackages({ spaId }: { spaId: string }) {
 export default function SpaProfile(p: SpaProfileProps) {
   const policy=usePolicy(p.spaId);
   const mode=policy.data?.mode;
-  const [more, setMore] = useState(false);
+  // Mount the contact details on first expansion, then allow closing transitions to reverse.
+  const [more, setMore] = useState<boolean>();
   const directions = directionsUrl(p.mapQuery, p.googlePlaceId);
   const map = embedUrl(p.mapQuery, p.googlePlaceId, import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY);
   const hasMore = !!(p.phone || p.website || p.email || p.hours?.length);
@@ -431,14 +432,16 @@ export default function SpaProfile(p: SpaProfileProps) {
           <div>
             <Button
               variant="secondary"
-              aria-expanded={more}
+              aria-expanded={!!more}
               aria-controls="spa-more-details"
-              onClick={() => setMore(!more)}
+              onClick={() => setMore(open => !open)}
             >
               {more ? 'Hide details' : 'View more details'}
             </Button>
-            {more && (
-              <dl id="spa-more-details" className="spa-facts">
+            <div id="spa-more-details" className="spa-details-reveal" data-open={!!more}
+              aria-hidden={!more} ref={node => { if (node) node.inert = !more; }}>
+              <div className="spa-details-clip">
+              {more !== undefined && <dl className="spa-facts">
                 {p.phone && (
                   <div>
                     <dt>Phone</dt>
@@ -486,8 +489,9 @@ export default function SpaProfile(p: SpaProfileProps) {
                     </dd>
                   </div>
                 )}
-              </dl>
-            )}
+              </dl>}
+              </div>
+            </div>
           </div>
         )}
       </Section>

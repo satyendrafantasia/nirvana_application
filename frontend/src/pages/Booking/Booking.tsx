@@ -21,6 +21,14 @@ const Booking = () => {
   const [currentStep, setCurrentStep] = useState(state.service && state.spaId ? 2 : 1);
   const [timeConflict,setTimeConflict]=useState(false);
   const [summary, setSummary] = useState<BookingSummary | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const heading = panel.current?.querySelector('h2');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus();
+    }
+  }, [currentStep]);
 
   const pending=typeof localStorage==='undefined'?null:localStorage.getItem('nirvana.pendingCheckout');
   const recovered=useQuery({queryKey:['checkout-recovery',pending],enabled:!!pending,queryFn:async()=>{
@@ -54,10 +62,10 @@ const Booking = () => {
     <div className="mx-auto max-w-5xl px-4 py-8">
       {recovered.data?.reference && <p className="card p-4" role="status">Your previous checkout created booking {recovered.data.reference} · {recovered.data.status}. <a href="/me/bookings">Open My bookings</a></p>}
       <StepIndicator currentStep={currentStep>2?currentStep-1:currentStep} steps={steps} />
-      <div className="mt-6 rounded-3xl bg-white p-6 shadow-card">
+      <div key={currentStep} ref={panel} className="booking-step mt-6 rounded-3xl bg-white p-6 shadow-card">
         {currentStep === 1 && <SelectService onNext={() => setCurrentStep(2)} />}
         {currentStep === 2 && (
-          <>{timeConflict && <p role="alert">This time is no longer available. Select another time.</p>}<SelectSlot onNext={() => {setTimeConflict(false);setCurrentStep(4);}} onBack={() => setCurrentStep(1)} /></>
+          <>{timeConflict && !state.selectedSlot && <p role="alert">This time is no longer available. Select another time.</p>}<SelectSlot onNext={() => {setTimeConflict(false);setCurrentStep(4);}} onBack={() => setCurrentStep(1)} /></>
         )}
         {currentStep === 4 && (
           <ReviewBooking onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(2)} />

@@ -14,18 +14,20 @@ const SlotGrid = ({ slots, selectedSlot, onSelect }: SlotGridProps) => {
         const isSelected = selectedSlot === slot.id;
         return (
           <button
+            type="button"
             key={slot.id}
             aria-pressed={isSelected}
             disabled={!slot.available}
             onClick={() => onSelect(slot)}
             className={clsx(
-              'rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition',
+              'booking-slot rounded-xl border px-5 py-2 text-sm font-semibold shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600',
               slot.available
                 ? 'border-primary-100 bg-white hover:border-primary-300'
                 : 'cursor-not-allowed border-dashed border-slate-200 text-slate-300',
               isSelected && 'border-primary-500 bg-primary-50 text-primary-700'
             )}
           >
+            <span className="booking-slot-check" aria-hidden="true">✓</span>
             <div>
               {new Date(slot.startTime).toLocaleTimeString([], {
                 hour: '2-digit',

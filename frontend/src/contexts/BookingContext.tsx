@@ -10,10 +10,12 @@ interface BookingState {
   spaId?: string;
   spaName?: string;
   service?: Service;
+  availabilityDate?: string;
   slot?: string;
   selectedSlot?: Slot;
   guests: number;
   therapistId?: string;
+  preferredTherapistName?: string;
   therapistType?: string;
   notes?: string;
   paymentMode?: 'ONLINE' | 'OFFLINE';
@@ -24,9 +26,10 @@ interface BookingContextValue {
   state: BookingState;
   setSpa: (spaId: string, spaName?: string) => void;
   setService: (service: Service) => void;
+  setAvailabilityDate: (date: string) => void;
   setSlot: (slot?: Slot) => void;
   setGuests: (guests: number) => void;
-  setTherapist: (id?: string, type?: string) => void;
+  setTherapist: (id?: string, type?: string, publicName?: string) => void;
   setPaymentMode: (mode: 'ONLINE' | 'OFFLINE') => void;
   setNotes: (notes: string) => void;
   setHold: (token: string, expiresAt: string, name?: string) => void;
@@ -34,6 +37,17 @@ interface BookingContextValue {
 }
 
 export const BookingContext = createContext<BookingContextValue | undefined>(undefined);
+
+export function withSelectedSlot(state: BookingState, selectedSlot?: Slot): BookingState {
+  return {
+    ...state,
+    selectedSlot,
+    slot: selectedSlot?.startTime,
+    holdToken: undefined,
+    heldTherapistName: undefined,
+    holdExpiresAt: undefined
+  };
+}
 
 export const BookingProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -48,52 +62,33 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
   const setSpa = (spaId: string, spaName?: string) =>
     setState((prev) => ({
-      ...prev,
+      ...withSelectedSlot(prev),
       spaId,
       spaName,
       service: undefined,
-      slot: undefined,
-      selectedSlot: undefined,
-      holdToken: undefined,
-      heldTherapistName: undefined,
-      holdExpiresAt: undefined,
+      availabilityDate: undefined,
+      preferredTherapistName: undefined,
       therapistId: undefined,
       therapistType: undefined
     }));
   const setService = (service: Service) =>
     setState((prev) => ({
-      ...prev,
+      ...withSelectedSlot(prev),
       service,
+      availabilityDate: new Date().toLocaleDateString('en-CA'),
+      preferredTherapistName: undefined,
       guests: service.minPersons || 1,
-      slot: undefined,
-      selectedSlot: undefined,
-      holdToken: undefined,
-      heldTherapistName: undefined,
-      holdExpiresAt: undefined,
       therapistId: undefined,
       therapistType: undefined
     }));
   const setSlot = (selectedSlot?: Slot) =>
-    setState((prev) => ({
-      ...prev,
-      selectedSlot,
-      holdToken: undefined,
-      heldTherapistName: undefined,
-      holdExpiresAt: undefined,
-      slot: selectedSlot?.startTime
-    }));
+    setState(prev => withSelectedSlot(prev, selectedSlot));
   const setGuests = (guests: number) =>
-    setState((prev) => ({
-      ...prev,
-      guests,
-      slot: undefined,
-      selectedSlot: undefined,
-      holdToken: undefined,
-      heldTherapistName: undefined,
-      holdExpiresAt: undefined
-    }));
-  const setTherapist = (therapistId?: string, therapistType?: string) =>
-    setState((prev) => ({ ...prev, therapistId, therapistType }));
+    setState(prev => ({ ...withSelectedSlot(prev), guests }));
+  const setAvailabilityDate = (availabilityDate: string) =>
+    setState(prev => ({ ...withSelectedSlot(prev), availabilityDate }));
+  const setTherapist = (therapistId?: string, therapistType?: string, preferredTherapistName?: string) =>
+    setState((prev) => ({ ...prev, therapistId, therapistType, preferredTherapistName }));
   const setPaymentMode = (paymentMode: 'ONLINE' | 'OFFLINE') =>
     setState((prev) => ({ ...prev, paymentMode }));
   const setNotes = (notes: string) => setState((prev) => ({ ...prev, notes }));
@@ -108,6 +103,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
         setHold,
         setSpa,
         setService,
+        setAvailabilityDate,
         setSlot,
         setGuests,
         setTherapist,

@@ -21,8 +21,13 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
 
   return (
     <div className="space-y-6 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-3xl">
-        {summary?.status === 'CONFIRMED' ? '✓' : '…'}
+      <div aria-hidden="true" className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-3xl">
+        {summary?.status === 'CONFIRMED' ? (
+          <svg className="booking-confirmed text-primary-700" width="34" height="34" viewBox="0 0 32 32" fill="none">
+            <path d="m6 16 7 7L26 9" pathLength="1" stroke="currentColor" strokeWidth="3"
+              strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : '…'}
       </div>
       <h2 className="text-3xl font-semibold text-slate-900">{summary?.status === 'CONFIRMED' ? 'Appointment confirmed' : summary?.status === 'PENDING_PAYMENT' ? 'Payment pending' : 'Booking status'}</h2>
       <p className="text-slate-600">Your booking reference and current status are below.</p>

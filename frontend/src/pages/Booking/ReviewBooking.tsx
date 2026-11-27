@@ -1,5 +1,6 @@
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
+import { therapistLabel } from './therapistLabel';
 
 interface ReviewBookingProps {
   onNext: () => void;
@@ -8,6 +9,10 @@ interface ReviewBookingProps {
 
 const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
   const { state } = useBookingFlow();
+  const namedTherapist = state.selectedSlot?.therapists.find(t => t.id === state.therapistId);
+  const therapist = state.heldTherapistName || namedTherapist?.name || state.preferredTherapistName ||
+    (state.therapistType ? therapistLabel(state.therapistType) :
+      state.therapistId ? 'Selected therapist' : 'Any available therapist');
 
   return (
     <div className="space-y-6">
@@ -57,7 +62,7 @@ const ReviewBooking = ({ onNext, onBack }: ReviewBookingProps) => {
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
             <p className="text-sm text-slate-500">Therapist</p>
             <p className="text-lg font-semibold text-slate-900">
-              {state.heldTherapistName || 'Any available therapist'}
+              {therapist}
             </p>
           </div>
         )}

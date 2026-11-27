@@ -353,7 +353,7 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
       </button>
       {booked.isSuccess && (
         <p role="status">
-          {desk ? 'Booked appointment' : 'Submitted request'} #{booked.data}
+          {desk ? `Booked appointment #${booked.data}` : `Request #${booked.data} sent. Awaiting the spa’s reply.`}
         </p>
       )}
       {(booked.isError || slots.isError || services.isError) && (

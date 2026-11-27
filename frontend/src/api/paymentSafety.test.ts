@@ -47,11 +47,14 @@ it('converts major-unit amount and waits for backend confirmation', async () => 
     headers: {},
     config
   });
-  const pending = payWithRazorpay(intent);
+  const verifying = vi.fn();
+  const pending = payWithRazorpay(intent, verifying);
   await Promise.resolve();
   expect(options.amount).toBe(125000);
+  expect(verifying).not.toHaveBeenCalled();
   callback(result);
   expect(await pending).toEqual({ status: 'CONFIRMED', refundStatus: 'NONE' });
+  expect(verifying).toHaveBeenCalledOnce();
 });
 it('retries verification without opening another checkout after a failed confirmation', async () => {
   client.defaults.adapter = async () => {
@@ -71,7 +74,9 @@ it('retries verification without opening another checkout after a failed confirm
     headers: {},
     config
   });
-  expect(await resumePayment('1')).toMatchObject({ status: 'CONFIRMED' });
+  const verifying = vi.fn();
+  expect(await resumePayment('1', verifying)).toMatchObject({ status: 'CONFIRMED' });
+  expect(verifying).toHaveBeenCalledOnce();
   expect(checkout).not.toHaveBeenCalled();
 });
 it('preserves server cancellation status after a late capture', async () => {

@@ -32,7 +32,7 @@ const ServiceCard = ({ service, onBook }: ServiceCardProps) => {
           )}
         </p>
         {onBook && (
-          <Button size="sm" onClick={() => onBook(service)}>
+          <Button size="sm" pressFeedback onClick={() => onBook(service)}>
             Book this service
           </Button>
         )}

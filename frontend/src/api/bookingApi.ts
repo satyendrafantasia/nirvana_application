@@ -1,6 +1,18 @@
+import axios from 'axios';
 import client from './client';
 import { BookingPayload, BookingSummary, Slot } from '../types/booking';
 import { PaymentIntent } from '../types/payment';
+
+// The availability service returns this message for room, capacity and therapist conflicts.
+// Other 409s (e.g. package eligibility) can be resolved on the payment step.
+export function isSlotConflict(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  const message = error.response?.data?.message;
+  if (typeof message !== 'string') return false;
+  return (error.response?.status === 409 && (message.startsWith('This time is no longer available') ||
+    message === 'Choose the therapist reserved by this hold')) ||
+    (error.response?.status === 404 && message.startsWith('Slot not found:'));
+}
 export const getSlots = async (
   spaId: string,
   serviceId: string,

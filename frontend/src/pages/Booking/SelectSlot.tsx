@@ -1,8 +1,8 @@
 import { uniqueAvailableTimes } from './availableTimes';
 import { track } from '../../telemetry';
-import { useState } from 'react';
+import { useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getSlots, getTherapistDirectory } from '../../api/bookingApi';
+import { getSlots, getTherapistDirectory, isSlotConflict } from '../../api/bookingApi';
 import client, { errorMessage } from '../../api/client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -17,11 +17,10 @@ interface SelectSlotProps {
 }
 
 const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
-  const { state, setSlot, setGuests, setHold, setTherapist } = useBookingFlow();
-  const [preferred, setPreferred] = useState(
-    state.therapistType ? 'type:' + state.therapistType : state.therapistId || ''
-  );
-  const [date, setDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
+  const { state, setSlot, setGuests, setHold, setTherapist, setAvailabilityDate } = useBookingFlow();
+  const preferred = state.therapistType ? 'type:' + state.therapistType : state.therapistId || '';
+  const date = state.availabilityDate ?? new Date().toLocaleDateString('en-CA');
+  const reserving = useRef(false);
 
   const {
     data: slots,
@@ -56,17 +55,14 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           holdMinutes: 10
         }
       );
-      setTherapist(
-        preferred.startsWith('type:') ? undefined : preferred || undefined,
-        preferred.startsWith('type:') ? preferred.slice(5) : undefined
-      );
       setHold(data.holdToken, data.expiresAt, data.therapistName);
       onNext();
     },
-    onError: () => {
-      setSlot(undefined);
+    onError: (error) => {
+      if (isSlotConflict(error)) setSlot(undefined);
       void refetch();
-    }
+    },
+    onSettled: () => { reserving.current = false; }
   });
   const directory = useQuery({
     queryKey: ['therapist-directory', state.spaId, state.service?.id],
@@ -76,7 +72,8 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
   });
   const options = directory.data?.named || [];
   const types = directory.data?.labels || [];
-  const selectedName = options.find(t => String(t.id) === preferred)?.name;
+  const directoryName = options.find(t => String(t.id) === preferred)?.name;
+  const selectedName = directoryName || state.preferredTherapistName;
   const times = uniqueAvailableTimes(slots || [], preferred);
   const activeHold = Boolean(
     state.holdToken && state.holdExpiresAt && new Date(state.holdExpiresAt) > new Date()
@@ -106,7 +103,12 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
             Back
           </Button>
           <Button
-            onClick={() => hold.mutate()}
+            pressFeedback
+            onClick={() => {
+              if (reserving.current) return;
+              reserving.current = true;
+              hold.mutate();
+            }}
             disabled={
               !state.slot ||
               hold.isPending ||
@@ -119,9 +121,14 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
         </div>
       </div>
 
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-600" role="status">
+        {state.selectedSlot && <>
+          {new Date(state.selectedSlot.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          {' · '}{selectedName || state.therapistType || (preferred ? 'Selected therapist' : 'Any available therapist')}.{' '}
+        </>}
         Continuing reserves your selected time for 10 minutes.
       </p>
+      <span className="sr-only" role="status">{hold.isPending ? 'Reserving your time…' : ''}</span>
       {(hold.isError || wait.isError) && (
         <p role="alert" className="text-rose-700">
           {errorMessage(hold.error || wait.error)}
@@ -142,15 +149,14 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
               value={preferred}
               onChange={(e) => {
                 const choice = e.target.value;
-                setPreferred(choice);
-                setTherapist(choice && !choice.startsWith('type:') ? choice : undefined,
-                  choice.startsWith('type:') ? choice.slice(5) : undefined);
+                const named = options.find(t => String(t.id) === choice);
+                setTherapist(named && String(named.id), choice.startsWith('type:') ? choice.slice(5) : undefined, named?.name);
                 setSlot(undefined);
               }}
             >
               <option value="">Any available therapist</option>
-              {preferred && !selectedName && !types.some(label => 'type:' + label === preferred) &&
-                <option value={preferred}>Previously selected therapist</option>}
+              {preferred && !directoryName && !types.some(label => 'type:' + label === preferred) &&
+                <option value={preferred}>{selectedName || state.therapistType || 'Previously selected therapist'}</option>}
               {types.map((type) => (
                 <option key={type} value={'type:' + type}>
                   {type}
@@ -170,10 +176,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           label="Date"
           value={date}
           min={new Date().toLocaleDateString('en-CA')}
-          onChange={(e) => {
-            setDate(e.target.value);
-            setSlot(undefined);
-          }}
+          onChange={(e) => setAvailabilityDate(e.target.value)}
         />
       </div>
 

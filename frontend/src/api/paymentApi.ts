@@ -23,14 +23,15 @@ export async function payAtSpa(id: string) {
   sessionStorage.removeItem(`nirvana_payment_${id}`);
   return data;
 }
-export const resumePayment = async (id: string) => {
+export const resumePayment = async (id: string, onVerify?: () => void) => {
   const saved = sessionStorage.getItem(`nirvana_payment_${id}`);
   if (saved) {
+    onVerify?.();
     const status = await confirmPayment(id, JSON.parse(saved));
     sessionStorage.removeItem(`nirvana_payment_${id}`);
     return status;
   }
-  return payWithRazorpay(await initiatePayment(id));
+  return payWithRazorpay(await initiatePayment(id), onVerify);
 };
 type Checkout = {
   open: () => void;
@@ -43,10 +44,12 @@ declare global {
 }
 let scriptPromise: Promise<void> | undefined;
 export const payWithRazorpay = async (
-  intent: PaymentIntent
+  intent: PaymentIntent,
+  onVerify?: () => void
 ): Promise<{ status: string; refundStatus: string }> => {
   const saved = sessionStorage.getItem(`nirvana_payment_${intent.bookingId}`);
   if (saved) {
+    onVerify?.();
     const status = await confirmPayment(String(intent.bookingId), JSON.parse(saved));
     sessionStorage.removeItem(`nirvana_payment_${intent.bookingId}`);
     return status;
@@ -69,6 +72,7 @@ export const payWithRazorpay = async (
         contact: intent.customerPhone
       },
       handler: async (result: RazorpayResult) => {
+        onVerify?.();
         sessionStorage.setItem(`nirvana_payment_${intent.bookingId}`, JSON.stringify(result));
         try {
           const status = await confirmPayment(String(intent.bookingId), result);

@@ -8,6 +8,7 @@ type ButtonProps<T extends ElementType> = {
   as?: T;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  pressFeedback?: boolean;
   children: ReactNode;
 } & Omit<ComponentProps<T>, 'as' | 'variant' | 'size' | 'children'>;
 
@@ -27,6 +28,7 @@ const Button = <T extends ElementType = 'button'>({
   as,
   variant = 'primary',
   size = 'md',
+  pressFeedback = false,
   children,
   className,
   ...props
@@ -37,12 +39,13 @@ const Button = <T extends ElementType = 'button'>({
       className={clsx(
         'ui-button disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500',
         variantClasses[variant],
+        pressFeedback && 'booking-press',
         sizeClasses[size],
         className
       )}
       {...props}
     >
-      {children}
+      {pressFeedback ? <span className="booking-press-label">{children}</span> : children}
     </Component>
   );
 };

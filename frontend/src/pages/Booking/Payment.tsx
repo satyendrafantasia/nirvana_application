@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
-import { createBooking, CreatedBooking } from '../../api/bookingApi';
+import { createBooking, CreatedBooking, isSlotConflict } from '../../api/bookingApi';
 import { resumePayment, payAtSpa, payWithRazorpay } from '../../api/paymentApi';
 import client, { errorMessage } from '../../api/client';
 import { money, previewCheckout } from '../../api/rewardsApi';
@@ -103,6 +103,7 @@ export default function Payment({
   const qc=useQueryClient();
   const [created, setCreated] = useState<CreatedBooking>();
   const submitting = useRef(false);
+  const [progress, setProgress] = useState('');
   const [coupon, setCoupon] = useState('');
   const [loyalty, setLoyalty] = useState(false);
   const [giftCard, setGiftCard] = useState('');
@@ -154,6 +155,7 @@ export default function Payment({
     mutationFn: async () => {
       if (!state.spaId || !state.service || !state.selectedSlot || !method)
         throw new Error('Select a service and available appointment time.');
+      setProgress('Confirming booking…');
       if (!created) track('booking_submitted');
       const booking =
         created ||
@@ -176,6 +178,13 @@ export default function Payment({
           payWithPackage: usePackage,
           payWithSpaPackage: useSpaPackage,
           bookingSource: 'WEB'
+        }).catch(error => {
+          if (isSlotConflict(error)) {
+            void qc.invalidateQueries({ queryKey: ['slots', state.spaId, state.service!.id] });
+            setSlot(undefined);
+            onTimeConflict();
+          }
+          throw error;
         }));
       if (!created && coupon.trim() && !usePackage && !useSpaPackage) track('coupon_applied');
       setCreated(booking);
@@ -184,12 +193,15 @@ export default function Payment({
       let paymentMode = booking.paymentMode;
       if (created && method === 'OFFLINE' && booking.status === 'PENDING_PAYMENT') {
         ({ status, paymentMode } = await payAtSpa(String(booking.bookingId)));
-      } else if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT')
+      } else if (booking.paymentMode === 'ONLINE' && booking.status === 'PENDING_PAYMENT') {
+        setProgress('Waiting for payment…');
+        const verifying = () => setProgress('Verifying payment…');
         status = (
           await (!created && booking.razorpay
-            ? payWithRazorpay(booking.razorpay)
-            : resumePayment(String(booking.bookingId)))
+            ? payWithRazorpay(booking.razorpay, verifying)
+            : resumePayment(String(booking.bookingId), verifying))
         ).status;
+      }
       return {
         ...booking,
         paymentMode,
@@ -207,10 +219,6 @@ export default function Payment({
         setUseWallet(false);
         void qc.invalidateQueries({ queryKey: ['my-wallet'] });
         void qc.invalidateQueries({ queryKey: ['checkout-preview'] });
-      } else if (!created && axios.isAxiosError(err) && err.response?.status === 409) {
-        void qc.invalidateQueries({ queryKey: ['slots'] });
-        setSlot(undefined);
-        onTimeConflict();
       }
     },
     onSuccess: (b) => {
@@ -340,6 +348,7 @@ export default function Payment({
           Back
         </Button>
         <Button
+          pressFeedback
           disabled={
             mutation.isPending || options.isPending ||
             (!created && !byPackage && useWallet && (preview.isFetching || !preview.data?.walletCents || !!preview.data.walletError)) ||
@@ -351,8 +360,9 @@ export default function Payment({
             mutation.mutate(undefined, { onSettled: () => { submitting.current = false; } });
           }}
         >
-          {mutation.isPending ? 'Processing…' : created ? (method === 'OFFLINE' ? 'Confirm pay at spa' : 'Retry payment') : 'Book appointment'}
+          {mutation.isPending ? progress || 'Confirming booking…' : created ? (method === 'OFFLINE' ? 'Confirm pay at spa' : 'Retry payment') : 'Book appointment'}
         </Button>
+        <span className="sr-only" role="status">{mutation.isPending ? progress : ''}</span>
       </div>
     </div>
   );
