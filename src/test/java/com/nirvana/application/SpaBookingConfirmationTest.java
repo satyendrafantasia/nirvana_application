@@ -1,13 +1,7 @@
 package com.nirvana.application;
 
 import com.nirvana.application.model.Booking;
-import com.nirvana.application.model.Service;
-import com.nirvana.application.model.Slot;
-import com.nirvana.application.model.Spa;
-import com.nirvana.application.model.User;
 import com.nirvana.application.model.enums.BookingStatus;
-import com.nirvana.application.model.enums.PaymentMode;
-import com.nirvana.application.model.enums.SlotStatus;
 import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.service.SpaAlertSms;
 import com.nirvana.application.service.SpaBookingAlerts;
@@ -26,7 +20,6 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,34 +39,9 @@ class SpaBookingConfirmationTest {
 
     /** A confirmed pay-at-spa booking tomorrow at a spa with the given phone. */
     private Booking booking(String phone) {
-        Spa spa = em.find(Spa.class, 1L);
-        spa.setPhone(phone);
-        Service service = em.getReference(Service.class, 1L);
-        OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
-        Slot slot = new Slot();
-        slot.setSpa(spa);
-        slot.setService(service);
-        slot.setStartTs(start);
-        slot.setEndTs(start.plusHours(1));
-        slot.setStatus(SlotStatus.BOOKED);
-        slot.setBookedUnits((short) 1);
-        em.persist(slot);
-
-        Booking booking = new Booking();
-        booking.setBookingReference("CONFIRM-" + UUID.randomUUID());
-        booking.setUser(em.getReference(User.class, 3L));
-        booking.setSpa(spa);
-        booking.setService(service);
-        booking.setSlot(slot);
-        booking.setStartTs(slot.getStartTs());
-        booking.setEndTs(slot.getEndTs());
-        booking.setStatus(BookingStatus.CONFIRMED);
-        booking.setPaymentMode(PaymentMode.OFFLINE);
-        booking.setPriceCents(150_000);
-        booking.setDepositCents(0);
-        booking.setRemainderCents(150_000);
-        booking.setPolicySnapshotJson("{}");
-        return bookings.saveAndFlush(booking);
+        Booking booking = BookingFixtures.payAtSpa(em, OffsetDateTime.now(ZoneOffset.UTC).plusDays(1), BookingStatus.CONFIRMED);
+        booking.getSpa().setPhone(phone);
+        return booking;
     }
 
     private String token(long bookingId) {
