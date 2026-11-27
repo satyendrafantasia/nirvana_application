@@ -35,6 +35,11 @@ class AccountTest {
     }
 
     Reply send(MockHttpServletRequestBuilder req, String token, Object body) throws Exception {
+        // Account sign-ins share one realistic client budget, separate from other MockMvc test classes.
+        req.with(request -> {
+            request.setRemoteAddr("192.0.2.140");
+            return request;
+        });
         if (token != null) req.header("Authorization", "Bearer " + token);
         if (body != null) req.contentType("application/json").content(json.writeValueAsString(body));
         var r = mvc.perform(req).andReturn().getResponse();
