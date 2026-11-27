@@ -2,14 +2,22 @@ package com.nirvana.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nirvana.application.config.RateLimitingProperties;
 import com.nirvana.application.repository.BookingRepository;
+import com.nirvana.application.security.RateLimitService;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.impl.BookingLifecycleService;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -32,6 +41,30 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 @SpringBootTest @AutoConfigureMockMvc @Transactional
 class BookingLifecycleTest {
+    // Requests within a test share both limits. Other tests reuse the same customer and loopback IP.
+    private static final ThreadLocal<String> rateLimitPrefix =
+            ThreadLocal.withInitial(() -> "booking-test:" + UUID.randomUUID() + ":");
+
+    @AfterEach
+    void releaseRateLimitPrefix() {
+        rateLimitPrefix.remove();
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class RateLimitFixture {
+        @Bean
+        @Primary
+        RateLimitService bookingTestRateLimits(RateLimitingProperties properties, StringRedisTemplate redis,
+                                               MeterRegistry metrics) {
+            return new RateLimitService(properties, redis, metrics) {
+                @Override
+                public boolean isAllowed(String key, int maxRequests) {
+                    return super.isAllowed(rateLimitPrefix.get() + key, maxRequests);
+                }
+            };
+        }
+    }
+
     static final String SCHEDULE = "/api/owner/spas/1/schedule";
     static final ZoneId ZONE = ZoneId.of("Europe/London");
     final LocalDate day = LocalDate.now(ZONE).plusMonths(3).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
