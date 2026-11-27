@@ -15,6 +15,7 @@ ARG NODE_IMAGE=node:24.22.3-bookworm-slim
 ARG JRE_IMAGE=eclipse-temurin:17-jre-noble@sha256:ad806840ae514b83d3d8e3a00a5c1b7302fb0a6ae02bbbaf8a8bf1ffdf5367c6
 ARG NGINX_IMAGE=nginx:1.28.3-alpine
 ARG MARIADB_IMAGE=mariadb:11.4.13-noble
+ARG APP_JAR_SOURCE=backend-build
 
 # ---------------------------------------------------------------- frontend build
 FROM ${NODE_IMAGE} AS frontend-build
@@ -43,6 +44,12 @@ COPY src ./src
 # Tests need a database and run in CI (.github/workflows/ci.yml), not in the image build.
 RUN --mount=type=cache,target=/root/.m2 mvn -B -q -DskipTests package \
  && cp target/application-*.jar /src/app.jar
+
+# CI supplies the exact Spring Boot JAR produced by the successful Maven verify job.
+FROM scratch AS verified-jar
+COPY .ci-artifacts/application-*.jar /src/app.jar
+
+FROM ${APP_JAR_SOURCE} AS app-jar
 
 # ---------------------------------------------------------------- web (nginx)
 FROM ${NGINX_IMAGE} AS web
@@ -80,7 +87,7 @@ RUN apt-get update \
  && groupadd --system --gid 10001 nirvana \
  && useradd --system --uid 10001 --gid nirvana --home-dir /app --shell /usr/sbin/nologin nirvana
 WORKDIR /app
-COPY --from=backend-build --chown=nirvana:nirvana /src/app.jar /app/app.jar
+COPY --from=app-jar --chown=nirvana:nirvana /src/app.jar /app/app.jar
 COPY --from=frontend-build --chown=nirvana:nirvana /src/frontend/dist/app.html /app/app.html
 USER nirvana:nirvana
 ARG VITE_PUBLIC_SITE_URL=

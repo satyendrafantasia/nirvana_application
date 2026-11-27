@@ -297,7 +297,7 @@ Not exercised here: a real S3 bucket, the `aws` CLI upload path, and the scripts
 | `backend` | MariaDB 11.4 service container; creates `nirvana_ci` with `utf8mb4_0900_ai_ci`; generates a one-off `JWT_SECRET`; `./mvnw verify` (all backend tests). Maven cache via `setup-java`. Test reports are uploaded when it fails. |
 | `frontend` | `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npx vitest run`. npm cache via `setup-node`. |
 | `scripts` | Checks each shell script with ShellCheck and `bash -n`. |
-| `images` | Builds all three images on native AMD64 and ARM64 Linux runners. Each runner starts an isolated Compose stack and runs `scripts/smoke-compose.sh` against the built images. |
+| `images` | Packages the JAR from the backend test job into both app images. Native AMD64 and ARM64 Linux runners each build all three images, start an isolated Compose stack and run `scripts/smoke-compose.sh` against it. |
 | `publish` | After both architectures pass on a push to `main`, publishes multi-platform `main` and `sha-<commit>` tags for each image at `ghcr.io/<owner>/<repo>/{app,web,backup}`. Verifies that both tags resolve to the same manifest with both architectures. |
 
 Publishing uses the workflow's own `GITHUB_TOKEN` (`packages: write`), so no repository secrets are

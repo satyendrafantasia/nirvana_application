@@ -55,7 +55,16 @@ jobs:
           cache: maven
 
       - name: Test and package
-        run: sh ./mvnw -B -ntp verify
+        run: sh ./mvnw -B -ntp clean verify
+
+      - name: Share the verified JAR with native image builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-api
+          path: target/application-*.jar
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 2
 
       - name: Upload test reports
         if: failure()
@@ -117,6 +126,10 @@ jobs:
       VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-api
+          path: .ci-artifacts
       - uses: docker/setup-buildx-action@v3
 
       - name: Build native app, web and backup images
@@ -133,6 +146,7 @@ jobs:
             *.platform=linux/${{ matrix.arch }}
             *.label.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             *.label.org.opencontainers.image.revision=${{ github.sha }}
+            app.args.APP_JAR_SOURCE=verified-jar
             app.cache-from=type=gha,scope=app-${{ matrix.arch }}
             web.cache-from=type=gha,scope=web-${{ matrix.arch }}
             backup.cache-from=type=gha,scope=backup-${{ matrix.arch }}
