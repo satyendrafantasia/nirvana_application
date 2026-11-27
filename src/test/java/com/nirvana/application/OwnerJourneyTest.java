@@ -4,6 +4,12 @@ import com.nirvana.application.security.*;
 import com.nirvana.application.repository.*;
 import com.nirvana.application.model.*;
 import org.junit.jupiter.api.Test;
+import com.nirvana.application.otp.sender.EmailSender;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -17,11 +23,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-@SpringBootTest @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties={"email.enabled=true","email.fromAddress=qa@example.test","sms.enabled=false"}) @AutoConfigureMockMvc @Transactional
 class OwnerJourneyTest {
  @Autowired MockMvc mvc; @Autowired OtpVerificationRepository otps;
  @Autowired com.fasterxml.jackson.databind.ObjectMapper json;
  @Autowired SpaRepository spas;
+ @MockitoBean EmailSender emailSender;
  private UsernamePasswordAuthenticationToken auth(long id,String role){
   var p=new UserPrincipal(id,"owner-test","owner-test@example.test","",true,List.of(new SimpleGrantedAuthority(role)));
   return new UsernamePasswordAuthenticationToken(p,null,p.getAuthorities());
@@ -38,8 +45,19 @@ class OwnerJourneyTest {
  @Test void verifiedOwnerCanOnboardMultipleSpasAndManageOnlyTheirData() throws Exception {
   var registration=register("SPA_OWNER");long userId=registration.get("user").get("id").asLong();
   assertTrue(registration.get("roles").toString().contains("ROLE_SPA_OWNER"));assertFalse(registration.get("roles").toString().contains("ADMIN"));
-  String credentials=json.writeValueAsString(Map.of("username",registration.get("user").get("email").asText(),"password","OwnerTest123!"));
-  var login=json.readTree(mvc.perform(post("/api/auth/login").contentType("application/json").content(credentials)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+  String email = registration.get("user").get("email").asText();
+  byte[] credentials = json.writeValueAsBytes(Map.of("username", email, "password", "OwnerTest123!"));
+  var challenge = json.readTree(mvc.perform(post("/api/auth/login").contentType("application/json").content(credentials))
+          .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+  assertTrue(challenge.path("mfaRequired").asBoolean());
+  assertFalse(challenge.hasNonNull("accessToken"));
+  var message = ArgumentCaptor.forClass(String.class);
+  verify(emailSender).sendOtpEmail(eq(email), anyString(), message.capture());
+  var otp = java.util.regex.Pattern.compile("OTP is ([0-9]{6})").matcher(message.getValue());
+  assertTrue(otp.find());
+  byte[] proof = json.writeValueAsBytes(Map.of("verificationId", challenge.get("mfaVerificationId").asText(), "otp", otp.group(1)));
+  var login = json.readTree(mvc.perform(post("/api/auth/login/mfa/verify").contentType("application/json").content(proof))
+          .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
   assertTrue(login.get("roles").toString().contains("ROLE_SPA_OWNER"));
   mvc.perform(get("/api/onboarding/spas").header("Authorization","Bearer "+login.get("accessToken").asText())).andExpect(status().isOk());
   var owner=auth(userId,"ROLE_SPA_OWNER");var stranger=auth(999999L,"ROLE_SPA_OWNER");

@@ -14,7 +14,9 @@ public interface S3Service {
 
     String getFileUrl(String key);
 
+    String getSpaMediaUrl(Long spaId, com.nirvana.application.model.enums.MediaType kind, String key);
+
     MediaPresignResponse generatePreSignedUploadUrl(MediaPresignRequest request);
 
-    boolean objectExists(String objectKey);
+    String publishMedia(long spaId, String objectKey, com.nirvana.application.model.enums.MediaType kind);
 }

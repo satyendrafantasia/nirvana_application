@@ -9,4 +9,9 @@ import lombok.Data;
 @AllArgsConstructor
 public class VerificationResponse {
     private String verificationId;
+    private boolean firebasePhone;
+
+    public VerificationResponse(String verificationId) {
+        this.verificationId = verificationId;
+    }
 }

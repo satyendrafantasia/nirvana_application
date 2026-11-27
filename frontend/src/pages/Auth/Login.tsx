@@ -45,7 +45,7 @@ const Login = ({ owner = false }: { owner?: boolean }) => {
           {owner ? 'Spa owner sign in' : 'Welcome back'}
         </h1>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <Input autoComplete="username" name="email" type="email" label="Email" placeholder="you@example.com" required />
+          <Input autoComplete="username" name="email" type="text" label="Email or mobile number" placeholder="Email or +91 mobile number" required />
           <Input autoComplete="current-password" name="password" type="password" label="Password" placeholder="••••••••" required />
           {mutation.isError && <p role="alert">{errorMessage(mutation.error)}</p>}
           <Button type="submit" disabled={mutation.isPending} className="w-full">

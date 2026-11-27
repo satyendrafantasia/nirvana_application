@@ -73,13 +73,13 @@ public class RazorpayRoutePayoutProvider implements PayoutProvider {
                     .header("X-Transfer-Idempotency", r.idempotencyKey())
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString()))));
         } catch (Refused e) {
-            log.warn("event=payout.transfer_failed payout={} reason={}", r.payoutId(), e.getMessage());
+            log.warn("event=payout.transfer_failed payout={} reason={}", r.payoutId(), e.getClass().getSimpleName());
             return Transfer.failed(trim(e.getMessage()));
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             // Unknown whether Razorpay got it: leave the payout in progress. A retry reuses the same key, so
             // Razorpay returns the transfer it made, if any, instead of making a second one.
-            log.warn("event=payout.transfer_unknown payout={} reason={}", r.payoutId(), e.getMessage());
+            log.warn("event=payout.transfer_unknown payout={} reason={}", r.payoutId(), e.getClass().getSimpleName());
             return new Transfer(State.IN_PROGRESS, null, "No answer from Razorpay; check before retrying");
         }
     }
@@ -133,7 +133,7 @@ public class RazorpayRoutePayoutProvider implements PayoutProvider {
                             .put("ifsc_code", r.ifsc()).put("beneficiary_name", r.accountHolder())));
             return new Link(account, product, null);
         } catch (RazorpayException | RuntimeException e) {
-            log.warn("event=payout.link_failed spa={} reason={}", r.spaId(), e.getMessage());
+            log.warn("event=payout.link_failed spa={} reason={}", r.spaId(), e.getClass().getSimpleName());
             return new Link(account, product, trim(e.getMessage()));
         }
     }

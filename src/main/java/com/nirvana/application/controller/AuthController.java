@@ -99,7 +99,7 @@ public class AuthController {
     public AuthResponse me() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
-            throw new IllegalStateException("Unauthenticated request");
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Please sign in");
         }
         return AuthResponse.builder()
                 .userId(principal.getId())

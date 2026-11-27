@@ -74,8 +74,8 @@ compose file (it binds to 127.0.0.1) if you need to reach it from the host.
 
 Health: the app image's healthcheck calls `GET /management/health`, the one actuator path that
 needs no token. It reports `DOWN` when the database or Redis is unreachable. Without Redis, set
-`MANAGEMENT_HEALTH_REDIS_ENABLED=false` (rate limiting then falls back to per-instance memory,
-which is wrong for more than one app instance).
+`MANAGEMENT_HEALTH_REDIS_ENABLED=false` to omit the Redis check. General rate limits fall back to
+the shared SQL database. Authentication and booking limits always use that database.
 
 Stop with `docker compose down`. `docker compose down -v` also **deletes the database volume**.
 
@@ -104,7 +104,7 @@ Any other Spring property can also be set with Spring's relaxed binding (for exa
 | `MANAGEMENT_HEALTH_REDIS_ENABLED` | `true` | Set `false` when running without Redis. |
 | `FORWARD_HEADERS_STRATEGY` | `none` | `native` behind the `web` container or another trusted proxy. |
 | `FRONTEND_URL` | `http://localhost:5173` | Exact public frontend origin (OAuth handoff, links in messages). |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API cross-origin. |
+| `CORS_ALLOWED_ORIGINS` | `PUBLIC_SITE_URL` if set | Comma-separated exact origins. Same-origin deployments work without a cross-origin grant. The local-spa profile includes the development UI origins. |
 | `API_DOCS_ENABLED` | `false` | Swagger UI and `/v3/api-docs`. |
 | `SCHEDULING_ENABLED` | `true` | Background jobs (payment reconciliation, expiry, reminders). Enable on exactly one instance if you run several. |
 | `FLYWAY_REPAIR_ON_MIGRATE` | `false` | Never enable routinely; it rewrites migration history. |
@@ -122,9 +122,8 @@ Any other Spring property can also be set with Spring's relaxed binding (for exa
 | `BOOKING_AUTO_COMPLETE_HOURS` | `24` | Unclosed appointments are completed this long after they end; 0 disables. |
 | `BOOKING_REMINDER_LEAD_HOURS` | `24` | Customer reminder lead time; 0 disables. |
 | `LOYALTY_EARN_PERCENT` | `2` | Points earned on completed appointments. |
-| `RATE_LIMIT_AUTH_REQUESTS` | `20` | Auth requests per window per client. |
-| `RATE_LIMIT_BYPASS_TOKEN` | empty | Captcha bypass token for trusted automation. |
-| `MFA_BYPASS_TOKEN` | empty | Leave empty in production. |
+| `RATE_LIMIT_AUTH_REQUESTS` | `20` | Per-client ceiling per window for each protected authentication, booking creation or slot-hold operation. |
+| `PAYMENT_MFA_ENABLED` | `false` | Require an authenticated password-plus-second-factor session for customer payment actions. Ensure customers can enroll and sign in with this method before enabling it. |
 
 ### Integrations (all optional; features stay off or fail visibly without them)
 

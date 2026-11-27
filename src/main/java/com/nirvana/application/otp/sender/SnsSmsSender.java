@@ -60,7 +60,7 @@ public class SnsSmsSender implements SmsSender {
             log.error("Notification delivery failed");
             throw new SmsSendException("Failed to send SMS via AWS SNS", ex);
         } catch (Exception ex) {
-            log.error("Unexpected error sending OTP SMS", ex);
+            log.error("Unexpected error sending OTP SMS errorType={}", ex.getClass().getSimpleName());
             throw new SmsSendException("Failed to send SMS via AWS SNS", ex);
         }
     }

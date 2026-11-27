@@ -307,8 +307,7 @@ public class SpaServiceImpl implements SpaService {
     private MediaAsset mediaForSettings(Spa spa, java.util.Map<String,MediaAsset> existing, MediaType type, String key, String title, Integer position) {
         var asset = existing.get(type+":"+key);
         if (asset == null) {
-            validateMediaObjectKey(spa.getId(),key,type);
-            asset=MediaAsset.builder().spa(spa).mediaType(type).objectKey(key).build();
+            throw new BusinessException("Upload media through the spa media uploader before editing its details");
         }
         asset.setTitle(title);asset.setPosition(position);return asset;
     }
@@ -324,16 +323,6 @@ public class SpaServiceImpl implements SpaService {
         }
     }
 
-    private void validateMediaObjectKey(Long spaId, String objectKey, MediaType mediaType) {
-        if (spaId == null) {
-            throw new BusinessException("Spa must be persisted before validating media");
-        }
-        String expectedFolder = mediaType == MediaType.VIDEO ? "videos" : "images";
-        String pattern = String.format("^spa/%d/%s/.+", spaId, expectedFolder);
-        if (objectKey == null || !objectKey.matches(pattern)) {
-            throw new BusinessException("Media objectKey must be under spa/" + spaId + "/" + expectedFolder + "/");
-        }
-    }
 
     private void validateMediaMetadata(List<?> mediaList, String fieldName) {
         if (mediaList == null) {

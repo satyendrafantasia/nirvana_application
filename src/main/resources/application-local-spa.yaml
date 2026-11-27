@@ -1,4 +1,6 @@
 # Optional isolated local MariaDB environment. The default production MySQL configuration is unchanged.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000}
 spring:
   datasource:
     url: ${SPA_DB_URL:jdbc:mariadb://127.0.0.1:3307/nirvana_spa_test}
@@ -26,9 +28,6 @@ email:
   enabled: false
 sms:
   enabled: false
-# With SMS off locally, listing-claim phone codes are written to the backend log instead.
-listing-claims:
-  log-codes: ${LISTING_CLAIM_LOG_CODES:true}
 security:
   jwt:
     secret: ${JWT_SECRET}

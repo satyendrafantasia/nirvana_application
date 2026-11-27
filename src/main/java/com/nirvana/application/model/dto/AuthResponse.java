@@ -35,4 +35,5 @@ public class AuthResponse {
 
     @Schema(description = "Verification id used to complete an MFA or OTP login challenge")
     private String mfaVerificationId;
+    private boolean mfaFirebasePhone;
 }

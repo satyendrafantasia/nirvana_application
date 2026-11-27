@@ -1,14 +1,14 @@
 package com.nirvana.application.security;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 public class PaymentMfaVerifier {
-
+    static final String VERIFIED_SESSION = PaymentMfaVerifier.class.getName() + ".verifiedSession";
     private final MfaProperties properties;
 
     public PaymentMfaVerifier(MfaProperties properties) {
@@ -16,36 +16,15 @@ public class PaymentMfaVerifier {
     }
 
     public void verifyPaymentChallenge() {
-        if (!properties.isEnabled()) {
-            return;
-        }
-        HttpServletRequest request = currentRequest();
-        if (request == null) {
-            throw new IllegalStateException("Missing request context for MFA validation");
-        }
-        String expected = properties.getBypassToken();
-        if (expected == null || expected.isBlank()) {
-            // Fail closed: enabling the check without a secret must not fall back to a known token.
-            throw new IllegalStateException("Payment verification is enabled but not configured");
-        }
-        String provided = request.getHeader(properties.getHeader());
-        if (provided == null || !java.security.MessageDigest.isEqual(
-                provided.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                expected.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
-            throw new IllegalArgumentException("Payment MFA challenge missing or invalid");
-        }
-    }
-
-    private HttpServletRequest currentRequest() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        return attributes != null ? attributes.getRequest() : null;
+        if (!properties.isEnabled()) return;
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && Boolean.TRUE.equals(attributes.getRequest().getAttribute(VERIFIED_SESSION))) return;
+        throw new AccessDeniedException("Sign in with your password and registered second factor to continue payment.");
     }
 
     @ConfigurationProperties(prefix = "security.mfa")
     public static class MfaProperties {
-        private boolean enabled = false;
-        private String header = "X-MFA-Token";
-        private String bypassToken = "";
+        private boolean enabled;
 
         public boolean isEnabled() {
             return enabled;
@@ -53,22 +32,6 @@ public class PaymentMfaVerifier {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
-        }
-
-        public String getHeader() {
-            return header;
-        }
-
-        public void setHeader(String header) {
-            this.header = header;
-        }
-
-        public String getBypassToken() {
-            return bypassToken;
-        }
-
-        public void setBypassToken(String bypassToken) {
-            this.bypassToken = bypassToken;
         }
     }
 }

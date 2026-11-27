@@ -218,7 +218,7 @@ public class PaymentService {
             log.info("Created Razorpay order {} for booking {}", payment.getIntentId(), bookingId);
             return buildInitResponse(booking, payment);
         } catch (RazorpayException e) {
-            log.error("Error creating Razorpay order for booking {}", bookingId, e);
+            log.error("Error creating Razorpay order for booking {} errorType={}", bookingId, e.getClass().getSimpleName());
             throw new RuntimeException("Unable to create payment order", e);
         }
     }
@@ -330,12 +330,15 @@ public class PaymentService {
             com.razorpay.Payment remote = razorpayClient.payments.fetch(paymentId);
             if (!paymentId.equals(remote.get("id"))
                     || !expectedOrderId.equals(remote.get("order_id"))
-                    || ((Number) remote.get("amount")).intValue() != payment.getAmountCents()
+                    || ((Number) remote.get("amount")).longValue() != payment.getAmountCents()
                     || !payment.getCurrency().equalsIgnoreCase(remote.get("currency"))) {
                 throw new IllegalArgumentException("Gateway payment does not match the stored order, amount and currency");
             }
             boolean recordedCapture = paymentId.equals(payment.getTransactionId()) && payment.getCapturedAt() != null;
             if (recordedCapture && "refunded".equals(remote.get("status"))) return;
+            if (!recordedCapture && ((Number) remote.get("amount_refunded")).longValue() != 0) {
+                throw new IllegalStateException("The full payment is required to confirm this appointment.");
+            }
             if (!"captured".equals(remote.get("status")) || !Boolean.TRUE.equals(remote.get("captured"))) {
                 throw new IllegalStateException("Payment is not captured yet. Please retry verification shortly.");
             }
@@ -489,10 +492,10 @@ public class PaymentService {
 
     private void reconcilePaidLink(Payment payment, Booking booking, PaymentLink link) throws RazorpayException {
         if (!Objects.equals(payment.getPaymentLinkId(),link.get("id")) || !Objects.equals(booking.getBookingReference(),link.get("reference_id"))
-            || ((Number)link.get("amount")).intValue()!=payment.getAmountCents() || !Objects.equals(payment.getCurrency(),link.get("currency")))
+            || ((Number)link.get("amount")).longValue()!=payment.getAmountCents() || !Objects.equals(payment.getCurrency(),link.get("currency")))
             throw new IllegalArgumentException("Payment link does not match this booking");
         if (!"paid".equals(link.get("status"))) return;
-        if (((Number)link.get("amount_paid")).intValue()!=payment.getAmountCents()) throw new IllegalStateException("Full payment is required");
+        if (((Number)link.get("amount_paid")).longValue()!=payment.getAmountCents()) throw new IllegalStateException("Full payment is required");
         org.json.JSONArray paid = link.get("payments");
         if (paid == null || paid.length()!=1) throw new IllegalStateException("Payment link needs manual reconciliation");
         String paymentId=paid.getJSONObject(0).getString("payment_id");
@@ -597,28 +600,31 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public java.util.Map<String, String> paymentStatus(Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new EntityNotFoundException("Booking not found"));
-        checkOwner(booking);
+        Booking booking = accessibleBooking(bookingId);
         return java.util.Map.of("status", booking.getStatus().name(), "refundStatus", booking.getRefundStatus().name());
     }
 
     public void requireBookingAccess(Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new EntityNotFoundException("Booking not found"));
-        checkOwner(booking);
+        accessibleBooking(bookingId);
+    }
+
+    private Booking accessibleBooking(Long bookingId) {
+        if (platformAdmin()) return bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+        return bookingRepository.findByIdAndUserId(bookingId, SecurityUtils.getCurrentUserId())
+                .orElseThrow(() -> new AccessDeniedException("Booking access denied"));
     }
 
     private Booking ownedBooking(Long bookingId) {
-        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+        if (platformAdmin()) return bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
-        checkOwner(booking);
-        return booking;
+        return bookingRepository.findOwnedForUpdate(bookingId, SecurityUtils.getCurrentUserId())
+                .orElseThrow(() -> new AccessDeniedException("Booking access denied"));
     }
 
-    private void checkOwner(Booking booking) {
-        Long userId = SecurityUtils.getCurrentUserId();
-        boolean admin = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
-                .anyMatch(a -> (a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_PLATFORM_ADMIN")));
-        if (!admin && !Objects.equals(booking.getUser().getId(), userId)) throw new AccessDeniedException("Booking access denied");
+    private boolean platformAdmin() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_PLATFORM_ADMIN".equals(a.getAuthority()));
     }
 
     private void ensureRazorpayEnabled() {

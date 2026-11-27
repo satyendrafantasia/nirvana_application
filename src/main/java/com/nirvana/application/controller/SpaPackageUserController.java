@@ -60,7 +60,7 @@ public class SpaPackageUserController {
     }
 
     @PostMapping("/spa/{spaId}/packages/{spaPackageId}/buy")
-    @Operation(summary = "Buy spa package", description = "Purchase a spa package with wallet or payment gateway and link to the authenticated user.")
+    @Operation(deprecated = true, summary = "Legacy purchase endpoint", description = "Use the spa package checkout and confirmation endpoints for verified purchases.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Package purchased", content = @Content(mediaType = "application/json", schema = @Schema(implementation = BuySpaPackageResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid purchase", content = @Content(schema = @Schema(implementation = com.nirvana.application.api.ApiErrorResponse.class)))

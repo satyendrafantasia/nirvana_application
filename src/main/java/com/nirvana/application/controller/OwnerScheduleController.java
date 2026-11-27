@@ -120,8 +120,8 @@ public class OwnerScheduleController {
         ZoneId zone=TherapistRoster.zone(spas.findById(spaId).orElseThrow(this::missing));
         services.findByIdAndSpa_Id(serviceId,spaId).orElseThrow(this::missing);
         if(slotId!=null){
-            Slot slot=slots.findById(slotId).orElseThrow(this::missing);
-            if(!slot.getSpa().getId().equals(spaId)||!slot.getService().getId().equals(serviceId))throw missing();
+            Slot slot=slots.findByIdAndSpa_Id(slotId,spaId).orElseThrow(this::missing);
+            if(!slot.getService().getId().equals(serviceId))throw missing();
             start=slot.getStartTs();
         }
         final OffsetDateTime when=start;
@@ -135,7 +135,7 @@ public class OwnerScheduleController {
     public record Candidate(long id,String name) {}
     @GetMapping("/slots/{slotId}/therapists")
     public List<Candidate> candidates(@PathVariable Long spaId,@PathVariable Long slotId) {
-        Slot slot=slots.findById(slotId).filter(s->s.getSpa().getId().equals(spaId)).orElseThrow(this::missing);
+        Slot slot=slots.findByIdAndSpa_Id(slotId,spaId).orElseThrow(this::missing);
         return allocation.eligible(slot,null,null).stream()
                 .map(t->new Candidate(t.getId(),t.getName())).toList();
     }
@@ -206,7 +206,7 @@ public class OwnerScheduleController {
     @DeleteMapping("/slots/{id}")
     public void deleteSlot(@PathVariable Long spaId,@PathVariable Long id){
         spas.lockSchedule(spaId).orElseThrow(this::missing);
-        Slot slot=slots.findByIdForUpdate(id).filter(s->s.getSpa().getId().equals(spaId)).orElseThrow(this::missing);
+        Slot slot=slots.findForSpaUpdate(id,spaId).orElseThrow(this::missing);
         var ids=jdbc.queryForList("select id from booking where slot_id=?",Long.class,id);
         if(!ids.isEmpty() || slot.getBookedUnits()>0)throw new IllegalStateException("Keep slot for appointments "+ids);
         if(holds.findActiveHoldUnits(id,OffsetDateTime.now())>0)throw new IllegalStateException("Wait for active holds to expire");
@@ -262,8 +262,7 @@ public class OwnerScheduleController {
     @PatchMapping("/slots/{slotId}")
     public SlotView change(@PathVariable Long spaId,@PathVariable Long slotId,@Valid @RequestBody ChangeSlot in) {
         Spa spa=spas.lockSchedule(spaId).orElseThrow(this::missing);
-        Slot slot=slots.findByIdForUpdate(slotId).orElseThrow(this::missing);
-        if(!spaId.equals(slot.getSpa().getId()))throw missing();
+        Slot slot=slots.findForSpaUpdate(slotId,spaId).orElseThrow(this::missing);
         ZoneId zone=TherapistRoster.zone(spa);
         SlotView before=view(slot,zone);
         boolean moving=(in.start()!=null && !in.start().isEqual(slot.getStartTs())) || (in.end()!=null && !in.end().isEqual(slot.getEndTs()));

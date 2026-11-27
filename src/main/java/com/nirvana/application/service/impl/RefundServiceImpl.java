@@ -40,7 +40,7 @@ public class RefundServiceImpl implements RefundService {
         try {
             paymentService.refundBookingPayment(booking.getId(), refundAmountCents, "User cancelled booking");
         } catch (Exception ex) {
-            log.error("Failed to refund payment for booking {}", booking.getId(), ex);
+            log.error("Failed to refund payment for booking {} errorType={}", booking.getId(), ex.getClass().getSimpleName());
             throw ex;
         }
     }

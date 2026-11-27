@@ -8,7 +8,7 @@ import { isAppRoute } from './src/seo/routes';
 import { version } from './package.json';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server.js';
+import { StaticRouter } from 'react-router-dom';
 import HomeHero from './src/pages/Home/HomeHero';
 
 // Deliver the same above-the-fold content before the browser starts React.
@@ -114,6 +114,7 @@ export default defineConfig(({ command, mode }) => ({
       )
     )
   ],
+  build: { sourcemap: false },
   server: {
     port: 5173,
     proxy: Object.fromEntries(

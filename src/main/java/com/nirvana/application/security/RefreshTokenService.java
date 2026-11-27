@@ -24,7 +24,14 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken issue(User user, String deviceFingerprint, String userAgent, String ipAddress) {
-        if (user.getDataErasedAt() != null)
+        return issue(user, deviceFingerprint, userAgent, ipAddress, false);
+    }
+
+    @Transactional
+    public RefreshToken issue(User user, String deviceFingerprint, String userAgent, String ipAddress, boolean mfaVerified) {
+        if (SessionAssurance.requiresMfa(user) && !mfaVerified)
+            throw new org.springframework.security.authentication.InsufficientAuthenticationException("Complete multifactor sign-in");
+        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDataErasedAt() != null)
             throw new org.springframework.security.authentication.DisabledException("This account has been deleted");
         if (user.getDataErasureRequestedAt() != null) {
             // Every sign-in method ends here, so signing in during the grace period keeps the account.
@@ -34,6 +41,8 @@ public class RefreshTokenService {
         OffsetDateTime now = OffsetDateTime.now();
         RefreshToken token = RefreshToken.builder()
                 .user(user)
+                .mfaVerified(mfaVerified)
+                .sessionFamily(UUID.randomUUID().toString())
                 .token(UUID.randomUUID().toString())
                 .deviceFingerprint(hashFingerprint(deviceFingerprint))
                 .userAgent(userAgent)
@@ -52,7 +61,8 @@ public class RefreshTokenService {
         validateToken(existing, deviceFingerprint);
 
         existing.setRevokedAt(OffsetDateTime.now());
-        RefreshToken next = issue(existing.getUser(), deviceFingerprint, existing.getUserAgent(), existing.getIpAddress());
+        RefreshToken next = issue(existing.getUser(), deviceFingerprint, existing.getUserAgent(), existing.getIpAddress(), existing.isMfaVerified());
+        if (existing.getSessionFamily() != null) next.setSessionFamily(existing.getSessionFamily());
         existing.setReplacedByToken(next.getToken());
         refreshTokenRepository.save(existing);
         return next;
@@ -60,11 +70,17 @@ public class RefreshTokenService {
 
     @Transactional
     public void revoke(String refreshTokenValue, String deviceFingerprint) {
-        refreshTokenRepository.findByTokenAndRevokedAtIsNull(refreshTokenValue)
+        refreshTokenRepository.findByToken(refreshTokenValue)
                 .ifPresent(token -> {
+                    OffsetDateTime now = OffsetDateTime.now();
+                    if (!token.getExpiresAt().isAfter(now)) return;
                     validateToken(token, deviceFingerprint);
-                    token.setRevokedAt(OffsetDateTime.now());
-                    refreshTokenRepository.save(token);
+                    // Another browser tab may already have rotated the cookie sent with logout.
+                    if (token.getSessionFamily() != null) {
+                        refreshTokenRepository.revokeFamily(token.getUser().getId(), token.getSessionFamily(), now);
+                    } else if (token.getRevokedAt() == null) {
+                        token.setRevokedAt(now);
+                    }
                 });
     }
 

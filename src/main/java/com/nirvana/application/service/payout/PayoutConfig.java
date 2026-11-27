@@ -24,7 +24,7 @@ public class PayoutConfig {
                     return new RazorpayRoutePayoutProvider(new RazorpayClient(razorpay.getKeyId(), razorpay.getKeySecret()),
                             razorpay.getKeyId(), razorpay.getKeySecret(), props);
                 } catch (RazorpayException e) {
-                    log.warn("event=payout.provider_unavailable reason={}", e.getMessage());
+                    log.warn("event=payout.provider_unavailable reason={}", e.getClass().getSimpleName());
                 }
             } else log.warn("event=payout.provider_unavailable reason=razorpay_not_configured");
         }

@@ -49,8 +49,8 @@ public class OtpService {
     public VerificationResponse requestOtp(OtpRequestDto request) {
         String phone = normalize(request.getPhoneNumber());
         String email = normalizeEmail(request.getEmail());
-        if (phone == null && email == null) {
-            throw new RegistrationException("INVALID_CONTACT", "Provide at least phoneNumber or email", HttpStatus.BAD_REQUEST);
+        if ((phone == null) == (email == null)) {
+            throw new RegistrationException("INVALID_CONTACT", "Choose one contact method to verify", HttpStatus.BAD_REQUEST);
         }
 
         enforceExistingUserChecks(phone, email);
@@ -92,7 +92,7 @@ public class OtpService {
                 emailSender.sendOtpEmail(email, "Your OTP Code", message);
             }
         } catch (RuntimeException ex) {
-            log.error("Failed to deliver OTP for verification {}", verification.getVerificationId(), ex);
+            log.error("Registration OTP delivery failed ({})", ex.getClass().getSimpleName());
             throw new RegistrationException("OTP_DELIVERY_FAILED", "Failed to deliver OTP", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -101,7 +101,7 @@ public class OtpService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = RegistrationException.class)
     public RegistrationTokenResponse verifyOtp(VerifyOtpRequest request) {
         OtpVerification verification = otpVerificationRepository.findByVerificationId(request.getVerificationId())
                 .orElseThrow(() -> new RegistrationException("INVALID_VERIFICATION_ID", "Verification session not found", HttpStatus.BAD_REQUEST));
@@ -116,10 +116,8 @@ public class OtpService {
         if (verification.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new RegistrationException("OTP_EXPIRED", "OTP has expired", HttpStatus.BAD_REQUEST);
         }
-        if (Boolean.TRUE.equals(verification.getVerified()) && verification.getRegistrationToken() != null
-                && verification.getRegistrationTokenExpiresAt() != null
-                && verification.getRegistrationTokenExpiresAt().isAfter(OffsetDateTime.now())) {
-            return RegistrationTokenResponse.builder().registrationToken(verification.getRegistrationToken()).build();
+        if (Boolean.TRUE.equals(verification.getVerified())) {
+            throw new RegistrationException("OTP_ALREADY_USED", "This code has already been verified. Request a new one.", HttpStatus.CONFLICT);
         }
         if (verification.getAttempts() >= verification.getMaxAttempts()) {
             throw new RegistrationException("MAX_ATTEMPTS_EXCEEDED", "Maximum OTP attempts exceeded", HttpStatus.BAD_REQUEST);
@@ -140,7 +138,8 @@ public class OtpService {
                 throw new RegistrationException("INVALID_PHONE_PROOF",
                         "That phone verification didn't work. Ask for a new code and try again.", HttpStatus.BAD_REQUEST);
             }
-        } else if (!verification.getOtpCode().equals(request.getOtp())) {
+        } else if ((smsProperties.isFirebase() && verification.getPhoneNumber() != null)
+                || !verification.getOtpCode().equals(request.getOtp())) {
             otpVerificationRepository.save(verification);
             String code = verification.getAttempts() >= verification.getMaxAttempts()
                     ? "MAX_ATTEMPTS_EXCEEDED"

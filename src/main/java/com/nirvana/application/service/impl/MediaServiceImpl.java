@@ -8,7 +8,9 @@ import com.nirvana.application.model.dto.MediaAssetResponse;
 import com.nirvana.application.model.dto.MediaPresignRequest;
 import com.nirvana.application.model.dto.MediaPresignResponse;
 import com.nirvana.application.model.dto.SpaMediaAttachRequest;
-import com.nirvana.application.model.enums.MediaType;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.nirvana.application.repository.MediaAssetRepository;
 import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.service.MediaService;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MediaServiceImpl implements MediaService {
 
     private final SpaRepository spaRepository;
@@ -42,15 +45,22 @@ public class MediaServiceImpl implements MediaService {
                 .orElseThrow(() -> new NotFoundException("Spa not found with id: " + spaId));
 
         validateOwnership(spa);
-        validateObjectKey(spa.getId(), request.getObjectKey(), request.getMediaType());
-        if (!s3Service.objectExists(request.getObjectKey())) {
-            throw new BusinessException("Uploaded object not found in S3 for key: " + request.getObjectKey());
-        }
+        String published = s3Service.publishMedia(spaId, request.getObjectKey(), request.getMediaType());
 
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCompletion(int status) {
+                String staleKey = status == STATUS_COMMITTED ? request.getObjectKey() : published;
+                try {
+                    s3Service.deleteFile(staleKey);
+                } catch (RuntimeException cleanupFailed) {
+                    log.warn("Media upload cleanup pending for spa {}", spaId);
+                }
+            }
+        });
         MediaAsset asset = MediaAsset.builder()
                 .spa(spa)
                 .mediaType(request.getMediaType())
-                .objectKey(request.getObjectKey())
+                .objectKey(published)
                 .title(request.getTitle())
                 .position(request.getPosition())
                 .build();
@@ -68,18 +78,11 @@ public class MediaServiceImpl implements MediaService {
     private void validateOwnership(Spa spa) {
         Long currentUserId = SecurityUtils.getCurrentUserId();
         if (spa.getSpaManager() == null || spa.getSpaManager().getUser() == null) {
-            throw new IllegalStateException("Spa manager not configured for spa: " + spa.getId());
+            throw new org.springframework.security.access.AccessDeniedException("Spa management access required");
         }
         if (!spa.getSpaManager().getUser().getId().equals(currentUserId)) {
-            throw new IllegalStateException("User not authorized to manage media for this spa");
+            throw new org.springframework.security.access.AccessDeniedException("Spa management access required");
         }
     }
 
-    private void validateObjectKey(Long spaId, String objectKey, MediaType mediaType) {
-        String folder = mediaType == MediaType.VIDEO ? "videos" : "images";
-        String pattern = String.format("^spa/%d/%s/.+", spaId, folder);
-        if (objectKey == null || !objectKey.matches(pattern)) {
-            throw new BusinessException("objectKey must be within spa/" + spaId + "/" + folder + "/");
-        }
-    }
 }

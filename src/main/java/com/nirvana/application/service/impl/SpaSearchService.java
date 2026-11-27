@@ -196,7 +196,7 @@ public class SpaSearchService {
             throw new IllegalArgumentException("radiusKm must be > 0 when sorting by distance");
         }
 
-        // Rough conversion: 1 degree latitude ≈ 111 km
+        // Rough conversion: 1 degree latitude â‰ˆ 111 km
         double latRadius = radiusKm / 111.0;
         double minLat = centerLat - latRadius;
         double maxLat = centerLat + latRadius;
@@ -270,7 +270,7 @@ public class SpaSearchService {
         );
     }
 
-    private Sort buildSort(String sort) {
+    static Sort buildSort(String sort) {
         if (sort == null || sort.isBlank()) {
             return Sort.by(
                     Sort.Order.desc("isFeatured"),
@@ -280,7 +280,7 @@ public class SpaSearchService {
             );
         }
 
-        return switch (sort.toLowerCase()) {
+        return switch (sort.toLowerCase(java.util.Locale.ROOT)) {
             case "rating_asc" -> Sort.by(Sort.Order.asc("ratingAvg"));
             case "rating_desc" -> Sort.by(Sort.Order.desc("ratingAvg"));
             case "featured" -> Sort.by(
@@ -319,7 +319,7 @@ public class SpaSearchService {
 
         String thumbnail = null;
         if (thumbnailAsset.isPresent()) {
-            thumbnail = s3Service.getFileUrl(thumbnailAsset.get().getObjectKey());
+            thumbnail = s3Service.getSpaMediaUrl(spa.getId(), MediaType.IMAGE, thumbnailAsset.get().getObjectKey());
         }
 
         // Assuming Spa has embedded Address: spa.getAddress().getCity(), etc.

@@ -110,7 +110,10 @@ test('a customer opening an administrative link gets an accessible recovery page
   page
 }) => {
   let adminRequests = 0;
-  await page.addInitScript(() => localStorage.setItem('nirvana_token', 'browser-fixture'));
+  await page.addInitScript(() => localStorage.setItem('nirvana_session_present', 'browser-fixture'));
+  await page.route('**/api/auth/browser-session', (r) => r.fulfill({
+    json: {accessToken: 'browser-fixture-in-memory', userId: 4, username: 'qa@example.test', roles: ['ROLE_CUSTOMER']}
+  }));
   await page.route('**/api/auth/me', (r) =>
     r.fulfill({ json: { userId: 4, username: 'qa@example.test', roles: ['ROLE_CUSTOMER'] } })
   );

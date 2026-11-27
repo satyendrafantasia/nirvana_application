@@ -183,7 +183,7 @@ public class FirebasePhoneTokens {
                 Matcher m = MAX_AGE.matcher(cacheControl == null ? "" : cacheControl);
                 return new Fetched(Map.copyOf(keys), m.find() ? Duration.ofSeconds(Long.parseLong(m.group(1))) : Duration.ofHours(1));
             } catch (RestClientException | java.security.cert.CertificateException e) {
-                log.warn("Could not fetch Google's Firebase signing keys: {}", e.getMessage());
+                log.warn("Could not fetch Google's Firebase signing keys: {}", e.getClass().getSimpleName());
                 return new Fetched(Map.of(), Duration.ofMinutes(1));
             }
         };

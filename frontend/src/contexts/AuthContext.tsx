@@ -2,7 +2,11 @@ import { createContext, ReactNode, useCallback, useEffect, useState } from 'reac
 import { authView, login as loginApi, register as registerApi } from '../api/authApi';
 import { AuthResponse, LoginPayload, RegisterPayload, User } from '../types/auth';
 import { getMe } from '../api/userApi';
-import client from '../api/client';
+import client, {
+  activeMarker, beginSession, clearAccess, currentAccess, forgetSession, purgeLegacyTokens,
+  renewSession, revokeBrowserSession, sessionMarker
+} from '../api/client';
+import { showToast } from '../components/common/Toast';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthContextValue {
@@ -19,7 +23,7 @@ interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const TOKEN_KEY = 'nirvana_token';
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
@@ -30,7 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const persistAuth = (response: AuthResponse) => {
     setToken(response.token);
     setUserState(response.user);
-    localStorage.setItem(TOKEN_KEY, response.token);
+    beginSession(response.token);
   };
 
   const login = async (payload: LoginPayload) => {
@@ -45,63 +49,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     const pushToken = localStorage.getItem('owner-push-token');
-    const bearer = localStorage.getItem(TOKEN_KEY);
+    const bearer = currentAccess();
     if (pushToken && bearer) {
       void client.post('/api/owner/push/unsubscribe', { token: pushToken },
         { headers: { Authorization: 'Bearer ' + bearer } }).catch(() => {});
     }
     localStorage.removeItem('owner-push-token');
     localStorage.removeItem('owner-push-user');
-    const refreshToken = localStorage.getItem('nirvana_refresh');
-    if (refreshToken) void client.post('/api/auth/logout', { refreshToken }).catch(() => {});
-    localStorage.removeItem('nirvana_refresh');
+    const revocation = revokeBrowserSession();
+    forgetSession();
+    void revocation.catch(() => {
+      showToast('Signed out on this device. The server could not confirm session revocation.', 'error');
+    });
     queryClient.clear();
     setUserState(null);
     setToken(null);
-    localStorage.removeItem(TOKEN_KEY);
   };
 
   const hydrateUser = useCallback(async () => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (!storedToken) {
-      setIsLoading(false);
-      return;
-    }
-    setToken(storedToken);
-    if (user) {
+    purgeLegacyTokens();
+    if (!activeMarker()) {
       setIsLoading(false);
       return;
     }
     try {
+      const bearer = currentAccess() || await renewSession();
       const profile = await getMe();
-      setUserState(profile as User);
+      if (bearer === currentAccess()) {
+        setToken(bearer);
+        setUserState(profile as User);
+      }
     } catch {
-      logout();
+      // The API interceptor handles a revoked cookie. A transient outage can be retried.
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
-
-  useEffect(() => {
-    hydrateUser();
-  }, [hydrateUser]);
+  }, []);
 
   useEffect(() => {
     const renewed = (event: Event) => {
-      persistAuth(authView((event as CustomEvent).detail));
+      const response = authView((event as CustomEvent).detail);
+      setToken(response.token);
+      setUserState(response.user);
     };
     const expired = () => {
+      clearAccess();
       queryClient.clear();
       setUserState(null);
       setToken(null);
     };
+    const anotherTab = (event: StorageEvent) => {
+      if (event.key !== sessionMarker) return;
+      expired();
+      if (event.newValue) void hydrateUser();
+    };
     window.addEventListener('nirvana:renewed', renewed);
     window.addEventListener('nirvana:expired', expired);
+    window.addEventListener('storage', anotherTab);
+    void hydrateUser();
     return () => {
       window.removeEventListener('nirvana:renewed', renewed);
       window.removeEventListener('nirvana:expired', expired);
+      window.removeEventListener('storage', anotherTab);
     };
-  }, [queryClient]);
+  }, [queryClient, hydrateUser]);
 
   const value: AuthContextValue = {
     user,
@@ -118,4 +129,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const getStoredToken = () => localStorage.getItem(TOKEN_KEY);
+export const getStoredToken = currentAccess;

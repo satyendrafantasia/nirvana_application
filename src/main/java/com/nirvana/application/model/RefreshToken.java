@@ -49,6 +49,12 @@ public class RefreshToken {
     @Column(name = "replaced_by_token", length = 512)
     private String replacedByToken;
 
+    @Column(name = "session_family", length = 36)
+    private String sessionFamily;
+
+    @Column(name = "mfa_verified", nullable = false)
+    private boolean mfaVerified;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 }

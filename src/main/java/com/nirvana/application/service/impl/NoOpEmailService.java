@@ -45,13 +45,13 @@ public class NoOpEmailService implements EmailService {
                 .build();
 
         try {
-            MimeMessage message = buildMimeMessage(dto.toEmail(), dto.toName(), subject, buildInvoiceBody(dto));
+            MimeMessage message = buildMimeMessage(dto.toEmail(), dto.toName(), subject, InvoiceEmailContent.render(dto));
             mailSender.send(message);
             logEntry.setStatus(NotificationStatus.SENT);
             log.debug("Notification delivery processed");
         } catch (MessagingException | MailException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
-            logEntry.setErrorMessage(e.getMessage());
+            logEntry.setErrorMessage("Email transport failed");
             log.error("Notification delivery failed");
         } finally {
             notificationLogRepository.save(logEntry);
@@ -59,15 +59,10 @@ public class NoOpEmailService implements EmailService {
     }
 
     @Override
-    public void sendCorporateEmployeeInvite(String employeeEmail, String username, String tempPassword) {
+    public void sendCorporateEmployeeInvite(String employeeEmail) {
         String subject = "You're invited to Nirvana";
-        String body = "<p>Hello,</p>" +
-                "<p>Your corporate account has been created.</p>" +
-                "<ul>" +
-                "<li><strong>Username:</strong> " + username + "</li>" +
-                "<li><strong>Temporary password:</strong> " + tempPassword + "</li>" +
-                "</ul>" +
-                "<p>Please log in and update your password.</p>";
+        String body = "<p>Your Nirvana corporate account is ready.</p>"
+                + "<p>Use the email sign-in option with this email address to access your benefits.</p>";
         sendSimpleMail(employeeEmail, subject, body);
     }
 
@@ -76,7 +71,7 @@ public class NoOpEmailService implements EmailService {
         String subject = "Your corporate benefits are active";
         String body = "<p>Hello,</p>" +
                 "<p>Your corporate benefits have been activated.</p>" +
-                "<p>Deal: <strong>" + Optional.ofNullable(dealName).orElse("N/A") + "</strong></p>" +
+                "<p>Deal: <strong>" + InvoiceEmailContent.text(Optional.ofNullable(dealName).orElse("N/A")) + "</strong></p>" +
                 "<p>Open the app to explore available offers.</p>";
         sendSimpleMail(employeeEmail, subject, body);
     }
@@ -108,39 +103,4 @@ public class NoOpEmailService implements EmailService {
         return message;
     }
 
-    private String buildInvoiceBody(InvoiceEmailDto dto) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<p>Hello ").append(dto.toName() != null ? dto.toName() : "there").append(",</p>");
-        if (dto.documentTitle() == null) sb.append("<p>Your Nirvana invoice is ready.</p>");
-        else com.nirvana.application.service.gst.GstMail.intro(sb, dto);
-        sb.append("<ul>");
-        sb.append("<li><strong>").append(dto.documentTitle() == null ? "Invoice" : dto.documentTitle()).append(" #</strong>: ").append(dto.invoiceNumber()).append("</li>");
-        sb.append("<li><strong>Booking Reference</strong>: ").append(dto.bookingReference()).append("</li>");
-        if (dto.bookingStartTs() != null) {
-            sb.append("<li><strong>Scheduled</strong>: ").append(BookingEmailContent.formatStart(dto.bookingStartTs(), dto.spaTimezone())).append("</li>");
-        }
-        sb.append("<li><strong>Spa</strong>: ").append(dto.spaName()).append("</li>");
-        sb.append("<li><strong>Service</strong>: ").append(dto.serviceName()).append("</li>");
-        if (dto.documentTitle() == null) {
-            sb.append("<li><strong>Total</strong>: ").append(dto.currency()).append(" ").append(dto.totalCents() / 100.0).append("</li>");
-        } else {
-            com.nirvana.application.service.gst.GstMail.amounts(sb, dto);
-        }
-        sb.append("</ul>");
-        sb.append("<p>You can download your invoice here: <a href=\"")
-                .append(dto.invoicePdfUrl())
-                .append("\">Invoice PDF</a></p>");
-
-        if (dto.spaAddressLine1() != null) {
-            sb.append("<p><strong>Spa address</strong>: ")
-                    .append(dto.spaAddressLine1());
-            if (dto.spaAddressLine2() != null) sb.append(", ").append(dto.spaAddressLine2());
-            if (dto.spaCity() != null) sb.append(", ").append(dto.spaCity());
-            if (dto.spaState() != null) sb.append(", ").append(dto.spaState());
-            if (dto.spaPostalCode() != null) sb.append(" - ").append(dto.spaPostalCode());
-            if (dto.spaCountry() != null) sb.append(", ").append(dto.spaCountry());
-            sb.append("</p>");
-        }
-        return sb.toString();
-    }
 }

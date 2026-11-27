@@ -1,4 +1,7 @@
 spring:
+  http:
+    client:
+      redirects: dont-follow
   application:
     name: application
   # No profile is active by default. Select one explicitly (for example
@@ -23,8 +26,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 10MB
+      max-request-size: 11MB
 
 server:
   port: 8080
@@ -89,7 +92,7 @@ sentry:
     minimum-breadcrumb-level: info
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:${PUBLIC_SITE_URL:}}
 
 multipart:
   max-file-size: 10MB
@@ -132,7 +135,7 @@ otp:
   maxAttempts: 5
 
 sms:
-  enabled: true
+  enabled: ${SMS_ENABLED:false}
   # AWS_SNS, TWOFACTOR (2Factor.in) or FIREBASE (Google texts and checks the code in the browser;
   # needs the firebase settings below). Spa booking alerts use AWS SNS only.
   provider: ${SMS_PROVIDER:AWS_SNS}
@@ -151,10 +154,10 @@ firebase:
   auth-domain: ${FIREBASE_AUTH_DOMAIN:}
 
 email:
-  enabled: true
+  enabled: ${EMAIL_ENABLED:false}
   provider: AWS_SES
-  fromAddress: "no-reply@yourdomain.com"
-  fromName: "YourAppName"
+  fromAddress: ${EMAIL_FROM_ADDRESS:}
+  fromName: ${EMAIL_FROM_NAME:Nirvana Wellness}
 
 payments:
   razorpay:
@@ -189,13 +192,13 @@ notifications:
 security:
   jwt:
     secret: ${JWT_SECRET}
-    expiration-minutes: 1440
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+    issuer: ${JWT_ISSUER:nirvana-wellness}
+    audience: ${JWT_AUDIENCE:nirvana-api}
     refresh-expiration-days: 30
     device-fingerprint-header: X-Device-Fingerprint
   mfa:
-    enabled: false
-    header: X-MFA-Token
-    bypass-token: ${MFA_BYPASS_TOKEN:}
+    enabled: ${PAYMENT_MFA_ENABLED:false}
   registration:
     # The unverified /api/auth/register endpoint. Keep false in production.
     legacy-enabled: ${LEGACY_REGISTRATION_ENABLED:false}
@@ -236,7 +239,8 @@ reliability:
     enabled: true
     requests: 120
     auth-requests: ${RATE_LIMIT_AUTH_REQUESTS:20}
-    captcha-bypass-token: ${RATE_LIMIT_BYPASS_TOKEN:}
+    window-seconds: 60
+    per-user-requests: 60
   bookings:
     # An unpaid online booking is cancelled and its slot released after this long.
     pending-payment-expiry-minutes: ${BOOKING_PAYMENT_EXPIRY_MINUTES:30}
@@ -252,9 +256,6 @@ reliability:
   payments:
     reconcile-threshold-minutes: 15
     reconcile-interval-ms: 300000
-    per-user-requests: 90
-    window-seconds: 60
-    block-seconds: 120
 
 loyalty:
   # Points are earned on what was actually paid for a completed appointment (online, at the desk

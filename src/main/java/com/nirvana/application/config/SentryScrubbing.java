@@ -93,6 +93,11 @@ public class SentryScrubbing {
         Map<String, Object> data = breadcrumb.getData();
         for (String key : data.keySet().toArray(String[]::new)) {
             Object value = data.get(key);
+            String normalized = key.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (normalized.matches(".*(password|passwd|otp|token|secret|cookie|authorization|signature|apikey|credential|email|phone).*")) {
+                breadcrumb.removeData(key);
+                continue;
+            }
             if (value instanceof Number || value instanceof Boolean) continue;
             if (!(value instanceof String text)) {
                 breadcrumb.removeData(key);

@@ -80,8 +80,10 @@ public class RegistrationService {
         otpVerificationRepository.save(verification);
 
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
-        RefreshToken refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());
-        String accessToken = jwtTokenService.generateToken(user, fingerprint);
+        // A new owner supplied their password and has just proved the registered contact.
+        boolean verifiedOwner = request.getAccountType() == CompleteRegistrationRequest.AccountType.SPA_OWNER;
+        RefreshToken refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp(), verifiedOwner);
+        String accessToken = jwtTokenService.generateToken(user, fingerprint, verifiedOwner, refreshToken.getSessionFamily());
 
         return RegistrationAuthResponse.builder()
                 .accessToken(accessToken)
@@ -99,6 +101,10 @@ public class RegistrationService {
     }
 
     private void validateVerification(OtpVerification verification) {
+        if (!com.nirvana.application.otp.OtpPurpose.REGISTRATION.equals(verification.getPurpose())
+                || (verification.getPhoneNumber() == null) == (verification.getEmail() == null)) {
+            throw new RegistrationException("INVALID_CONTACT", "Verify one contact method to register", HttpStatus.BAD_REQUEST);
+        }
         if (!Boolean.TRUE.equals(verification.getVerified())) {
             throw new RegistrationException("OTP_NOT_VERIFIED", "OTP verification is required before completing registration", HttpStatus.BAD_REQUEST);
         }

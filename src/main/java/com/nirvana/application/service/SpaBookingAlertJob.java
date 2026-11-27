@@ -18,7 +18,7 @@ public class SpaBookingAlertJob {
             int done = alerts.runDue();
             if (done > 0) log.info("Spa booking confirmations: {} reminders queued or unanswered bookings flagged", done);
         } catch (RuntimeException e) {
-            log.warn("Spa booking confirmation run failed: {}", e.getMessage());
+            log.warn("Spa booking confirmation run failed: {}", e.getClass().getSimpleName());
         }
     }
 }

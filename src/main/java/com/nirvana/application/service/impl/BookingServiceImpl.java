@@ -422,8 +422,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BookingRescheduleResponse rescheduleBySpa(Long bookingId, Long spaId, BookingRescheduleRequest request) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
-                .filter(b -> b.getSpa().getId().equals(spaId))
+        Booking booking = bookingRepository.findForSpaUpdate(bookingId, spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found for spa"));
         if (booking.getStatus() != BookingStatus.CONFIRMED) {
             throw new IllegalStateException("Only a confirmed appointment can be moved");
@@ -586,8 +585,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingCancelResponse cancelBookingBySpa(Long spaId, Long bookingId, String reason, boolean byAdmin) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
-                .filter(b -> b.getSpa().getId().equals(spaId))
+        Booking booking = bookingRepository.findForSpaUpdate(bookingId, spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
 
         if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {

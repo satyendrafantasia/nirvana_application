@@ -1,4 +1,4 @@
-import client from './client';
+import client, { rememberRefresh } from './client';
 import { AuthResponse, LoginPayload, RegisterPayload } from '../types/auth';
 import { otpBody, PhoneProof } from './phoneCodes';
 export interface AuthWire {
@@ -9,14 +9,16 @@ export interface AuthWire {
   username: string;
   mfaRequired?: boolean;
   mfaVerificationId?: string;
+  mfaFirebasePhone?: boolean;
 }
 export const authView = (r: AuthWire): AuthResponse => {
   if (r.mfaRequired) {
     sessionStorage.setItem('nirvana_mfa', r.mfaVerificationId || '');
+    sessionStorage.setItem('nirvana_mfa_firebase', String(r.mfaFirebasePhone === true));
     throw new Error('Enter the verification code sent to you using the OTP sign-in page.');
   }
   if (!r.accessToken) throw new Error('Authentication did not return a session.');
-  if (r.refreshToken) localStorage.setItem('nirvana_refresh', r.refreshToken);
+  rememberRefresh(r.refreshToken);
   return {
     token: r.accessToken,
     user: { id: String(r.userId), email: r.username, firstName: r.username, lastName: '', roles: r.roles || [] }
@@ -56,6 +58,7 @@ export const verifyOtp = async (
   if (sessionStorage.getItem('nirvana_mfa')) {
     const r = await client.post('/api/auth/login/mfa/verify', body);
     sessionStorage.removeItem('nirvana_mfa');
+    sessionStorage.removeItem('nirvana_mfa_firebase');
     return authView(r.data);
   }
   const { data } = await client.post('/api/auth/login/otp/verify', body);

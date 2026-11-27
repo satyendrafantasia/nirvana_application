@@ -101,11 +101,19 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + principal.getId()));
 
-        return finishSignIn(user);
+        if (principal.getPassword() != null && principal.getPassword().startsWith("$2")) {
+            userRepository.markLegacyBcrypt(user.getId(), principal.getPassword(), "{bcrypt}" + principal.getPassword());
+        }
+        return passwordSignIn(user);
     }
 
     public AuthResponse finishSignIn(User user) {
-        if (Boolean.TRUE.equals(user.getMfaEnabled())) {
+        com.nirvana.application.security.SessionAssurance.requirePasswordSignIn(user);
+        return passwordSignIn(user);
+    }
+
+    private AuthResponse passwordSignIn(User user) {
+        if (com.nirvana.application.security.SessionAssurance.requiresMfa(user)) {
             var challenge = otpAuthService.startMfaChallenge(user);
             return AuthResponse.builder()
                     .userId(user.getId())
@@ -113,6 +121,7 @@ public class AuthServiceImpl implements AuthService {
                     .roles(user.getRoles())
                     .tokenType("Bearer")
                     .mfaRequired(true)
+                    .mfaFirebasePhone(challenge.isFirebasePhone())
                     .mfaVerificationId(challenge.getVerificationId())
                     .build();
         }
@@ -123,12 +132,13 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
         var rotated = refreshTokenService.rotate(request.getRefreshToken(),
                 request.getDeviceFingerprint() != null ? request.getDeviceFingerprint() : fingerprint);
         User user = rotated.getUser();
-        return buildAuthResponse(user, rotated.getToken(), request.getDeviceFingerprint());
+        return buildAuthResponse(user, rotated, request.getDeviceFingerprint());
     }
 
     @Override
@@ -171,9 +181,7 @@ public class AuthServiceImpl implements AuthService {
                     "This email already has an account. Sign in with your password or a one-time code.");
         }
 
-        userRepository.recordSignIn(existing.getId());
-
-        return buildAuthResponse(existing);
+        return finishSignIn(existing);
     }
 
     @Override
@@ -194,13 +202,13 @@ public class AuthServiceImpl implements AuthService {
         user.setCredentialsChangedAt(OffsetDateTime.now());
         userRepository.save(user);
         refreshTokenService.revokeAll(userId);
-        return buildAuthResponse(user);
+        return passwordSignIn(user);
     }
 
     private AuthResponse buildAuthResponse(User user) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
         var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());
-        return buildAuthResponse(user, refreshToken.getToken(), fingerprint);
+        return buildAuthResponse(user, refreshToken, fingerprint);
     }
 
     private boolean providerVerifiedEmail(OAuth2User user) {
@@ -274,16 +282,16 @@ public class AuthServiceImpl implements AuthService {
         return value != null ? value.toString() : null;
     }
 
-    private AuthResponse buildAuthResponse(User user, String refreshToken, String fingerprint) {
-        String token = jwtTokenService.generateToken(user, fingerprint);
+    private AuthResponse buildAuthResponse(User user, com.nirvana.application.model.RefreshToken refreshToken, String fingerprint) {
+        String token = jwtTokenService.generateToken(user, fingerprint, refreshToken.isMfaVerified(), refreshToken.getSessionFamily());
         return AuthResponse.builder()
                 .accessToken(token)
-                .refreshToken(refreshToken)
+                .refreshToken(refreshToken.getToken())
                 .tokenType("Bearer")
                 .userId(user.getId())
                 .username(user.getUsername())
                 .roles(user.getRoles())
-                .mfaRequired(Boolean.TRUE.equals(user.getMfaEnabled()))
+                .mfaRequired(false)
                 .build();
     }
 

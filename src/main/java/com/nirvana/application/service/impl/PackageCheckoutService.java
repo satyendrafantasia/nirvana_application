@@ -74,7 +74,8 @@ public class PackageCheckoutService {
   long total=((Number)count.getSingleResult()).longValue();
   String first=words.isEmpty()?"":"CASE WHEN LOWER(s.name) LIKE ? THEN 0 ELSE 1 END, ";
   var q=em.createNativeQuery("SELECT s.id, s.name, s.city, GROUP_CONCAT(ps.package_id ORDER BY ps.package_id)"+from+where
-    +" GROUP BY s.id, s.name, s.city ORDER BY "+first+"s.name LIMIT "+Math.max(1,Math.min(limit,100)));
+    +" GROUP BY s.id, s.name, s.city ORDER BY "+first+"s.name")
+    .setMaxResults(Math.max(1,Math.min(limit,100)));
   int i=1;for(Object a:args)q.setParameter(i++,a);
   if(!words.isEmpty())q.setParameter(i,String.join(" ",words)+"%");
   List<SpaMatch> spas=new ArrayList<>();
@@ -151,8 +152,8 @@ public class PackageCheckoutService {
  private void settle(UserPackageSubscription s,String paymentId) throws com.razorpay.RazorpayException {
   com.razorpay.Payment p=gateway.payments.fetch(paymentId);
   if(!Objects.equals(paymentId,p.get("id")) || !Objects.equals(s.getRazorpayOrderId(),p.get("order_id")) || !"captured".equals(p.get("status"))
-   || !Boolean.TRUE.equals(p.get("captured")) || ((Number)p.get("amount")).intValue()!=s.getAmountCents() || !Objects.equals(s.getCurrency(),p.get("currency"))
-   || ((Number)p.get("amount_refunded")).intValue()!=0) throw new IllegalStateException("Payment is not captured for this package and amount. Retry verification later.");
+   || !Boolean.TRUE.equals(p.get("captured")) || ((Number)p.get("amount")).longValue()!=s.getAmountCents() || !Objects.equals(s.getCurrency(),p.get("currency"))
+   || ((Number)p.get("amount_refunded")).longValue()!=0) throw new IllegalStateException("Payment is not captured for this package and amount. Retry verification later.");
   if(s.getStatus()!=PackageStatus.PAYMENT_PENDING) return;
   s.setPaymentReference(paymentId);s.setPaymentStatus(PaymentStatus.CAPTURED);s.setStatus(PackageStatus.ACTIVE);
   s.setRemainingSessions(s.getPurchasedSessions());s.setActivatedAt(OffsetDateTime.now());

@@ -54,7 +54,7 @@ public class SpaPackageCheckoutService {
  @org.springframework.beans.factory.annotation.Autowired(required=false) private com.nirvana.application.service.gst.GstInvoiceService gst;
  private void settle(UserSpaPackageSubscription s,String id)throws com.razorpay.RazorpayException{
   com.razorpay.Payment p=gateway.payments.fetch(id);
-  if(!Objects.equals(id,p.get("id"))||!Objects.equals(s.getRazorpayOrderId(),p.get("order_id"))||!"captured".equals(p.get("status"))||!Boolean.TRUE.equals(p.get("captured"))||((Number)p.get("amount")).intValue()!=amount(s)||!Objects.equals(s.getCurrency(),p.get("currency"))||((Number)p.get("amount_refunded")).intValue()!=0)throw new IllegalStateException("Payment has not been captured for this package and amount.");
+  if(!Objects.equals(id,p.get("id"))||!Objects.equals(s.getRazorpayOrderId(),p.get("order_id"))||!"captured".equals(p.get("status"))||!Boolean.TRUE.equals(p.get("captured"))||((Number)p.get("amount")).longValue()!=amount(s)||!Objects.equals(s.getCurrency(),p.get("currency"))||((Number)p.get("amount_refunded")).longValue()!=0)throw new IllegalStateException("Payment has not been captured for this package and amount.");
   if(s.getStatus()!=UserSpaPackageStatus.PAYMENT_PENDING)return;
   s.setCollectedAt(OffsetDateTime.now());s.setPaymentReferenceId(id);s.setPaymentStatus(PaymentStatus.SUCCESS);s.setStatus(UserSpaPackageStatus.ACTIVE);s.setRemainingSessions(s.getTotalSessions());subscriptions.save(s);
   // The spa's GST invoice for the purchase, emailed to the guest once this commits.

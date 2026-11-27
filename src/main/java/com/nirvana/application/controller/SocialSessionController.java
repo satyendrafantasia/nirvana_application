@@ -14,7 +14,7 @@ public class SocialSessionController {
  @GetMapping("/providers") public List<String> providers() {
   return properties.getRegistration().keySet().stream().filter(id -> registrations.findByRegistrationId(id) != null).sorted().toList();
  }
- @PostMapping("/session") public ResponseEntity<AuthResponse> exchange(HttpServletRequest request) {
+ @PostMapping(value="/session", headers=com.nirvana.application.security.BrowserSession.OPT_IN) public ResponseEntity<AuthResponse> exchange(HttpServletRequest request) {
   var session = request.getSession(false);
   if (session == null) return ResponseEntity.status(401).build();
   synchronized(session) {

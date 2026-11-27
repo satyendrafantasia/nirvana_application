@@ -85,7 +85,7 @@ services:
       # The web container is the only client and replaces forwarding headers.
       FORWARD_HEADERS_STRATEGY: native
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8088}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-${PUBLIC_SITE_URL:-}}
     expose:
       - "8080"
 

@@ -91,7 +91,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             emailService.sendInvoiceEmail(emailDto);
         } catch (Exception e) {
             // Don't break invoice creation if email fails
-            log.error("Failed to send invoice email for booking {}", bookingId, e);
+            log.error("Failed to send invoice email for booking {} errorType={}", bookingId, e.getClass().getSimpleName());
         }
 
         return toDto(saved);

@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
 /** Data export and account deletion (DPDP Act 2023), through the real sign-in and the real job. */
-@SpringBootTest @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties={"email.enabled=true","email.fromAddress=qa@example.test","sms.enabled=false"}) @AutoConfigureMockMvc @Transactional
 class AccountErasureTest {
     static final String PASSWORD = "Original-pass-1";
     static final String EMAIL = "customer@nirvana.test";
@@ -33,6 +33,7 @@ class AccountErasureTest {
     @Autowired jakarta.persistence.EntityManager em;
     @Autowired AccountErasureService erasure;
     @Autowired com.nirvana.application.repository.UserRepository users;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean com.nirvana.application.otp.sender.EmailSender emailSender;
     long customerId;
 
     record Reply(int status, JsonNode body, String raw, String disposition) {}
@@ -41,6 +42,7 @@ class AccountErasureTest {
         String hash = "{bcrypt}" + new BCryptPasswordEncoder().encode(PASSWORD);
         jdbc.update("update app_user set password=?, is_active=1, active=1, credentials_changed_at=null, data_erasure_requested_at=null, "
                 + "data_erased_at=null, deleted_at=null, mfa_enabled=0 where username in ('customer','manager')", hash);
+        jdbc.update("update app_user set email_verified=1 where username='manager'");
         customerId = jdbc.queryForObject("select id from app_user where username='customer'", Long.class);
         // The seeded booking is in the past here; tests that need an upcoming one move it.
         jdbc.update("update booking set start_ts=now() - interval 3 day, end_ts=now() - interval 3 day + interval 1 hour, "
@@ -60,7 +62,15 @@ class AccountErasureTest {
     }
     String token(String username) throws Exception {
         var r = signIn(username, PASSWORD);
-        assertEquals(200, r.status(), r::raw);
+        assertEquals(200, r.status());
+        if (r.body().path("mfaRequired").asBoolean()) {
+            var sent = org.mockito.ArgumentCaptor.forClass(String.class);
+            org.mockito.Mockito.verify(emailSender).sendOtpEmail(org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.anyString(),sent.capture());
+            var code = java.util.regex.Pattern.compile("OTP is ([0-9]{6})").matcher(sent.getValue());
+            assertTrue(code.find());
+            r = send(post("/api/auth/login/mfa/verify"), null, Map.of("verificationId",r.body().get("mfaVerificationId").asText(),"otp",code.group(1)));
+            assertEquals(200,r.status());
+        }
         return r.body().get("accessToken").asText();
     }
     Reply askToDelete(String token, Map<String, String> proof) throws Exception {
@@ -80,7 +90,7 @@ class AccountErasureTest {
         assertEquals(401, send(get("/api/me/account/export"), null, null).status());
         jdbc.update("update app_user set privacy_consent_version='v3', marketing_opt_in=0, whatsapp_updates_at=now() where id=?", customerId);
         var r = send(get("/api/me/account/export"), token("customer"), null);
-        assertEquals(200, r.status(), r::raw);
+        assertEquals(200, r.status());
         assertTrue(r.disposition().startsWith("attachment; filename=\"nirvana-my-data-"), r.disposition());
         JsonNode data = r.body();
         assertEquals(EMAIL, data.at("/profile/email").asText());

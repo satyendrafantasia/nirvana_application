@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import Discovery, { DiscoveryCard, mapsUrl } from './Discovery';
 const render = (node: React.ReactNode) =>
   renderToStaticMarkup(<StaticRouter location="/discover">{node}</StaticRouter>);

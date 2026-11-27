@@ -81,18 +81,20 @@ public class SpaReadService {
         List<String> imageUrls = mediaAssets.stream()
                 .filter(asset -> asset.getMediaType() == MediaType.IMAGE)
                 .map(this::toS3Url)
+                .filter(java.util.Objects::nonNull)
                 .toList();
 
         List<String> videoUrls = mediaAssets.stream()
                 .filter(asset -> asset.getMediaType() == MediaType.VIDEO)
                 .map(this::toS3Url)
+                .filter(java.util.Objects::nonNull)
                 .toList();
 
         String heroImageUrl = !imageUrls.isEmpty()
                 ? imageUrls.get(0)
                 : mediaAssetRepository
                         .findFirstBySpaIdAndMediaTypeOrderByPositionAscIdAsc(spa.getId(), MediaType.IMAGE)
-                        .map(media -> s3Service.getFileUrl(media.getObjectKey()))
+                        .map(this::toS3Url)
                         .orElse(null);
 
         List<String> images = JsonUtils.toStringList(spa.getImagesJson());
@@ -240,7 +242,7 @@ public class SpaReadService {
     }
 
     private String toS3Url(MediaAsset asset) {
-        return s3Service.getFileUrl(asset.getObjectKey());
+        return s3Service.getSpaMediaUrl(asset.getSpa().getId(), asset.getMediaType(), asset.getObjectKey());
     }
 
     private String formatTime(LocalTime time) {

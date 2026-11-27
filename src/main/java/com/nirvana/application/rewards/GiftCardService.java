@@ -196,8 +196,8 @@ public class GiftCardService {
         com.razorpay.Payment p = gateway.payments.fetch(paymentId);
         int amount = ((Number) row.get("initial_cents")).intValue();
         if (!Objects.equals(paymentId, p.get("id")) || !Objects.equals(orderId, p.get("order_id")) || !"captured".equals(p.get("status"))
-                || !Boolean.TRUE.equals(p.get("captured")) || ((Number) p.get("amount")).intValue() != amount
-                || !Objects.equals(row.get("currency"), p.get("currency")) || ((Number) p.get("amount_refunded")).intValue() != 0) {
+                || !Boolean.TRUE.equals(p.get("captured")) || ((Number) p.get("amount")).longValue() != amount
+                || !Objects.equals(row.get("currency"), p.get("currency")) || ((Number) p.get("amount_refunded")).longValue() != 0) {
             throw new IllegalStateException("Payment has not been captured for this gift card and amount.");
         }
         if (!Status.PAYMENT_PENDING.name().equals(row.get("status"))) return;
@@ -406,7 +406,7 @@ public class GiftCardService {
             sender.sendOtpEmail(card.recipientEmail(), "Your Nirvana gift card", body.toString());
             db.update("UPDATE gift_card SET email_sent_at=UTC_TIMESTAMP(6) WHERE id=?", card.id());
         } catch (RuntimeException e) {
-            log.warn("Gift card {} is active but its email could not be sent: {}", card.id(), e.getMessage());
+            log.warn("Gift card {} is active but its email could not be sent: {}", card.id(), e.getClass().getSimpleName());
         }
     }
 

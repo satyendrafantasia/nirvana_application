@@ -40,6 +40,13 @@ class SpaPackageCheckoutTest {
   assertEquals("ACTIVE",service.confirm(2L,9L,request).status());assertEquals(5,subscription.getRemainingSessions());
   subscription.setRemainingSessions(3);service.confirm(2L,9L,request);assertEquals(3,subscription.getRemainingSessions());
  }
+ @Test void legacyBuyCannotActivateUnverifiedSpaPackage() {
+  var subs=mock(com.nirvana.application.repository.UserSpaPackageSubscriptionRepository.class);
+  var history=mock(com.nirvana.application.repository.UserSpaPackageUsageLogRepository.class);
+  var legacy=new com.nirvana.application.service.impl.UserSpaPackageServiceImpl(subs,history);
+  assertThrows(IllegalStateException.class,()->legacy.buySpaPackage(2L,new com.nirvana.application.model.dto.BuySpaPackageRequest()));
+  verifyNoInteractions(subs,history);
+ }
  @Test void anotherCustomerCannotConfirm(){assertThrows(jakarta.persistence.EntityNotFoundException.class,()->service.confirm(8L,9L,request));verifyNoInteractions(gateway.payments);}
  @Test void wrongSignatureCannotActivate(){request.setRazorpaySignature("bad");assertThrows(Exception.class,()->service.confirm(2L,9L,request));assertEquals(0,subscription.getRemainingSessions());}
  @Test void wrongOrderCannotActivate(){request.setRazorpayOrderId("other");assertThrows(IllegalArgumentException.class,()->service.confirm(2L,9L,request));}

@@ -36,14 +36,20 @@ public class SupportOverrideService {
             booking = bookingRepository.findById(request.getBookingId())
                     .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
         }
+        if (booking != null) {
+            if (request.getSpaId() != null && !request.getSpaId().equals(booking.getSpa().getId()))
+                throw new IllegalArgumentException("Booking does not belong to the selected spa");
+            override.setSpa(booking.getSpa());
+        }
+        Long actor = com.nirvana.application.security.SecurityUtils.getCurrentUserId();
         override.setBooking(booking);
         override.setOverrideType(request.getOverrideType());
         override.setPayload(request.getPayload());
-        override.setRequestedBy(request.getRequestedBy());
+        override.setRequestedBy(actor.toString());
         override.setStatus(SupportOverrideStatus.REQUESTED);
 
         SupportOverride saved = supportOverrideRepository.save(override);
-        providerAuditService.log(request.getSpaId(), "SUPPORT", null, "OVERRIDE_REQUESTED", request.getOverrideType());
+        providerAuditService.log(saved.getSpa() == null ? null : saved.getSpa().getId(), "SUPPORT", actor, "OVERRIDE_REQUESTED", request.getOverrideType());
         return toResponse(saved);
     }
 
@@ -52,13 +58,14 @@ public class SupportOverrideService {
         SupportOverride override = supportOverrideRepository.findById(overrideId)
                 .orElseThrow(() -> new IllegalArgumentException("Override not found"));
         override.setStatus(request.getStatus());
-        override.setResolvedBy(request.getResolvedBy());
+        Long actor = com.nirvana.application.security.SecurityUtils.getCurrentUserId();
+        override.setResolvedBy(actor.toString());
         override.setResolutionNotes(request.getResolutionNotes());
         override.setResolvedAt(OffsetDateTime.now());
 
         SupportOverride saved = supportOverrideRepository.save(override);
         Long spaId = saved.getSpa() != null ? saved.getSpa().getId() : null;
-        providerAuditService.log(spaId, "SUPPORT", null, "OVERRIDE_" + request.getStatus().name(), request.getResolutionNotes());
+        providerAuditService.log(spaId, "SUPPORT", actor, "OVERRIDE_" + request.getStatus().name(), request.getResolutionNotes());
         return toResponse(saved);
     }
 

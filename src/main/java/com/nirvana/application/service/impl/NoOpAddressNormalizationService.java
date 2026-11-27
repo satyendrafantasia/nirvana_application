@@ -58,7 +58,7 @@ public class NoOpAddressNormalizationService implements AddressNormalizationServ
 
         String query = buildQuery(input);
         if (query.isBlank()) {
-            log.warn("Unable to build geocoding query for address: {}", input);
+            log.warn("Address has insufficient geocoding fields");
             return;
         }
 
@@ -84,13 +84,13 @@ public class NoOpAddressNormalizationService implements AddressNormalizationServ
             ResponseEntity<GeocodingResponse> response = restTemplate.exchange(request, GeocodingResponse.class);
             GeocodingResponse body = response.getBody();
             if (body == null) {
-                log.warn("Geocoding provider returned empty response for query: {}", query);
+                log.warn("Geocoding provider returned an empty response");
                 return;
             }
 
             mergeIfPresent(input, body);
         } catch (RestClientException ex) {
-            log.error("Geocoding lookup failed for query {}", query, ex);
+            log.error("Geocoding lookup failed");
         }
     }
 

@@ -14,11 +14,11 @@ public class PayoutJob {
 
     @Scheduled(cron = "${payouts.cron:0 30 3 * * MON}", zone = "UTC")
     public void settle() {
-        try { payouts.run(); } catch (RuntimeException e) { log.warn("event=payout.run_failed reason={}", e.getMessage()); }
+        try { payouts.run(); } catch (RuntimeException e) { log.warn("event=payout.run_failed reason={}", e.getClass().getSimpleName()); }
     }
 
     @Scheduled(initialDelayString = "${payouts.check-interval-ms:3600000}", fixedDelayString = "${payouts.check-interval-ms:3600000}")
     public void check() {
-        try { payouts.sendWaiting(); } catch (RuntimeException e) { log.warn("event=payout.check_failed reason={}", e.getMessage()); }
+        try { payouts.sendWaiting(); } catch (RuntimeException e) { log.warn("event=payout.check_failed reason={}", e.getClass().getSimpleName()); }
     }
 }

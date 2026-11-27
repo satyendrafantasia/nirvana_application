@@ -56,9 +56,12 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
 
     @Override
     public CorporateEmployeeUploadResponse uploadEmployeeFile(Long corporateId, Long corporateDealId, MultipartFile file) {
+        if (file == null || file.isEmpty() || file.getSize() > 1024 * 1024) {
+            throw new CorporateOnboardingParseException("Upload a UTF-8 employee CSV up to 1 MiB");
+        }
         Corporate corporate = corporateRepository.findById(corporateId)
                 .orElseThrow(() -> new CorporateNotFoundException(corporateId));
-        CorporateDeal deal = corporateDealRepository.findById(corporateDealId)
+        CorporateDeal deal = corporateDealRepository.findByIdAndCorporateId(corporateDealId, corporateId)
                 .orElseThrow(() -> new CorporateDealNotFoundException(corporateDealId));
 
         if (!CorporatePaymentStatus.PAID.equals(deal.getCorporatePaymentStatus())) {
@@ -75,6 +78,7 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
             throw new CorporatePaymentPendingException("Corporate deal payment is not confirmed. Admin approval required before onboarding.");
         }
 
+        List<String> employeeRows = employeeRows(file);
         CorporateOnboardingUpload upload = CorporateOnboardingUpload.builder()
                 .corporate(corporate)
                 .corporateDeal(deal)
@@ -87,34 +91,27 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
         int success = 0;
         Set<String> seenEmails = new HashSet<>();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.isBlank() || trimmed.toLowerCase(Locale.ROOT).startsWith("employee_email")) {
-                    continue;
-                }
-                String[] parts = trimmed.split(",");
-                String email = parts[0].trim();
-                if (seenEmails.contains(email)) {
-                    continue;
-                }
-                seenEmails.add(email);
-                if (!EMAIL_PATTERN.matcher(email).matches()) {
-                    failures.add("Invalid email: " + email);
-                    continue;
-                }
-                try {
-                    processEmployeeEmail(email, corporate, deal);
-                    success++;
-                } catch (Exception ex) {
-                    failures.add("Failed for " + email + ": " + ex.getMessage());
-                }
+        for (String line : employeeRows) {
+            String trimmed = line.trim();
+            if (trimmed.isBlank() || trimmed.split(",", 2)[0].strip().equalsIgnoreCase("employee_email")) {
+                continue;
             }
-        } catch (IOException e) {
-            upload.setStatus(CorporateOnboardingStatus.FAILED);
-            onboardingUploadRepository.save(upload);
-            throw new CorporateOnboardingParseException("Unable to read uploaded file");
+            String[] parts = trimmed.split(",", -1);
+            String email = parts[0].trim();
+            if (seenEmails.contains(email)) {
+                continue;
+            }
+            seenEmails.add(email);
+            if (!EMAIL_PATTERN.matcher(email).matches()) {
+                failures.add("Invalid email: " + email);
+                continue;
+            }
+            try {
+                processEmployeeEmail(email, corporate, deal);
+                success++;
+            } catch (Exception ex) {
+                failures.add("Failed to enroll " + email);
+            }
         }
 
         upload.setTotalRecords(seenEmails.size());
@@ -128,6 +125,25 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
         onboardingUploadRepository.save(upload);
 
         return new CorporateEmployeeUploadResponse(upload.getId(), seenEmails.size(), success, failures.size(), failures);
+    }
+
+    private List<String> employeeRows(MultipartFile file) {
+        // Validate the entire text before processing any employee or delivering an invitation.
+        try (var reader = new BufferedReader(new InputStreamReader(file.getInputStream(),
+                StandardCharsets.UTF_8.newDecoder()))) {
+            List<String> rows = new ArrayList<>();
+            String row;
+            while ((row = reader.readLine()) != null) {
+                if (row.length() > 4096 || rows.size() >= 5001 ||
+                        row.chars().anyMatch(c -> Character.isISOControl(c) && c != '\t')) {
+                    throw new CorporateOnboardingParseException("Invalid employee CSV or too many rows");
+                }
+                rows.add(row);
+            }
+            return rows;
+        } catch (IOException invalid) {
+            throw new CorporateOnboardingParseException("Upload a UTF-8 employee CSV");
+        }
     }
 
     @Override
@@ -196,7 +212,7 @@ public class CorporateOnboardingServiceImpl implements CorporateOnboardingServic
                 .isActive(true)
                 .build();
         userRepository.save(user);
-        emailService.sendCorporateEmployeeInvite(email, email, rawPassword);
+        emailService.sendCorporateEmployeeInvite(email);
         return user;
     }
 }

@@ -49,7 +49,7 @@ export function scrubData(data: Bag | undefined): Bag | undefined {
   if (!data) return data;
   const out: Bag = {};
   for (const [key, value] of Object.entries(data)) {
-    if (/body|arguments|input|headers|cookie/i.test(key)) continue;
+    if (/body|arguments|input|headers|cookie|passw|otp|token|secret|signature|authorization|credential|api.?key|email|phone/i.test(key)) continue;
     if (typeof value === 'string') out[key] = /url|from|to|href/i.test(key) ? scrubUrl(value) : scrubText(value);
     else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
   }

@@ -101,7 +101,7 @@ public class WaitlistServiceImpl implements WaitlistService {
             try {
                 notificationService.notifyWaitlistUserSlotAvailable(entry, slot);
             } catch (Exception e) {
-                log.warn("Failed to notify waitlist entry {} for slot {}: {}", entry.getId(), slot.getId(), e.getMessage());
+                log.warn("Failed to notify waitlist entry {} for slot {}: {}", entry.getId(), slot.getId(), e.getClass().getSimpleName());
             }
         }
     }

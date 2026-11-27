@@ -132,7 +132,7 @@ public class SendGridNotificationService implements NotificationService {
                 log.debug("{} notification delivery processed", templateCode);
             }
         } catch (IOException e) {
-            throw new IllegalStateException("Email delivery failed", e);
+            throw new IllegalStateException("Email delivery failed");
         }
     }
 }

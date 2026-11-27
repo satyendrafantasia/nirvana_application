@@ -18,17 +18,10 @@ public class RateLimitingProperties {
     private Integer perUserRequests = 60;
     /** Window size in seconds */
     private int windowSeconds = 60;
-    /** Cool-off period after hitting the limit */
-    private int blockSeconds = 120;
     /** Requests permitted per client address per window on sign-in, OTP, registration and password-reset paths */
     private int authRequests = 20;
     /** Signed-out nearby-spa searches permitted per client address per window; each one is a paid Google call */
     private int publicDiscoveryRequests = 5;
-    /**
-     * Optional shared secret that lets a trusted caller pass a rate-limit block.
-     * Empty (the default) disables the bypass entirely; there is no built-in token.
-     */
-    private String captchaBypassToken = "";
     /** Paths that should never be rate limited (health, actuator, etc.). */
     private List<String> whitelistPaths = new ArrayList<>();
 
@@ -64,14 +57,6 @@ public class RateLimitingProperties {
         this.windowSeconds = windowSeconds;
     }
 
-    public int getBlockSeconds() {
-        return blockSeconds;
-    }
-
-    public void setBlockSeconds(int blockSeconds) {
-        this.blockSeconds = blockSeconds;
-    }
-
     public int getAuthRequests() {
         return authRequests;
     }
@@ -86,14 +71,6 @@ public class RateLimitingProperties {
 
     public void setPublicDiscoveryRequests(int publicDiscoveryRequests) {
         this.publicDiscoveryRequests = publicDiscoveryRequests;
-    }
-
-    public String getCaptchaBypassToken() {
-        return captchaBypassToken;
-    }
-
-    public void setCaptchaBypassToken(String captchaBypassToken) {
-        this.captchaBypassToken = captchaBypassToken;
     }
 
     public List<String> getWhitelistPaths() {

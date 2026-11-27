@@ -40,8 +40,6 @@ public class ApiErrorResponse {
         @Schema(description = "Validation message", example = "must be a well-formed email address")
         private final String message;
 
-        @Schema(description = "Value that failed validation", example = "invalid-email")
-        private final Object rejectedValue;
     }
 }
 

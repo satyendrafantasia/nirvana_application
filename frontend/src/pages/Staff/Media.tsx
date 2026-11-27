@@ -31,6 +31,7 @@ function Upload({ fixedSpa }: { fixedSpa?: string }) {
       const { data } = await client.post('/api/media/presign', {
         spaId: Number(spa),
         fileName: file.name,
+        sizeBytes: file.size,
         contentType: file.type || 'application/octet-stream',
         mediaType: type
       });
@@ -99,17 +100,17 @@ function Upload({ fixedSpa }: { fixedSpa?: string }) {
           </select>
         </label>
         <label className="block">
-          File
+          {type === 'IMAGE' ? 'Image (JPEG, PNG or static WebP, up to 10 MiB)' : 'Video (MP4, up to 10 MiB)'}
           <input
             className="block"
             type="file"
-            accept={type === 'IMAGE' ? 'image/*' : 'video/*'}
+            accept={type === 'IMAGE' ? 'image/jpeg,image/png,image/webp' : 'video/mp4'}
             required
             onChange={(e) => setFile(e.target.files?.[0])}
           />
         </label>
         <Button type="submit" disabled={upload.isPending}>
-          {upload.isPending ? 'Uploading…' : 'Upload to spa'}
+          {upload.isPending ? 'Uploadingâ€¦' : 'Upload to spa'}
         </Button>
       </form>
       {(upload.isError || spas.isError) && (

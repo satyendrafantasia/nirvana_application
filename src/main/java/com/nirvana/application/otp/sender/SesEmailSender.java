@@ -48,7 +48,7 @@ public class SesEmailSender implements EmailSender {
             log.error("Notification delivery failed");
             throw new EmailSendException("Failed to send email via AWS SES", ex);
         } catch (Exception ex) {
-            log.error("Unexpected error sending OTP email", ex);
+            log.error("Unexpected error sending OTP email errorType={}", ex.getClass().getSimpleName());
             throw new EmailSendException("Failed to send email via AWS SES", ex);
         }
     }

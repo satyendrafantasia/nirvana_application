@@ -19,12 +19,20 @@ public class JwtProperties {
     /**
      * Expiration in minutes.
      */
-    private long expirationMinutes = 60 * 24; // 24 hours by default
+    @jakarta.validation.constraints.Positive
+    private long expirationMinutes = 15;
 
     /**
      * Refresh token validity in days.
      */
+    @jakarta.validation.constraints.Positive
     private long refreshExpirationDays = 30;
+
+    @jakarta.validation.constraints.NotBlank
+    private String issuer = "nirvana-wellness";
+
+    @jakarta.validation.constraints.NotBlank
+    private String audience = "nirvana-api";
 
     /**
      * Header used to convey device fingerprint for binding tokens.

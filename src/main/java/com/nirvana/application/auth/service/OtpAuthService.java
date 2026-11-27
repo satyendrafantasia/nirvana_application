@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -70,7 +69,7 @@ public class OtpAuthService {
         return new VerificationResponse(verification.getVerificationId());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidCodeException.class)
     public OtpLoginTokenResponse verifyLoginOtp(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.LOGIN);
         validateOtp(verification, request);
@@ -83,7 +82,9 @@ public class OtpAuthService {
 
     @Transactional
     public AuthResponse completeOtpLogin(OtpLoginCompleteRequest request) {
-        return issueAuthResponse(consumeLoginProof(request.getLoginToken()));
+        User user = consumeLoginProof(request.getLoginToken());
+        com.nirvana.application.security.SessionAssurance.requirePasswordSignIn(user);
+        return issueAuthResponse(user, false);
     }
 
     @Transactional
@@ -108,6 +109,7 @@ public class OtpAuthService {
     @Transactional
     public VerificationResponse requestPasswordResetOtp(OtpRequestDto request) {
         User user = resolveExistingUser(request);
+        ensureSelfServiceRecovery(user);
         String phone = normalize(request.getPhoneNumber());
         String email = normalizeEmail(request.getEmail());
         ensureContactMatchesUser(user, phone, email);
@@ -116,7 +118,7 @@ public class OtpAuthService {
         return new VerificationResponse(verification.getVerificationId());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidCodeException.class)
     public PasswordResetTokenResponse verifyPasswordResetOtp(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.PASSWORD_RESET);
         validateOtp(verification, request);
@@ -141,6 +143,7 @@ public class OtpAuthService {
             throw new IllegalStateException("Password reset token expired");
         }
         User user = resolveUserFromVerification(verification);
+        ensureSelfServiceRecovery(user);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         // A reset usually means the old password may be known to someone else: end every session.
         user.setCredentialsChangedAt(OffsetDateTime.now());
@@ -152,17 +155,23 @@ public class OtpAuthService {
 
     @Transactional
     public VerificationResponse startMfaChallenge(User user) {
-        String phone = normalize(user.getPhone());
-        String email = normalizeEmail(user.getEmail());
+        String phone = Boolean.TRUE.equals(user.getPhoneVerified()) && smsProperties.phoneCodesAvailable()
+                ? normalize(user.getPhone()) : null;
+        String email = Boolean.TRUE.equals(user.getEmailVerified()) && emailProperties.isEnabled()
+                ? normalizeEmail(user.getEmail()) : null;
         if (phone == null && email == null) {
-            throw new IllegalStateException("User does not have a reachable contact method for MFA");
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Your account needs a verified second factor. Contact support to enroll or recover it.");
         }
         enforceRateLimit(phone, email);
-        OtpVerification verification = createAndSendOtp(user, phone, email, OtpPurpose.MFA);
-        return new VerificationResponse(verification.getVerificationId());
+        // Deliver to one verified factor. Firebase phone challenges are issued by the browser.
+        OtpVerification verification = createAndSendOtp(user, phone, phone == null ? email : null, OtpPurpose.MFA);
+        VerificationResponse response = new VerificationResponse(verification.getVerificationId());
+        response.setFirebasePhone(phone != null && smsProperties.isFirebase());
+        return response;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidCodeException.class)
     public AuthResponse completeMfa(VerifyOtpRequest request) {
         OtpVerification verification = loadForPurpose(request.getVerificationId(), OtpPurpose.MFA);
         validateOtp(verification, request);
@@ -170,7 +179,7 @@ public class OtpAuthService {
         verification.setLoginConsumed(true);
         otpVerificationRepository.save(verification);
         User user = resolveUserFromVerification(verification);
-        return issueAuthResponse(user);
+        return issueAuthResponse(user, true);
     }
 
     private OtpVerification createAndSendOtp(User user, String phone, String email, OtpPurpose purpose) {
@@ -192,11 +201,11 @@ public class OtpAuthService {
                 .build();
 
         otpVerificationRepository.save(verification);
-        deliverOtp(phone, email, otp, verification.getVerificationId());
+        deliverOtp(phone, email, otp);
         return verification;
     }
 
-    private void deliverOtp(String phone, String email, String otp, String verificationId) {
+    private void deliverOtp(String phone, String email, String otp) {
         boolean smsEnabled = phone != null && smsProperties.phoneCodesAvailable();
         boolean emailEnabled = email != null && emailProperties.isEnabled();
         if (!smsEnabled && !emailEnabled) {
@@ -211,7 +220,7 @@ public class OtpAuthService {
                 emailSender.sendOtpEmail(email, "Your OTP Code", message);
             }
         } catch (RuntimeException ex) {
-            log.error("Failed to deliver OTP for verification {}", verificationId, ex);
+            log.error("OTP delivery failed ({})", ex.getClass().getSimpleName());
             throw new IllegalStateException("Failed to deliver OTP");
         }
     }
@@ -225,7 +234,15 @@ public class OtpAuthService {
         return verification;
     }
 
+    // Wrong proofs must commit the attempt counter even though the call returns a 400.
+    private static final class InvalidCodeException extends IllegalArgumentException {
+        private InvalidCodeException() { super("Invalid verification code"); }
+    }
+
     private void validateOtp(OtpVerification verification, VerifyOtpRequest request) {
+        if (Boolean.TRUE.equals(verification.getVerified())) {
+            throw new IllegalStateException("This verification has already been used");
+        }
         if (verification.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new IllegalStateException("OTP has expired");
         }
@@ -234,17 +251,24 @@ public class OtpAuthService {
         }
         verification.setAttempts(verification.getAttempts() + 1);
         if (request.getFirebaseIdToken() != null && !request.getFirebaseIdToken().isBlank()) {
-            if (!smsProperties.isFirebase() || verification.getPhoneNumber() == null
-                    || !phoneTokens.proves(request.getFirebaseIdToken(), verification.getPhoneNumber())) {
+            boolean proven;
+            try {
+                proven = smsProperties.isFirebase() && verification.getPhoneNumber() != null
+                        && phoneTokens.proves(request.getFirebaseIdToken(), verification.getPhoneNumber());
+            } catch (IllegalArgumentException invalid) {
+                proven = false;
+            }
+            if (!proven) {
                 otpVerificationRepository.save(verification);
-                throw new IllegalArgumentException("That phone verification is for a different number. Ask for a new code.");
+                throw new InvalidCodeException();
             }
             return;
         }
-        if (!verification.getOtpCode().equals(request.getOtp())) {
+        boolean firebasePhoneOnly = smsProperties.isFirebase() && verification.getPhoneNumber() != null
+                && verification.getEmail() == null;
+        if (firebasePhoneOnly || !verification.getOtpCode().equals(request.getOtp())) {
             otpVerificationRepository.save(verification);
-            Map<String, Object> metadata = Map.of("attempts", verification.getAttempts(), "maxAttempts", verification.getMaxAttempts());
-            throw new IllegalArgumentException("Invalid OTP: " + metadata);
+            throw new InvalidCodeException();
         }
     }
 
@@ -288,6 +312,12 @@ public class OtpAuthService {
         }
     }
 
+    private void ensureSelfServiceRecovery(User user) {
+        if (com.nirvana.application.security.SessionAssurance.requiresMfa(user))
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,
+                    "Contact support for verified account recovery.");
+    }
+
     private String normalize(String input) {
         return input == null || input.isBlank() ? null : input.trim();
     }
@@ -302,11 +332,11 @@ public class OtpAuthService {
         return String.format("%0" + OTP_LENGTH + "d", number);
     }
 
-    private AuthResponse issueAuthResponse(User user) {
+    private AuthResponse issueAuthResponse(User user, boolean mfaVerified) {
         String fingerprint = deviceFingerprintResolver.resolveFingerprint();
         userRepository.recordSignIn(user.getId());
-        var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp());
-        String token = jwtTokenService.generateToken(user, fingerprint);
+        var refreshToken = refreshTokenService.issue(user, fingerprint, resolveUserAgent(), resolveIp(), mfaVerified);
+        String token = jwtTokenService.generateToken(user, fingerprint, mfaVerified, refreshToken.getSessionFamily());
         return AuthResponse.builder()
                 .accessToken(token)
                 .refreshToken(refreshToken.getToken())

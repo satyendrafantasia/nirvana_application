@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import client, { errorMessage, renewSession, sessionClient } from './client';
+import client, { beginSession, currentAccess, forgetSession, purgeLegacyTokens, sessionMarker, errorMessage, renewSession, sessionClient } from './client';
 beforeEach(() => {
   const values = new Map([
     ['nirvana_token', 'old'],
@@ -12,6 +12,8 @@ beforeEach(() => {
     removeItem: (k: string) => values.delete(k)
   });
   vi.stubGlobal('window', new EventTarget());
+  purgeLegacyTokens();
+  beginSession('old');
 });
 const reply = (config: InternalAxiosRequestConfig, data: unknown) => ({
   config,
@@ -30,21 +32,22 @@ it('shares one refresh across concurrent callers and rotates both credentials', 
   expect(first).toBe(second);
   await Promise.all([first, second]);
   expect(adapter).toHaveBeenCalledTimes(1);
-  expect(localStorage.getItem('nirvana_token')).toBe('new');
-  expect(localStorage.getItem('nirvana_refresh')).toBe('refresh-new');
+  expect(currentAccess()).toBe('new');
+  expect(localStorage.getItem('nirvana_token')).toBeNull();
+  expect(localStorage.getItem('nirvana_refresh')).toBeNull();
 });
 it('does not restore a session logged out while refresh was pending', async () => {
   sessionClient.defaults.adapter = async (config) => {
-    localStorage.removeItem('nirvana_refresh');
+    forgetSession();
     return reply(config, { accessToken: 'new', refreshToken: 'refresh-new' });
   };
   await expect(renewSession()).rejects.toThrow('Session changed');
   expect(localStorage.getItem('nirvana_refresh')).toBeNull();
-  expect(localStorage.getItem('nirvana_token')).not.toBe('new');
+  expect(currentAccess()).toBeNull();
 });
 it('clears an expired session when renewal fails', async () => {
-  sessionClient.defaults.adapter = async () => {
-    throw new Error('Revoked');
+  sessionClient.defaults.adapter = async (config) => {
+    throw new AxiosError('Revoked', '401', config, undefined, { ...reply(config, {}), status: 401 });
   };
   const expired = vi.fn();
   window.addEventListener('nirvana:expired', expired);
@@ -88,4 +91,42 @@ it('keeps validation actionable and infrastructure details out of notifications'
   expect(errorMessage(new AxiosError('network error'))).toMatch(/connection/i);
   expect(errorMessage(failure(422, {fieldErrors:[{field:'date', message:'Choose a future date'}]}))).toBe('date: Choose a future date');
   expect(errorMessage(failure(400, {fieldErrors:{},message:{}}))).toMatch(/retry/i);
+});
+
+it('sends the CSRF header for the cookie exchange and keeps the access token in memory', async () => {
+  sessionClient.defaults.adapter = async (config) => {
+    expect(config.url).toBe('/api/auth/browser-session');
+    expect(config.headers.get('X-Nirvana-Session')).toBe('browser');
+    expect(config.data).toBeUndefined();
+    return reply(config, {accessToken: 'only-in-memory'});
+  };
+  await renewSession();
+  expect(currentAccess()).toBe('only-in-memory');
+  expect(localStorage.getItem(sessionMarker)).not.toContain('only-in-memory');
+  expect(localStorage.getItem('nirvana_token')).toBeNull();
+  expect(localStorage.getItem('nirvana_refresh')).toBeNull();
+});
+
+it('rotates a packaged WebView session without cookies or persisted credentials', async () => {
+  vi.stubEnv('VITE_AUTH_TRANSPORT', 'memory');
+  try {
+    vi.resetModules();
+    const native = await vi.importActual<typeof import('./client')>('./client');
+    native.rememberRefresh('temporary-native-refresh');
+    native.beginSession('temporary-native-access');
+    native.sessionClient.defaults.adapter = async (request) => {
+      expect(request.withCredentials).toBe(false);
+      expect(request.headers.has('X-Nirvana-Session')).toBe(false);
+      expect(request.url).toBe('/api/auth/refresh');
+      expect(JSON.parse(request.data).refreshToken).toBe('temporary-native-refresh');
+      return reply(request,{accessToken:'renewed',refreshToken:'rotated'});
+    };
+    expect(await native.renewSession()).toBe('renewed');
+    expect(localStorage.getItem('nirvana_token')).toBeNull();
+    expect(localStorage.getItem('nirvana_refresh')).toBeNull();
+    native.forgetSession();
+    await expect(native.renewSession()).rejects.toThrow(/sign in/);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });

@@ -56,7 +56,7 @@ describe('a phone code session', () => {
     const signOut = vi.fn(async () => undefined);
     const clear = vi.fn();
     const sdk = {
-      RecaptchaVerifier: vi.fn(() => ({ clear })),
+      RecaptchaVerifier: class { clear = clear; },
       signInWithPhoneNumber,
       signOut
     };
@@ -72,7 +72,7 @@ describe('a phone code session', () => {
   it('explains a wrong code in plain words', async () => {
     config = { mode: 'FIREBASE', firebase: { apiKey: 'k', authDomain: 'd', projectId: 'p' } };
     const sdk = {
-      RecaptchaVerifier: vi.fn(() => ({ clear: vi.fn() })),
+      RecaptchaVerifier: class { clear = vi.fn(); },
       signInWithPhoneNumber: async () => ({
         confirm: async () => {
           throw { code: 'auth/invalid-verification-code' };

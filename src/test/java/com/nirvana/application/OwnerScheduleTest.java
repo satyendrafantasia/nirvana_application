@@ -3,6 +3,16 @@ package com.nirvana.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nirvana.application.security.UserPrincipal;
+import com.nirvana.application.config.RateLimitingProperties;
+import com.nirvana.application.security.RateLimitService;
+import com.nirvana.application.security.SharedRateWindow;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -20,9 +30,45 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
-@SpringBootTest @AutoConfigureMockMvc
+@SpringBootTest(properties = "app.scheduling.enabled=false") @AutoConfigureMockMvc
 class OwnerScheduleTest {
-    @org.junit.jupiter.api.BeforeEach void publishFixtureName(){jdbc.update("update therapist set public_name='Maya' where id=1");}
+    // Worker threads in the booking-race tests must share their parent test's customer and IP limits.
+    private static final InheritableThreadLocal<String> rateScope = new InheritableThreadLocal<>();
+
+    @BeforeEach
+    void startFixture() {
+        rateScope.set("owner-schedule-test:" + UUID.randomUUID() + ":");
+        jdbc.update("update therapist set public_name='Maya' where id=1");
+    }
+
+    @AfterEach
+    void releaseRateScope() {
+        rateScope.remove();
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class RateFixture {
+        @Bean @Primary
+        RateLimitService ownerScheduleRateLimits(RateLimitingProperties properties, StringRedisTemplate redis,
+                                                MeterRegistry metrics, SharedRateWindow shared) {
+            return new RateLimitService(properties, redis, metrics, shared) {
+                @Override
+                public boolean isAllowedSensitive(String key, int limit) {
+                    return super.isAllowedSensitive(scoped(key), limit);
+                }
+
+                @Override
+                public boolean isAllowed(String key, int limit) {
+                    return super.isAllowed(scoped(key), limit);
+                }
+
+                private String scoped(String key) {
+                    String prefix = rateScope.get();
+                    return prefix == null || key.startsWith(prefix) ? key : prefix + key;
+                }
+            };
+        }
+    }
     @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -381,6 +427,79 @@ class OwnerScheduleTest {
         assertEquals(404,owner(put(BASE+"/therapists/999999/days/"+day),Map.of("intervals",List.of())).status());
         assertEquals(404,owner(patch(BASE+"/slots/999999"),Map.of("closed",true)).status());
     }
+    record Tenant(long owner, long customer, long spa, long room, long therapist, long slot, long booking) {
+        String url() { return "/api/owner/spas/" + spa; }
+    }
+
+    private long fixtureUser(long template) {
+        String email = "tenant-" + UUID.randomUUID() + "@example.test";
+        jdbc.update("""
+            INSERT INTO app_user(created_at,updated_at,active,is_active,email,username,password,role_id,timezone,
+                                 email_verified,phone_verified,mfa_enabled,marketing_opt_in,loyalty_points)
+            SELECT NOW(),NOW(),1,1,?,?,'fixture-only',role_id,'UTC',1,0,0,0,0 FROM app_user WHERE id=?
+            """, email, email, template);
+        return jdbc.queryForObject("SELECT id FROM app_user WHERE email=?", Long.class, email);
+    }
+
+    private Tenant fixtureTenant() throws Exception {
+        long owner = fixtureUser(2), customer = fixtureUser(3);
+        String role = "ROLE_SPA_OWNER";
+        long spa = ok(call(post("/api/onboarding/spas"),owner,role,Map.of("name","Isolation fixture "+owner,"phone","1234567890","address",Map.of("timezone",ZONE.getId())))).get("id").asLong();
+        String url = "/api/owner/spas/" + spa;
+        long service = ok(call(post(url+"/services"),owner,role,Map.of("name","Massage","durationMin",60,"bufferMin",0,
+                "basePriceCents",10000,"currency","INR","active",true,"visibleOnMarketplace",true))).get("id").asLong();
+        long therapist = ok(call(post(url+"/therapists"),owner,role,Map.of("name","Fixture therapist","active",true,
+                "available",true,"serviceIds",List.of(service)))).get("id").asLong();
+        long room = ok(call(post(url+"/schedule/rooms"),owner,role,Map.of("name","Quiet room","active",true))).get("id").asLong();
+        var working = Map.of("intervals",List.of(interval("WORK",10,18)));
+        ok(call(put(url+"/schedule/therapists/"+therapist+"/days/"+day),owner,role,working));
+        long slot = ok(call(post(url+"/schedule/slots"),owner,role,Map.of("serviceId",service,"roomId",room,
+                "start",time(11,0),"end",time(12,0),"capacity",1))).get("id").asLong();
+        var row = entityManager.find(com.nirvana.application.model.Slot.class,slot);
+        var booking = new com.nirvana.application.model.Booking();
+        booking.setSpa(row.getSpa()); booking.setService(row.getService()); booking.setSlot(row);
+        booking.setUser(entityManager.getReference(com.nirvana.application.model.User.class,customer));
+        booking.setBookingReference("TEST-"+UUID.randomUUID());
+        booking.setStartTs(row.getStartTs()); booking.setEndTs(row.getEndTs());
+        booking.setStatus(com.nirvana.application.model.enums.BookingStatus.CONFIRMED);
+        booking.setPaymentMode(com.nirvana.application.model.enums.PaymentMode.OFFLINE);
+        booking.setPriceCents(10000); booking.setDepositCents(0); booking.setRemainderCents(10000); booking.setPolicySnapshotJson("{}");
+        row.setBookedUnits((short)1);
+        entityManager.persist(booking);
+        entityManager.flush();
+        return new Tenant(owner,customer,spa,room,therapist,slot,booking.getId());
+    }
+
+    @Test @Transactional void independentlyOwnedSpasAndCustomersHaveSeparatePrivateRecords() throws Exception {
+        var a=fixtureTenant();
+        var b=fixtureTenant();
+        for(var tenant : List.of(a,b)) {
+            var other = tenant==a ? b : a;
+            String own=tenant.url(), sched=own+"/schedule", role="ROLE_SPA_OWNER";
+            assertEquals(200,call(get(own+"/desk/bookings/"+tenant.booking()+"/history"),tenant.owner(),role,null).status());
+            assertEquals(200,call(get("/api/bookings/"+tenant.booking()+"/cancellation-quote"),tenant.customer(),"ROLE_USER",null).status());
+            assertEquals(404,call(get("/api/bookings/"+other.booking()+"/cancellation-quote"),tenant.customer(),"ROLE_USER",null).status());
+            assertEquals(404,call(post("/api/bookings/"+other.booking()+"/cancel"),tenant.customer(),"ROLE_USER",null).status());
+            assertEquals(403,call(get(other.url()+"/schedule/rooms"),tenant.owner(),role,null).status());
+            assertEquals(403,call(get(other.url()+"/desk/transactions.csv"),tenant.owner(),role,null).status());
+            assertEquals(404,call(get(own+"/desk/bookings/"+other.booking()+"/history"),tenant.owner(),role,null).status());
+            assertEquals(404,call(post(own+"/bookings/"+other.booking()+"/cancel"),tenant.owner(),role,Map.of("reason","fixture")).status());
+            assertEquals(404,call(put(sched+"/rooms/"+other.room()),tenant.owner(),role,Map.of("name","Changed","active",false)).status());
+            assertEquals(404,call(put(sched+"/therapists/"+other.therapist()+"/days/"+day),tenant.owner(),role,Map.of("intervals",List.of())).status());
+            assertEquals(404,call(patch(sched+"/slots/"+other.slot()),tenant.owner(),role,Map.of("capacity",5)).status());
+            assertEquals("CONFIRMED",jdbc.queryForObject("SELECT status FROM booking WHERE id=?",String.class,other.booking()));
+            assertEquals("Quiet room",jdbc.queryForObject("SELECT name FROM spa_room WHERE id=?",String.class,other.room()));
+            assertTrue(jdbc.queryForObject("SELECT intervals_json FROM therapist_daily_roster WHERE therapist_id=? AND local_date=?",
+                    String.class,other.therapist(),day).contains("WORK"));
+            assertEquals(1,jdbc.queryForObject("SELECT capacity_unit FROM slot WHERE id=?",Integer.class,other.slot()));
+        }
+        for(var tenant : List.of(a,b)) {
+            assertEquals(200,call(post(tenant.url()+"/bookings/"+tenant.booking()+"/cancel"),tenant.owner(),"ROLE_SPA_OWNER",Map.of("reason","fixture")).status());
+            entityManager.flush();
+            assertEquals("CANCELLED",jdbc.queryForObject("SELECT status FROM booking WHERE id=?",String.class,tenant.booking()));
+        }
+    }
+
     @Test void racingDeskMovesKeepTheLosingAppointment() throws Exception {
         long therapist=ok(owner(post("/api/owner/spas/1/therapists"),Map.of("publicName","Test desk","name","Desk race fixture","available",true,"active",true,"serviceIds",List.of(1)))).get("id").asLong();
         long room=room();var start=day.plusWeeks(2).atTime(10,0).atZone(ZONE).toOffsetDateTime();

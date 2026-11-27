@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import script from '../../../public/owner-push-sw.js?raw';

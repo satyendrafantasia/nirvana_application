@@ -127,4 +127,30 @@ class CityPlacesClientTest {
   // Every spa page view: photos and credits only, Google's cheapest Place Details tier.
   assertEquals("id,attributions,photos", fieldsSentBy("/places/ChIJabc", c -> c.photos("ChIJabc")));
  }
+
+ @Test void photoDownloadAcceptsOnlyTheProviderImageHostAndAnImageResponse() {
+  byte[] bytes = {1, 2, 3};
+  for (boolean allowed : new boolean[]{true, false}) {
+   String address = allowed ? "https://lh3.googleusercontent.com/photo" : "https://unrelated.example/photo";
+   var calls = new java.util.concurrent.atomic.AtomicInteger();
+   var client = new CityPlacesClient(new RestTemplateBuilder(template -> {
+    var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(template).build();
+    if (calls.getAndIncrement() == 0) {
+     server.expect(requestTo("https://places.googleapis.com/v1/places/abc/photos/one/media?maxWidthPx=800&skipHttpRedirect=true"))
+      .andRespond(withSuccess("{\"photoUri\":\"" + address + "\"}", MediaType.APPLICATION_JSON));
+    } else {
+     server.expect(requestTo(address)).andRespond(withSuccess(bytes, MediaType.IMAGE_JPEG));
+    }
+   }));
+   ReflectionTestUtils.setField(client, "apiKey", "test-only");
+   ReflectionTestUtils.setField(client, "baseUrl", "https://places.googleapis.com/v1");
+   if (allowed) {
+    assertArrayEquals(bytes, client.photoImage("abc", "one").getBody());
+    assertEquals(2, calls.get());
+   } else {
+    assertEquals(502, assertThrows(ResponseStatusException.class, () -> client.photoImage("abc", "one")).getStatusCode().value());
+    assertEquals(1, calls.get());
+   }
+  }
+ }
 }

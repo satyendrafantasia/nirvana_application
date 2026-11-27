@@ -1,31 +1,17 @@
 package com.nirvana.application.service.impl;
 
-import com.nirvana.application.exception.PaymentFailedException;
-import com.nirvana.application.exception.SpaNotFoundException;
-import com.nirvana.application.exception.SpaPackageInactiveException;
 import com.nirvana.application.exception.SpaPackageNotFoundException;
-import com.nirvana.application.model.Spa;
-import com.nirvana.application.model.User;
 import com.nirvana.application.model.dto.BuySpaPackageRequest;
 import com.nirvana.application.model.dto.BuySpaPackageResponse;
 import com.nirvana.application.model.dto.SpaPackageUsageCheckResponse;
 import com.nirvana.application.model.dto.UserSpaPackageSummaryResponse;
 import com.nirvana.application.model.dto.UserSpaPackageUsageHistoryResponse;
 import com.nirvana.application.model.dto.SpaPackageUsageItemResponse;
-import com.nirvana.application.model.enums.spa.PaymentStatus;
-import com.nirvana.application.model.enums.spa.SpaPackageStatus;
 import com.nirvana.application.model.enums.spa.UserSpaPackageStatus;
-import com.nirvana.application.model.spa.SpaPackage;
 import com.nirvana.application.model.spa.UserSpaPackageSubscription;
-import com.nirvana.application.repository.SpaPackageRepository;
-import com.nirvana.application.repository.SpaRepository;
-import com.nirvana.application.repository.UserRepository;
 import com.nirvana.application.repository.UserSpaPackageSubscriptionRepository;
 import com.nirvana.application.repository.UserSpaPackageUsageLogRepository;
-import com.nirvana.application.service.SpaPackageNotificationService;
 import com.nirvana.application.service.UserSpaPackageService;
-import com.nirvana.application.service.payment.PaymentClient;
-import com.nirvana.application.service.payment.PaymentResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,60 +24,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserSpaPackageServiceImpl implements UserSpaPackageService {
 
-    private final SpaRepository spaRepository;
-    private final UserRepository userRepository;
-    private final SpaPackageRepository spaPackageRepository;
     private final UserSpaPackageSubscriptionRepository subscriptionRepository;
     private final UserSpaPackageUsageLogRepository usageLogRepository;
-    private final PaymentClient paymentClient;
-    private final SpaPackageNotificationService notificationService;
 
     @Override
     @Transactional
     public BuySpaPackageResponse buySpaPackage(Long userId, BuySpaPackageRequest request) {
-        Spa spa = spaRepository.findById(request.getSpaId())
-                .orElseThrow(() -> new SpaNotFoundException("Spa not found: " + request.getSpaId()));
-        SpaPackage spaPackage = spaPackageRepository.findBySpaIdAndId(spa.getId(), request.getSpaPackageId())
-                .orElseThrow(() -> new SpaPackageNotFoundException("Spa package not found for spa"));
-        if (spaPackage.getStatus() != SpaPackageStatus.ACTIVE) {
-            throw new SpaPackageInactiveException("Spa package is inactive");
-        }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new SpaPackageNotFoundException("User not found: " + userId));
-
-        OffsetDateTime purchaseDate = OffsetDateTime.now();
-        UserSpaPackageSubscription subscription = UserSpaPackageSubscription.builder()
-                .user(user)
-                .spa(spa)
-                .spaPackage(spaPackage)
-                .level(spaPackage.getLevel())
-                .pricePaid(spaPackage.getPrice())
-                .totalSessions(spaPackage.getFreeSessionsCount())
-                .remainingSessions(spaPackage.getFreeSessionsCount())
-                .status(UserSpaPackageStatus.CANCELLED)
-                .purchaseDate(purchaseDate)
-                .paymentStatus(PaymentStatus.PENDING)
-                .paymentReferenceId(request.getPaymentReference())
-                .build();
-        subscription.setServiceIds(new java.util.HashSet<>(spaPackage.getServiceIds()));
-        if(spaPackage.getValidityDays()!=null)subscription.setExpiryDate(purchaseDate.plusDays(spaPackage.getValidityDays()));
-        subscriptionRepository.save(subscription);
-
-        PaymentResult paymentResult = paymentClient.processPayment(userId, spa.getId(), spaPackage.getPrice(), request.getPaymentMethod(), request.getPaymentReference());
-        subscription.setPaymentStatus(paymentResult.getStatus());
-        subscription.setPaymentReferenceId(paymentResult.getReferenceId());
-
-        if (paymentResult.getStatus() == PaymentStatus.SUCCESS) {
-            subscription.setCollectedAt(OffsetDateTime.now());
-            subscription.setStatus(UserSpaPackageStatus.ACTIVE);
-            subscription.setRemainingSessions(spaPackage.getFreeSessionsCount());
-            subscriptionRepository.save(subscription);
-            notificationService.notifySpaOwnerOfPackagePurchase(spa.getId(), userId, subscription.getId(), spaPackage.getLevel());
-            return toBuyResponse(subscription, spa.getName());
-        }
-
-        subscriptionRepository.save(subscription);
-        throw new PaymentFailedException("Payment failed for spa package purchase");
+        throw new IllegalStateException("Use spa package Razorpay checkout to purchase and verify payment");
     }
 
     @Override
@@ -156,20 +95,6 @@ public class UserSpaPackageServiceImpl implements UserSpaPackageService {
             return true;
         }
         return false;
-    }
-
-    private BuySpaPackageResponse toBuyResponse(UserSpaPackageSubscription subscription, String spaName) {
-        BuySpaPackageResponse response = new BuySpaPackageResponse();
-        response.setSubscriptionId(subscription.getId());
-        response.setSpaId(subscription.getSpa().getId());
-        response.setSpaName(spaName);
-        response.setLevel(subscription.getLevel());
-        response.setPricePaid(subscription.getPricePaid());
-        response.setTotalSessions(subscription.getTotalSessions());
-        response.setRemainingSessions(subscription.getRemainingSessions());
-        response.setStatus(subscription.getStatus());
-        response.setPaymentStatus(subscription.getPaymentStatus());
-        return response;
     }
 
     private UserSpaPackageSummaryResponse toSummary(UserSpaPackageSubscription subscription, String spaName) {

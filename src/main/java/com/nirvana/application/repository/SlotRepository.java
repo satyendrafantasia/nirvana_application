@@ -79,4 +79,10 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Slot s WHERE s.id = :id")
     Optional<Slot> findByIdForUpdate(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Slot s where s.id = :id and s.spa.id = :spaId")
+    Optional<Slot> findForSpaUpdate(@Param("id") Long id, @Param("spaId") Long spaId);
+
+    Optional<Slot> findByIdAndSpa_Id(Long id, Long spaId);
 }

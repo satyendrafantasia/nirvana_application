@@ -124,11 +124,10 @@ public class NoOpNotificationService implements NotificationService {
             logEntry.setSentAt(OffsetDateTime.now(ZoneOffset.UTC));
         } catch (MessagingException | MailException e) {
             logEntry.setStatus(NotificationStatus.FAILED);
-            String reason = e.getMessage();
-            logEntry.setErrorMessage(reason != null && reason.length() > 1000 ? reason.substring(0, 1000) : reason);
+            logEntry.setErrorMessage("Email transport failed");
             log.error("{} notification delivery failed ({})", email.templateCode(), context);
             if (email.templateCode().startsWith("BOOKING_") && !email.templateCode().equals("BOOKING_REMINDER"))
-                throw new IllegalStateException("Booking email delivery failed", e);
+                throw new IllegalStateException("Booking email delivery failed");
         } finally {
             notificationLogRepository.save(logEntry);
         }

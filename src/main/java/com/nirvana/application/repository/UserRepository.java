@@ -12,6 +12,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUsername(String username);
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update User u set u.password=:marked where u.id=:id and u.password=:original")
+    int markLegacyBcrypt(@org.springframework.data.repository.query.Param("id") Long id,
+                         @org.springframework.data.repository.query.Param("original") String original,
+                         @org.springframework.data.repository.query.Param("marked") String marked);
+
     java.util.Optional<User> findByEmail(String email);
 
     java.util.Optional<User> findByPhone(String phone);

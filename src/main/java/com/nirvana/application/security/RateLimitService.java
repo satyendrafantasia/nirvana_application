@@ -1,95 +1,46 @@
 package com.nirvana.application.security;
 
 import com.nirvana.application.config.RateLimitingProperties;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 
 @Component
-@Slf4j
+@RequiredArgsConstructor
 public class RateLimitService {
-
     private final RateLimitingProperties properties;
     private final StringRedisTemplate redisTemplate;
-    private final MeterRegistry meterRegistry;
+    private final MeterRegistry metrics;
+    private final SharedRateWindow shared;
+    private static final DefaultRedisScript<Long> INCREMENT = new DefaultRedisScript<>("""
+            local n = redis.call('INCR', KEYS[1])
+            if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+            return n
+            """, Long.class);
 
-    private final Map<String, Window> fallbackWindows = new ConcurrentHashMap<>();
-
-    private final Counter hitCounter;
-    private final Counter blockCounter;
-
-    @Autowired
-    public RateLimitService(RateLimitingProperties properties, StringRedisTemplate redisTemplate,
-                            MeterRegistry meterRegistry) {
-        this.properties = properties;
-        this.redisTemplate = redisTemplate;
-        this.meterRegistry = meterRegistry;
-        this.hitCounter = meterRegistry.counter("rate_limit_requests");
-        this.blockCounter = meterRegistry.counter("rate_limit_blocks");
-    }
-
-    public boolean isAllowed(String key) {
-        return isAllowed(key, properties.getRequests());
-    }
-
-    public boolean isAllowed(String key, int maxRequests) {
-        hitCounter.increment();
+    public boolean isAllowed(String key, int limit) {
         try {
-            Long value = redisTemplate.opsForValue().increment(key);
-            if (value != null && value == 1) {
-                redisTemplate.expire(key, Duration.ofSeconds(properties.getWindowSeconds()));
-            }
-            if (value != null && value > maxRequests) {
-                blockCounter.increment();
-                return false;
-            }
-            return true;
-        } catch (Exception ex) {
-            // fall back to JVM memory to avoid failing open
-            log.debug("Redis unavailable for rate limiting, falling back to in-memory", ex);
-            return fallbackAllowed(key, maxRequests);
+            Long count = redisTemplate.execute(INCREMENT, List.of("nirvana:rate:" + key),
+                    String.valueOf(properties.getWindowSeconds()));
+            if (count != null) return record(count <= limit);
+        } catch (DataAccessException unavailable) {
+            metrics.counter("rate_limit_redis_unavailable").increment();
         }
+        return isAllowedSensitive(key, limit);
     }
 
-    private boolean fallbackAllowed(String key, int maxRequests) {
-        Instant now = Instant.now();
-        Window window = fallbackWindows.computeIfAbsent(key, k -> new Window());
-        synchronized (window) {
-            window.evictOld(now, properties.getWindowSeconds());
-            if (window.requests >= maxRequests) {
-                blockCounter.increment();
-                return false;
-            }
-            window.requests++;
-            window.lastRequests[window.requests % window.lastRequests.length] = now;
-            return true;
-        }
+    /** Sensitive operations always use the same durable primary, even during Redis failures. */
+    public boolean isAllowedSensitive(String key, int limit) {
+        return record(shared.consume(key, limit, properties.getWindowSeconds()));
     }
 
-    private static class Window {
-        private int requests = 0;
-        private final Instant[] lastRequests = new Instant[256];
-
-        void evictOld(Instant now, int windowSeconds) {
-            Instant threshold = now.minusSeconds(windowSeconds);
-            for (int i = 0; i < lastRequests.length; i++) {
-                Instant ts = lastRequests[i];
-                if (ts != null && ts.isBefore(threshold)) {
-                    requests--;
-                    lastRequests[i] = null;
-                }
-            }
-            if (requests < 0) {
-                requests = 0;
-            }
-        }
+    private boolean record(boolean allowed) {
+        metrics.counter("rate_limit_requests").increment();
+        if (!allowed) metrics.counter("rate_limit_blocks").increment();
+        return allowed;
     }
 }

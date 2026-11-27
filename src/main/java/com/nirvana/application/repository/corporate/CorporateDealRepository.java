@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface CorporateDealRepository extends JpaRepository<CorporateDeal, Long> {
+    java.util.Optional<CorporateDeal> findByIdAndCorporateId(Long id, Long corporateId);
     List<CorporateDeal> findByCorporateId(Long corporateId);
     List<CorporateDeal> findByCorporateIdAndStatus(Long corporateId, CorporateDealStatus status);
 }

@@ -5134,6 +5134,11 @@
           "example": "image/jpeg",
           "minLength": 1
         },
+        "sizeBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Exact file size in bytes"
+        },
         "mediaType": {
           "type": "string",
           "description": "Type of media being uploaded",
@@ -5141,7 +5146,7 @@
           "example": "IMAGE"
         }
       },
-      "required": ["contentType", "fileName", "mediaType", "spaId"]
+      "required": ["contentType", "fileName", "mediaType", "sizeBytes", "spaId"]
     },
     "MediaPresignResponse": {
       "type": "object",

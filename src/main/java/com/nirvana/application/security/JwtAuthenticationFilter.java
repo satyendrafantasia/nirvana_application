@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -39,24 +38,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtTokenService.parseClaims(token);
                 Long userId = Long.valueOf(claims.getSubject());
-                Set<String> roles = jwtTokenService.extractRoles(claims);
                 String fingerprintClaim = claims.get("dfp", String.class);
                 String fingerprintHeader = request.getHeader(jwtProperties.getDeviceFingerprintHeader());
 
-                if (fingerprintClaim != null && fingerprintHeader != null
-                        && !fingerprintClaim.equals(fingerprintHeader)) {
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
-                if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserDetails userDetails = userDetailsService.loadUserById(userId, roles, claims.getIssuedAt());
+                boolean deviceMatches = fingerprintClaim == null || fingerprintHeader == null
+                        || fingerprintClaim.equals(fingerprintHeader);
+                if (deviceMatches && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    boolean mfaVerified = Boolean.TRUE.equals(claims.get("mfa", Boolean.class));
+                    UserDetails userDetails = userDetailsService.loadSessionUser(userId, claims.getIssuedAt(), mfaVerified, claims.get("sid", String.class));
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
                             userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    request.setAttribute(PaymentMfaVerifier.VERIFIED_SESSION, mfaVerified);
                     if (userDetails instanceof UserPrincipal principal) {
                         request.setAttribute(com.nirvana.application.api.RequestLogFilter.USER_ATTRIBUTE, principal.getId());
                         if (org.slf4j.MDC.get("correlationId") != null) {

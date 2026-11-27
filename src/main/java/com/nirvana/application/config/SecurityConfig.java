@@ -58,7 +58,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(org.springframework.security.config.Customizer.withDefaults())
+                // API credentials are explicit bearers. Cookie exchanges require the custom
+                // browser header, enforced at their mappings and subject to the CORS allowlist.
                 .csrf(csrf -> csrf.disable())
+                .logout(logout -> logout.disable())
                 .exceptionHandling(errors -> errors.defaultAuthenticationEntryPointFor(
                         (request, response, exception) -> {response.setStatus(401); response.setContentType("application/json"); response.getWriter().write("{\"message\":\"Please sign in\"}");},
                         request -> request.getRequestURI().startsWith("/api/")))
@@ -132,8 +136,9 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         // Only bcrypt hashes are accepted. Plain-text ({noop}) and every other stored
         // format never match, so a seeded or hand-inserted password cannot sign in.
+        var bcrypt = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
         var encoder = new org.springframework.security.crypto.password.DelegatingPasswordEncoder(
-                "bcrypt", Map.of("bcrypt", new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()));
+                "bcrypt", Map.of("bcrypt", bcrypt));
         encoder.setDefaultPasswordEncoderForMatches(new PasswordEncoder() {
             @Override
             public String encode(CharSequence rawPassword) {
@@ -142,7 +147,9 @@ public class SecurityConfig {
 
             @Override
             public boolean matches(CharSequence rawPassword, String encodedPassword) {
-                return false;
+                // Older installations used bare bcrypt strings. Never accept plain text or
+                // arbitrary delegated formats. The first successful login adds the marker.
+                return encodedPassword != null && encodedPassword.startsWith("$2") && bcrypt.matches(rawPassword, encodedPassword);
             }
         });
         return encoder;

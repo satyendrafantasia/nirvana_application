@@ -55,8 +55,12 @@ class BookingLifecycleTest {
         @Bean
         @Primary
         RateLimitService bookingTestRateLimits(RateLimitingProperties properties, StringRedisTemplate redis,
-                                               MeterRegistry metrics) {
-            return new RateLimitService(properties, redis, metrics) {
+                                               MeterRegistry metrics, com.nirvana.application.security.SharedRateWindow shared) {
+            return new RateLimitService(properties, redis, metrics, shared) {
+                @Override
+                public boolean isAllowedSensitive(String key, int maxRequests) {
+                    return super.isAllowedSensitive(rateLimitPrefix.get() + key, maxRequests);
+                }
                 @Override
                 public boolean isAllowed(String key, int maxRequests) {
                     return super.isAllowed(rateLimitPrefix.get() + key, maxRequests);

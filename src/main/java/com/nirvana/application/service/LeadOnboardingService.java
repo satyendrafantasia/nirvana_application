@@ -200,7 +200,7 @@ public class LeadOnboardingService {
             try {
                 added += Objects.requireNonNull(tx.execute(status -> topUpSpa(spaId)));
             } catch (RuntimeException e) {
-                log.warn("Could not add appointment times for spa {}: {}", spaId, e.getMessage());
+                log.warn("Could not add appointment times for spa {}: {}", spaId, e.getClass().getSimpleName());
             }
         }
         return added;

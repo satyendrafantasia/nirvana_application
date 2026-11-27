@@ -116,7 +116,7 @@ public class BookingLifecycleService {
             waitlistService.tryNotifySlotAvailable(slot);
             notifications.bookingCancelled(booking);
         } catch (RuntimeException ex) {
-            log.warn("Unpaid booking {} expired but a notification could not be sent: {}", bookingId, ex.getMessage());
+            log.warn("Unpaid booking {} expired but a notification could not be sent: {}", bookingId, ex.getClass().getSimpleName());
         }
         log.info("Expired unpaid booking {} and released {} unit(s) on slot {}", bookingId, booking.getGuestCount(), slot.getId());
         return true;
@@ -150,12 +150,12 @@ public class BookingLifecycleService {
         try {
             notificationService.notifyCustomerBookingReminder(booking);
         } catch (RuntimeException ex) {
-            log.warn("Reminder for booking {} could not be sent: {}", bookingId, ex.getMessage());
+            log.warn("Reminder for booking {} could not be sent: {}", bookingId, ex.getClass().getSimpleName());
         }
         try {
             guestWhatsApp.send(booking, com.nirvana.application.service.GuestWhatsApp.Kind.REMINDER);
         } catch (RuntimeException ex) {
-            log.warn("WhatsApp reminder for booking {} could not be sent: {}", bookingId, ex.getMessage());
+            log.warn("WhatsApp reminder for booking {} could not be sent: {}", bookingId, ex.getClass().getSimpleName());
         }
         return true;
     }
@@ -220,13 +220,8 @@ public class BookingLifecycleService {
     // ------------------ INTERNAL ------------------
 
     private Booking lockForSpa(Long spaId, Long bookingId) {
-        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+        return bookingRepository.findForSpaUpdate(bookingId, spaId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
-        if (!booking.getSpa().getId().equals(spaId)) {
-            // Same answer as a missing booking so one spa cannot probe another spa's bookings.
-            throw new EntityNotFoundException("Booking not found");
-        }
-        return booking;
     }
 
     private void requireStatus(Booking booking, String action, BookingStatus... allowed) {

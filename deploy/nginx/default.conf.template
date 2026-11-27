@@ -41,7 +41,9 @@ server {
         include /etc/nginx/snippets/proxy.inc;
     }
 
-    location ^~ /assets/ {
+    location ~* \.map$ { return 404; }
+
+    location /assets/ {
         try_files $uri =404;
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         add_header X-Content-Type-Options nosniff always;

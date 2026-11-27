@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import routes from '../../routes/AppRouter.tsx?raw';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server';
+import { StaticRouter } from 'react-router-dom';
 import SpaCard from '../../components/spa/SpaCard';
 import { PAGE_SIZE, resultsSummary } from './SpaSearch';
 

@@ -74,12 +74,12 @@ public class InAppPaymentClient implements PaymentClient {
             PaymentStatus status = mapStatus(body.getStatus());
             String reference = body.getReferenceId() != null ? body.getReferenceId() : fallbackResult.getReferenceId();
             if (status == PaymentStatus.FAILED && body.getFailureReason() != null) {
-                log.error("Payment gateway failed for spa {}: {}", spaId, body.getFailureReason());
+                log.warn("Payment gateway declined payment for spa {}", spaId);
             }
             log.info("Gateway processed payment for user {} spa {} amount {} with status {}", userId, spaId, amount, status);
             return new PaymentResult(status, reference);
         } catch (RestClientException e) {
-            log.error("Payment gateway call failed for spa {}: {}", spaId, DEFAULT_FAILURE_REASON, e);
+            log.error("Payment gateway call failed for spa {}: {} errorType={}", spaId, DEFAULT_FAILURE_REASON, e.getClass().getSimpleName());
             return fallbackResult;
         }
     }

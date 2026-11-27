@@ -20,6 +20,16 @@ export default function OtpVerification() {
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(sessionStorage.getItem('nirvana_mfa') || '');
   const mfa = Boolean(sessionStorage.getItem('nirvana_mfa'));
+  const firebaseMfa = mfa && sessionStorage.getItem('nirvana_mfa_firebase') === 'true';
+  const mfaSms = useMutation({
+    mutationFn: async () => {
+      const number = toE164(contact);
+      if (!number) throw new Error('Enter your registered mobile number with country code.');
+      await phone.start(number);
+      setSentTo(number);
+      setOtp('');
+    }
+  });
   const { acceptAuth } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -54,7 +64,8 @@ export default function OtpVerification() {
       className="card mx-auto my-10 max-w-md p-6 space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (verificationId) verify.mutate();
+        if (firebaseMfa && !sentTo) mfaSms.mutate();
+        else if (verificationId) verify.mutate();
         else if (contact.trim() && !request.isPending) request.mutate();
       }}
     >
@@ -82,7 +93,16 @@ export default function OtpVerification() {
       )}
       {!mfa && sentTo && kind === 'email' && <p role="status">Open the sign-in link sent to {sentTo} to continue.</p>}
       <div ref={phone.slot} />
-      {verificationId && (
+      {firebaseMfa && (
+        <>
+          <Input label="Registered mobile number" value={contact} type="tel" onChange={(e) => setContact(e.target.value)} />
+          <Button type="button" onClick={() => mfaSms.mutate()} disabled={mfaSms.isPending || !contact.trim()}>
+            {mfaSms.isPending ? 'Sending…' : sentTo ? 'Send a new code' : 'Send verification code'}
+          </Button>
+          {mfaSms.isError && <p role="alert">{errorMessage(mfaSms.error)}</p>}
+        </>
+      )}
+      {verificationId && (!firebaseMfa || sentTo) && (
         <>
           <p>
             {mfa

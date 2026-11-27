@@ -223,6 +223,7 @@ function Profile({ account }: { account: Account }) {
 }
 
 function Password() {
+  const navigate = useNavigate();
   const { user, acceptAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -233,6 +234,12 @@ function Password() {
     mutationFn: () => changePassword(current, next),
     onSuccess: (wire) => {
       // The old session was ended on every device; keep this one signed in with the new tokens.
+      if (wire.mfaRequired && wire.mfaVerificationId) {
+        sessionStorage.setItem('nirvana_mfa', wire.mfaVerificationId);
+        sessionStorage.setItem('nirvana_mfa_firebase', String(wire.mfaFirebasePhone === true));
+        navigate('/auth/otp?redirect=%2Fme%2Fsettings');
+        return;
+      }
       const fresh = authView(wire);
       acceptAuth({ token: fresh.token, user: user || fresh.user });
       setCurrent('');

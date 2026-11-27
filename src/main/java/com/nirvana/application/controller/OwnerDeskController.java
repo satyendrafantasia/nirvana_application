@@ -246,7 +246,7 @@ public class OwnerDeskController {
     @Transactional
     public void recordReturn(@PathVariable long spa,@PathVariable long id){
         requireOpenShift(spa,id);
-        var booking=bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
+        var booking=bookings.findForSpaUpdate(id,spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         if(!"CANCELLED".equals(booking.getStatus().name()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Only a cancelled appointment can have a desk return");
         var args=Map.of("spa",spa,"id",id,"actor",SecurityUtils.getCurrentUserId());
@@ -267,7 +267,7 @@ public class OwnerDeskController {
     @Transactional
     public void voidReceipt(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody VoidInput input){
         requireOpenShift(spa,id);
-        bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
+        bookings.findForSpaUpdate(id,spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         var args=Map.<String,Object>of("spa",spa,"id",id);
         var receipts=db.queryForList("SELECT id,collected_at,returned_at,amount_cents,tip_cents,currency,method,receipt_reference,collected_by FROM spa_desk_receipt WHERE spa_id=:spa AND booking_id=:id ORDER BY id DESC FOR UPDATE",args);
@@ -327,6 +327,7 @@ public class OwnerDeskController {
     }
     @GetMapping("/bookings/{id}/history")
     public List<Map<String,Object>> bookingHistory(@PathVariable long spa,@PathVariable long id){
+        if (!bookings.existsByIdAndSpa_Id(id,spa)) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found");
         return db.queryForList("""
             SELECT h.action_type AS action,h.entity_type AS entity,h.actor_user_id AS actor,
               CONCAT(DATE_FORMAT(h.created_at,'%Y-%m-%dT%H:%i:%s'),'Z') AS atUtc,h.reason
@@ -339,7 +340,7 @@ public class OwnerDeskController {
     @PostMapping("/bookings/{id}/reply")
     @Transactional
     public void reply(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody Reply input){
-        var b=bookings.findByIdForUpdate(id).filter(v->v.getSpa().getId()==spa)
+        var b=bookings.findForSpaUpdate(id,spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         if(!"CONFIRMED".equals(b.getStatus().name()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Refresh the booking before replying");
         var tokens=db.queryForList("SELECT token FROM spa_booking_confirmation WHERE spa_id=:spa AND booking_id=:id AND status IN ('PENDING','NEEDS_CONTACT','NO_MOBILE') FOR UPDATE",Map.of("spa",spa,"id",id),String.class);
@@ -367,7 +368,7 @@ public class OwnerDeskController {
     @Transactional
     public void collect(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody Collection input) {
         db.queryForObject("SELECT id FROM spa WHERE id=:spa FOR UPDATE",Map.of("spa",spa),Long.class);
-        var booking=bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
+        var booking=bookings.findForSpaUpdate(id,spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         var args=new HashMap<String,Object>(); args.put("id",id); args.put("spa",spa); args.put("key",input.requestKey);
         if(input.requestKey!=null && db.queryForObject("SELECT COUNT(*) FROM spa_desk_receipt WHERE spa_id=:spa AND request_key=:key",args,Integer.class)>0) return;
@@ -393,7 +394,7 @@ public class OwnerDeskController {
     @PostMapping("/bookings/{id}/move")
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void move(@PathVariable long spa,@PathVariable long id,@Valid @RequestBody Move input) {
-        var booking=bookings.findByIdForUpdate(id).filter(b->b.getSpa().getId()==spa)
+        var booking=bookings.findForSpaUpdate(id,spa)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Appointment not found"));
         if(!"CONFIRMED".equals(booking.getStatus().name()) || input.slotId.equals(booking.getSlot().getId()))
             throw new ResponseStatusException(HttpStatus.CONFLICT,"Choose a new time for a confirmed appointment");

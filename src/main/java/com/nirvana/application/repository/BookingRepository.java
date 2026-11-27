@@ -93,6 +93,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @EntityGraph(attributePaths = {"spa", "service"})
     Page<Booking> findWithDetailsByUserIdAndStatus(Long userId, BookingStatus status, Pageable pageable);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :id and b.spa.id = :spaId")
+    Optional<Booking> findForSpaUpdate(@Param("id") Long id, @Param("spaId") Long spaId);
+
+    boolean existsByIdAndSpa_Id(Long id, Long spaId);
+
     Optional<Booking> findByIdAndUserId(Long bookingId, Long userId);
 
     @EntityGraph(attributePaths = {"user", "service", "therapist"})

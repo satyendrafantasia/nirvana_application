@@ -28,8 +28,14 @@ public class GlobalExceptionHandler {
                 .timestamp(OffsetDateTime.now())
                 .status(status.value())
                 .error(status.getReasonPhrase())
-                .message(message + (correlationId != null ? " (correlationId=" + correlationId + ")" : ""))
+                .message(com.nirvana.application.config.SentryScrubbing.scrub(message) + (correlationId != null ? " (correlationId=" + correlationId + ")" : ""))
                 .path(path);
+    }
+
+
+    private static String route(HttpServletRequest request) {
+        Object pattern = request.getAttribute(org.springframework.web.servlet.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        return pattern == null ? "/" : pattern.toString();
     }
 
     @ExceptionHandler(NotFoundException.class)
@@ -37,7 +43,7 @@ public class GlobalExceptionHandler {
                                                            HttpServletRequest request) {
         String cid = org.slf4j.MDC.get("correlationId");
         log.info("event=request.rejected reason=not_found");
-        ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
@@ -48,7 +54,7 @@ public class GlobalExceptionHandler {
                                                            HttpServletRequest request) {
         String cid = org.slf4j.MDC.get("correlationId");
         log.info("event=request.rejected reason=business_rule type={}", ex.getClass().getSimpleName());
-        ApiErrorResponse body = base(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
@@ -63,17 +69,15 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(error -> {
                     String field = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
-                    Object rejectedValue = error instanceof FieldError fe ? fe.getRejectedValue() : null;
                     String message = error.getDefaultMessage();
                     return ApiErrorResponse.FieldErrorDetails.builder()
                             .field(field)
                             .message(message)
-                            .rejectedValue(rejectedValue)
                             .build();
                 })
                 .collect(Collectors.toList());
 
-        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, "Validation failed", request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, "Validation failed", route(request), cid)
                 .fieldErrors(fieldErrors)
                 .build();
         return ResponseEntity.badRequest().body(body);
@@ -88,11 +92,10 @@ public class GlobalExceptionHandler {
                 .map(v -> ApiErrorResponse.FieldErrorDetails.builder()
                         .field(v.getPropertyPath().toString())
                         .message(v.getMessage())
-                        .rejectedValue(v.getInvalidValue())
                         .build())
                 .collect(Collectors.toList());
 
-        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, "Constraint violation", request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, "Constraint violation", route(request), cid)
                 .fieldErrors(fieldErrors)
                 .build();
         return ResponseEntity.badRequest().body(body);
@@ -101,7 +104,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({CorporateNotFoundException.class, CorporateDealNotFoundException.class, CorporateEmployeeNotFoundException.class, CorporateCouponNotFoundException.class})
     public ResponseEntity<ApiErrorResponse> handleCorporateNotFound(RuntimeException ex, HttpServletRequest request) {
         String cid = org.slf4j.MDC.get("correlationId");
-        ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.NOT_FOUND, ex.getMessage(), route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
@@ -110,7 +113,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({CorporateCouponExpiredException.class, CorporateCouponExhaustedException.class, NoActiveCorporateCouponException.class, CorporateOnboardingParseException.class, CorporatePaymentPendingException.class})
     public ResponseEntity<ApiErrorResponse> handleCorporateValidation(RuntimeException ex, HttpServletRequest request) {
         String cid = org.slf4j.MDC.get("correlationId");
-        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), cid)
+        ApiErrorResponse body = base(HttpStatus.BAD_REQUEST, ex.getMessage(), route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.badRequest().body(body);
@@ -122,7 +125,7 @@ public class GlobalExceptionHandler {
         String cid = org.slf4j.MDC.get("correlationId");
         log.warn("event=request.rejected reason=concurrent_update");
         ApiErrorResponse body = base(HttpStatus.CONFLICT, "Conflict: resource was modified by another request",
-                request.getRequestURI(), cid)
+                route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
@@ -130,27 +133,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> forbidden(Exception ex, HttpServletRequest request) {
-        return ResponseEntity.status(403).body(base(HttpStatus.FORBIDDEN, "Access denied", request.getRequestURI(), null).build());
+        return ResponseEntity.status(403).body(base(HttpStatus.FORBIDDEN, "Access denied", route(request), null).build());
     }
 
     @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> entityMissing(Exception ex, HttpServletRequest request) {
-        return ResponseEntity.status(404).body(base(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), null).build());
+        return ResponseEntity.status(404).body(base(HttpStatus.NOT_FOUND, ex.getMessage(), route(request), null).build());
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<ApiErrorResponse> invalidOperation(Exception ex, HttpServletRequest request) {
-        return ResponseEntity.status(409).body(base(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), null).build());
+        return ResponseEntity.status(409).body(base(HttpStatus.CONFLICT, ex.getMessage(), route(request), null).build());
     }
 
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> statusException(org.springframework.web.server.ResponseStatusException ex, HttpServletRequest request) {
-        return ResponseEntity.status(ex.getStatusCode()).body(base(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), request.getRequestURI(), null).build());
+        return ResponseEntity.status(ex.getStatusCode()).body(base(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), route(request), null).build());
     }
 
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> unreadable(Exception ex, HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(base(HttpStatus.BAD_REQUEST, "Invalid request body", request.getRequestURI(), null).build());
+        return ResponseEntity.badRequest().body(base(HttpStatus.BAD_REQUEST, "Invalid request body", route(request), null).build());
     }
 
     /** A failed sign-in (wrong password, unknown or disabled account) is the caller's problem, not a server error. */
@@ -158,7 +161,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> authenticationFailed(Exception ex, HttpServletRequest request) {
         // One message for every cause, so the response does not reveal which accounts exist.
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(base(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.", request.getRequestURI(), null).build());
+                .body(base(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.", route(request), null).build());
     }
 
     @ExceptionHandler(Exception.class)
@@ -168,7 +171,7 @@ public class GlobalExceptionHandler {
         log.error("event=request.failed type={} origin={}", ex.getClass().getSimpleName(),
                 ex.getStackTrace().length == 0 ? "unknown" : ex.getStackTrace()[0]);
         ApiErrorResponse body = base(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error",
-                request.getRequestURI(), cid)
+                route(request), cid)
                 .fieldErrors(null)
                 .build();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);

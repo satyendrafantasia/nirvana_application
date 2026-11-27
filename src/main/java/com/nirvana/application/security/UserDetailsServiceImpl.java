@@ -18,7 +18,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public UserDetailsServiceImpl(UserRepository userRepository) {
+    private final com.nirvana.application.repository.RefreshTokenRepository sessions;
+
+    public UserDetailsServiceImpl(UserRepository userRepository, com.nirvana.application.repository.RefreshTokenRepository sessions) {
+        this.sessions = sessions;
         this.userRepository = userRepository;
     }
 
@@ -31,15 +34,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return UserPrincipal.fromUser(user);
     }
 
-    public UserDetails loadUserById(Long id, Set<String> rolesFromToken) {
-        return loadUserById(id, rolesFromToken, null);
-    }
-
-    /**
-     * @param tokenIssuedAt when the presented access token was issued; a token older than the
-     *                      account's last password change is refused
-     */
-    public UserDetails loadUserById(Long id, Set<String> rolesFromToken, java.util.Date tokenIssuedAt) {
+    public UserDetails loadSessionUser(Long id, java.util.Date tokenIssuedAt, boolean mfaVerified, String family) {
+        if (family == null || !sessions.existsByUser_IdAndSessionFamilyAndRevokedAtIsNullAndExpiresAtAfter(
+                id, family, java.time.OffsetDateTime.now()))
+            throw new org.springframework.security.authentication.CredentialsExpiredException("Session has ended");
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + id));
         if (tokenIssuedAt != null && user.getCredentialsChangedAt() != null) {
@@ -50,6 +48,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
+        if (SessionAssurance.requiresMfa(user) && !mfaVerified)
+            throw new org.springframework.security.authentication.InsufficientAuthenticationException("Complete multifactor sign-in");
         Set<GrantedAuthority> authorities = UserPrincipal.buildAuthorities(user.getRoles());
         if (!Boolean.TRUE.equals(user.getIsActive())) throw new org.springframework.security.authentication.DisabledException("Account disabled");
 

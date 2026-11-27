@@ -44,6 +44,8 @@ class PaymentSafetyTest {
         User owner=User.builder().id(1L).build();
         booking=new Booking();booking.setId(10L);booking.setUser(owner);booking.setStatus(BookingStatus.PENDING_PAYMENT);booking.setPaymentMode(PaymentMode.ONLINE);booking.setRefundStatus(RefundStatus.NONE);
         payment=new Payment();payment.setId(20L);payment.setBooking(booking);payment.setGateway("RAZORPAY");payment.setIntentId("order_test");payment.setAmountCents(125000);payment.setCurrency("INR");payment.setPaymentStatus(PaymentStatus.INIT);payment.setReceiptUrl("existing-receipt");
+        when(bookings.findOwnedForUpdate(10L, 1L)).thenReturn(Optional.of(booking));
+        when(bookings.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(booking));
         when(bookings.findByIdForUpdate(10L)).thenReturn(Optional.of(booking));when(bookings.findById(10L)).thenReturn(Optional.of(booking));
         when(payments.findByIntentId("order_test")).thenReturn(Optional.of(payment));
         when(payments.findBookingIdByIntentId("order_test")).thenReturn(Optional.of(10L));
@@ -92,7 +94,7 @@ class PaymentSafetyTest {
         service.createPaymentLinkForBooking(10L,null);verify(gateway.paymentLink,times(1)).create(any());assertEquals("existing-receipt",payment.getReceiptUrl());
     }
     void remote(String status,boolean captured,int amount,String currency,String order) throws Exception {
-        when(gateway.payments.fetch("pay_test")).thenReturn(new com.razorpay.Payment(new JSONObject().put("id","pay_test").put("order_id",order).put("amount",amount).put("currency",currency).put("status",status).put("captured",captured)));
+        when(gateway.payments.fetch("pay_test")).thenReturn(new com.razorpay.Payment(new JSONObject().put("id","pay_test").put("order_id",order).put("amount",amount).put("currency",currency).put("status",status).put("captured",captured).put("amount_refunded",0)));
     }
     RazorpayConfirmRequest signed() throws Exception {
         var request=new RazorpayConfirmRequest();request.setRazorpayOrderId("order_test");request.setRazorpayPaymentId("pay_test");
@@ -155,6 +157,38 @@ class PaymentSafetyTest {
         booking.setStatus(BookingStatus.CANCELLED);
         service.reconcileCapturedPayment("order_test","pay_test");
         assertEquals(RefundStatus.NONE, booking.getRefundStatus());
+    }
+    @Test void invalidDeliveryLeavesBookingUnpaidAndRepeatedVerifiedCaptureConfirmsOnce() throws Exception {
+        var receipts = mock(com.nirvana.application.service.impl.RazorpayWebhookReceipts.class);
+        // Dispatch each valid delivery to exercise booking idempotency independently of event-ID deduplication.
+        doAnswer(call -> { call.<Runnable>getArgument(3).run(); return null; })
+                .when(receipts).processOnce(anyString(), anyString(), anyString(), any());
+        var webhook = WebhookSafetyTest.controller(service, receipts);
+        byte[] body = """
+            {"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_test","order_id":"order_test"}}}}
+            """.getBytes(StandardCharsets.UTF_8);
+        var invalid = new org.springframework.mock.web.MockHttpServletRequest();
+        invalid.addHeader("X-Razorpay-Signature", "invalid");
+        var originalStatus = payment.getPaymentStatus();
+        assertEquals(400, webhook.handleWebhook(invalid, body).getStatusCode().value());
+        assertEquals(BookingStatus.PENDING_PAYMENT, booking.getStatus());
+        assertEquals(originalStatus, payment.getPaymentStatus());
+        verifyNoInteractions(receipts, notifications);
+        var signedDelivery = WebhookSafetyTest.signed(body);
+        assertEquals(200, webhook.handleWebhook(signedDelivery, body).getStatusCode().value());
+        assertEquals(200, webhook.handleWebhook(signedDelivery, body).getStatusCode().value());
+        assertEquals(BookingStatus.CONFIRMED, booking.getStatus());
+        assertEquals(PaymentStatus.CAPTURED, payment.getPaymentStatus());
+        verify(notifications, times(1)).scheduleBookingNotifications(booking);
+    }
+
+    @Test void partiallyRefundedCaptureCannotConfirmAnUnpaidBooking() throws Exception {
+        var capture = new JSONObject().put("id","pay_test").put("order_id","order_test").put("amount",125000)
+                .put("currency","INR").put("status","captured").put("captured",true).put("amount_refunded",500);
+        when(gateway.payments.fetch("pay_test")).thenReturn(new com.razorpay.Payment(capture));
+        assertThrows(IllegalStateException.class, () -> service.reconcileCapturedPayment("order_test","pay_test"));
+        assertEquals(BookingStatus.PENDING_PAYMENT,booking.getStatus());
+        verifyNoInteractions(notifications);
     }
     @Test void signedWebhookPathAlsoConfirmsBooking(){SecurityContextHolder.clearContext();service.reconcileCapturedPayment("order_test","pay_test");assertEquals(BookingStatus.CONFIRMED,booking.getStatus());}
     @Test void cannotReplayAnotherOrdersIdempotencyKey(){booking.setRemainderCents(125000);Payment other=new Payment();Booking b=new Booking();b.setId(99L);other.setBooking(b);other.setGateway("RAZORPAY");when(payments.findByIdempotencyKey("reused")).thenReturn(Optional.of(other));assertThrows(IllegalArgumentException.class,()->service.initiateRazorpayPayment(10L,"reused"));}

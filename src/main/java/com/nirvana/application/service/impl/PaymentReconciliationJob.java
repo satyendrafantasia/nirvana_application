@@ -34,7 +34,7 @@ public class PaymentReconciliationJob {
                 .forEach(payment -> {
                     if (!"RAZORPAY".equals(payment.getGateway())) return;
                     try { paymentService.reconcilePendingOrder(payment.getIntentId()); }
-                    catch (RuntimeException ex) {log.warn("Reconciliation deferred for payment {}: {}", payment.getId(), ex.getMessage());}
+                    catch (RuntimeException ex) {log.warn("Reconciliation deferred for payment {}: {}", payment.getId(), ex.getClass().getSimpleName());}
                 });
     }
 }

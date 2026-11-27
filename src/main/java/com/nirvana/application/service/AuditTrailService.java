@@ -33,7 +33,7 @@ public class AuditTrailService {
         logEntry.setActionType(actionType);
         logEntry.setEntityType(entityType);
         logEntry.setEntityId(entityId);
-        logEntry.setReason(reason);
+        logEntry.setReason(com.nirvana.application.config.SentryScrubbing.scrub(reason));
         if (actorUserId != null) {
             logEntry.setActor(entityManager.getReference(User.class, actorUserId));
         }
@@ -55,10 +55,37 @@ public class AuditTrailService {
             return null;
         }
         try {
-            return objectMapper.writeValueAsString(state);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize audit state: {}", e.getMessage());
+            var tree = objectMapper.valueToTree(state);
+            redact(tree);
+            return objectMapper.writeValueAsString(tree);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            log.warn("Failed to serialize audit state: {}", e.getClass().getSimpleName());
             return "{\"error\":\"serialization_failed\"}";
+        }
+    }
+
+    // Stored audit history has a different lifetime than the request that produced it.
+    static void redact(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node instanceof com.fasterxml.jackson.databind.node.ObjectNode obj) {
+            var fields = obj.properties().iterator();
+            while (fields.hasNext()) {
+                var field = fields.next();
+                String key = field.getKey().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+                if (key.matches(".*(password|secret|credential|token|signature|authorization|cookie|otp|email|phone|address|bankaccount|accountnumber|privatekey|apikey|taxid|gstin|specialrequests|medical|diagnosis).*")) {
+                    fields.remove();
+                } else if (field.getValue().isTextual()) {
+                    field.setValue(com.fasterxml.jackson.databind.node.TextNode.valueOf(
+                            com.nirvana.application.config.SentryScrubbing.scrub(field.getValue().textValue())));
+                } else {
+                    redact(field.getValue());
+                }
+            }
+        } else if (node instanceof com.fasterxml.jackson.databind.node.ArrayNode array) {
+            for (int i = 0; i < array.size(); i++) {
+                var value = array.get(i);
+                if (value.isTextual()) array.set(i, com.nirvana.application.config.SentryScrubbing.scrub(value.textValue()));
+                else redact(value);
+            }
         }
     }
 }

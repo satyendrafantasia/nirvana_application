@@ -1,38 +1,47 @@
 package com.nirvana.application;
-import com.nirvana.application.controller.RazorpayWebhookController;
+
 import com.nirvana.application.config.RazorpayProperties;
-import com.nirvana.application.repository.*;
-import com.nirvana.application.service.impl.PaymentService;
-import com.nirvana.application.model.PaymentWebhookEvent;
+import com.nirvana.application.controller.RazorpayWebhookController;
+import com.nirvana.application.rewards.GiftCardService;
+import com.nirvana.application.service.impl.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.HexFormat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class WebhookSafetyTest {
-    @Test void invalidSignatureCannotMutatePayments(){
-        var props=new RazorpayProperties();props.setWebhookSecret("secret");
-        var service=mock(PaymentService.class);var payments=mock(PaymentRepository.class);var events=mock(PaymentWebhookEventRepository.class);
-        var controller=new RazorpayWebhookController(props,service,payments,mock(com.nirvana.application.service.impl.PackageCheckoutService.class),events,mock(com.nirvana.application.service.impl.SpaPackageCheckoutService.class),mock(com.nirvana.application.rewards.GiftCardService.class),mock(com.nirvana.application.service.impl.LoyaltyService.class));
-        var request=new MockHttpServletRequest();request.addHeader("X-Razorpay-Signature","invalid");
-        assertEquals(400,controller.handleWebhook(request,"{}").getStatusCode().value());verifyNoInteractions(service,payments,events);
+    static final String SECRET = "unit-fixture-secret";
+    static MockHttpServletRequest signed(byte[] body) throws Exception {
+        Mac hmac = Mac.getInstance("HmacSHA256");
+        hmac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        var request = new MockHttpServletRequest();
+        request.addHeader("X-Razorpay-Signature", HexFormat.of().formatHex(hmac.doFinal(body)));
+        return request;
     }
-    @Test void authenticatedCaptureUsesSharedVerificationAndHeaderEventId() throws Exception {
-        var props=new RazorpayProperties();props.setWebhookSecret("secret");
-        var service=mock(PaymentService.class);var payments=mock(PaymentRepository.class);var events=mock(PaymentWebhookEventRepository.class);
-        var controller=new RazorpayWebhookController(props,service,payments,mock(com.nirvana.application.service.impl.PackageCheckoutService.class),events,mock(com.nirvana.application.service.impl.SpaPackageCheckoutService.class),mock(com.nirvana.application.rewards.GiftCardService.class),mock(com.nirvana.application.service.impl.LoyaltyService.class));
-        String payload="{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_1\",\"order_id\":\"order_1\",\"email\":\"private@example.test\"}}}}";
-        var request=new MockHttpServletRequest();request.addHeader("X-Razorpay-Event-Id","evt_1");
-        Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec("secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));request.addHeader("X-Razorpay-Signature",HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8))));
-        assertEquals(200,controller.handleWebhook(request,payload).getStatusCode().value());
-        verify(service).reconcileCapturedPayment("order_1","pay_1");
-        verify(events).save(argThat(e->"evt_1".equals(e.getEventId()) && !e.getPayload().contains("private@example.test") && e.getPayload().contains("sha256")));
-        when(events.findByEventId("evt_1")).thenReturn(Optional.of(new PaymentWebhookEvent()));
-        assertEquals(200,controller.handleWebhook(request,payload).getStatusCode().value());
-        verify(service,times(1)).reconcileCapturedPayment(anyString(),anyString());
+
+    static RazorpayWebhookController controller(PaymentService payments, RazorpayWebhookReceipts receipts) {
+        var props = new RazorpayProperties();
+        props.setWebhookSecret(SECRET);
+        return new RazorpayWebhookController(props, payments, mock(PackageCheckoutService.class), receipts,
+                mock(SpaPackageCheckoutService.class), mock(GiftCardService.class), mock(LoyaltyService.class));
+    }
+
+    @Test void authenticatesOriginalBytesBeforeParsingOrWriting() throws Exception {
+        var payments = mock(PaymentService.class);
+        var receipts = mock(RazorpayWebhookReceipts.class);
+        var controller = controller(payments, receipts);
+        byte[] original = "{  \"event\":\"unknown\",\"note\":\"\u20b9\" }".getBytes(StandardCharsets.UTF_8);
+        byte[] changed = new String(original, StandardCharsets.UTF_8).replace("  ", " ").getBytes(StandardCharsets.UTF_8);
+        assertEquals(400, controller.handleWebhook(signed(original), changed).getStatusCode().value());
+        verifyNoInteractions(receipts, payments);
+        var request = signed(original);
+        request.addHeader("X-Razorpay-Event-Id", "evt_local");
+        assertEquals(200, controller.handleWebhook(request, original).getStatusCode().value());
+        verify(receipts).processOnce(eq("evt_local"), isNull(), argThat(x -> x.contains("sha256") && !x.contains("note")), any());
     }
 }

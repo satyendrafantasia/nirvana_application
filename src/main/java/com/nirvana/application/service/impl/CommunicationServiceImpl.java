@@ -260,7 +260,7 @@ public class CommunicationServiceImpl implements CommunicationService {
         try {
             return objectMapper.writeValueAsString(variables);
         } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize notification payload: {}", e.getMessage());
+            log.warn("Failed to serialize notification payload: {}", e.getClass().getSimpleName());
             return "{}";
         }
     }

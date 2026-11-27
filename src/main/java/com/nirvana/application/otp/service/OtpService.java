@@ -61,6 +61,7 @@ public class OtpService {
                 .expiresAt(expiresAt)
                 .attempts(0)
                 .maxAttempts(otpProperties.getMaxAttempts())
+                .purpose(com.nirvana.application.otp.OtpPurpose.GENERIC)
                 .verified(false)
                 .registrationConsumed(false)
                 .build();
@@ -78,11 +79,13 @@ public class OtpService {
         return new OtpSendResponse(verification.getVerificationId());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidOtpException.class)
     public OtpVerifyResponse verifyOtp(String verificationId, String otp) {
         OtpVerification verification = otpVerificationRepository.findByVerificationId(verificationId)
                 .orElseThrow(() -> new OtpNotFoundException("Verification session not found"));
 
+        if (verification.getPurpose() != com.nirvana.application.otp.OtpPurpose.GENERIC)
+            throw new InvalidOtpException("Verification does not belong to this flow");
         if (Boolean.TRUE.equals(verification.getVerified())) {
             return new OtpVerifyResponse("VERIFIED");
         }

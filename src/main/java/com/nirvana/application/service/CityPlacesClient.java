@@ -40,7 +40,8 @@ public class CityPlacesClient {
         headers.set("X-Goog-Api-Key", apiKey);
         if (fields != null) headers.set("X-Goog-FieldMask", fields);
         try {
-            var response = builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(20)).build()
+            var response = builder.redirects(org.springframework.boot.http.client.ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
+                    .connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(20)).build()
                     .exchange(baseUrl + path, method, new HttpEntity<>(body, headers), JsonNode.class).getBody();
             if (response == null) throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Google Places returned an empty response.");
             return response;
@@ -88,23 +89,34 @@ public class CityPlacesClient {
 
     public ResponseEntity<byte[]> photoImage(String placeId, String photoId) {
         String url = photo(placeId, photoId).path("photoUri").asText("");
-        java.net.URI uri = java.net.URI.create(url);
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(url);
+        } catch (IllegalArgumentException invalid) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Google returned an invalid photo address.");
+        }
         if (!"https".equals(uri.getScheme()) || uri.getHost() == null
-                || !uri.getHost().endsWith(".googleusercontent.com") || uri.getRawUserInfo() != null
+                || !uri.getHost().endsWith(".googleusercontent.com") || uri.getRawUserInfo() != null || uri.getRawFragment() != null
                 || (uri.getPort() != -1 && uri.getPort() != 443)) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Google returned an unexpected photo address.");
         }
         try {
-            var image = builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(15))
+            return builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(15))
                     .redirects(org.springframework.boot.http.client.ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
-                    .build().getForEntity(uri, byte[].class);
-            MediaType type = image.getHeaders().getContentType();
-            if (image.getStatusCode() != HttpStatus.OK || image.getBody() == null || type == null
-                    || !Set.of("jpeg", "png", "webp", "gif", "avif").contains(type.getSubtype())
-                    || !"image".equals(type.getType())) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
-            }
-            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(type).body(image.getBody());
+                    .build().execute(uri, HttpMethod.GET, null, response -> {
+                        MediaType type = response.getHeaders().getContentType();
+                        int maxBytes = 5 * 1024 * 1024;
+                        if (response.getStatusCode() != HttpStatus.OK || type == null || !"image".equals(type.getType())
+                                || !Set.of("jpeg", "png", "webp", "gif", "avif").contains(type.getSubtype())
+                                || response.getHeaders().getContentLength() > maxBytes) {
+                            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
+                        }
+                        byte[] bytes = response.getBody().readNBytes(maxBytes + 1);
+                        if (bytes.length == 0 || bytes.length > maxBytes) {
+                            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
+                        }
+                        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(type).body(bytes);
+                    });
         } catch (RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo unavailable.");
         }

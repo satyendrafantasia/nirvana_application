@@ -29,9 +29,11 @@ public class BlackoutService {
         Spa spa = spaRepository.findById(request.getSpaId())
                 .orElseThrow(() -> new IllegalArgumentException("Spa not found"));
 
+        if (!request.getEndTs().isAfter(request.getStartTs())) throw new IllegalArgumentException("End must follow start");
+        Long actorId = com.nirvana.application.security.SecurityUtils.getCurrentUserId();
         ProviderUser provider = null;
         if (request.getProviderId() != null) {
-            provider = providerUserRepository.findById(request.getProviderId())
+            provider = providerUserRepository.findAssignedDuring(request.getProviderId(), spa.getId(), request.getStartTs(), request.getEndTs())
                     .orElseThrow(() -> new IllegalArgumentException("Provider not found"));
         }
 
@@ -41,10 +43,10 @@ public class BlackoutService {
         window.setStartTs(request.getStartTs());
         window.setEndTs(request.getEndTs());
         window.setReason(request.getReason());
-        window.setCreatedBy(request.getCreatedBy());
+        window.setCreatedBy(actorId.toString());
 
         BlackoutWindow saved = blackoutWindowRepository.save(window);
-        providerAuditService.log(spa.getId(), "SYSTEM", null, "BLACKOUT_CREATED", request.getReason());
+        providerAuditService.log(spa.getId(), "USER", actorId, "BLACKOUT_CREATED", request.getReason());
         return toResponse(saved);
     }
 

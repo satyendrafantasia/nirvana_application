@@ -39,7 +39,7 @@ public class RewardsJob {
                 tx.executeWithoutResult(status -> ledger.lock(userId));
                 users++;
             } catch (RuntimeException ex) {
-                log.warn("Could not expire points for user {}: {}", userId, ex.getMessage());
+                log.warn("Could not expire points for user {}: {}", userId, ex.getClass().getSimpleName());
             }
         }
         return users;
@@ -51,7 +51,7 @@ public class RewardsJob {
             try {
                 if (giftCards.expire(id)) expired++;
             } catch (RuntimeException ex) {
-                log.warn("Could not expire gift card {}: {}", id, ex.getMessage());
+                log.warn("Could not expire gift card {}: {}", id, ex.getClass().getSimpleName());
             }
         }
         return expired;
@@ -62,7 +62,7 @@ public class RewardsJob {
             try {
                 loyalty.syncEarnedForBooking(bookingId);
             } catch (RuntimeException ex) {
-                log.warn("Could not re-check points for booking {}: {}", bookingId, ex.getMessage());
+                log.warn("Could not re-check points for booking {}: {}", bookingId, ex.getClass().getSimpleName());
             }
         }
     }

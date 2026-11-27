@@ -105,7 +105,7 @@ public class CancellationEvaluator {
                     .toList();
             return new CancellationPolicy(defaultCutoff, fee, route, rules);
         } catch (Exception e) {
-            log.warn("Falling back to default cancellation policy due to parse error: {}", e.getMessage());
+            log.warn("Falling back to default cancellation policy due to parse error: {}", e.getClass().getSimpleName());
             return CancellationPolicy.defaultPolicy(Math.max(cutoffMinutes, FALLBACK_CUTOFF_MINUTES));
         }
     }

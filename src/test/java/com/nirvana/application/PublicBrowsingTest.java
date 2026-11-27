@@ -70,7 +70,10 @@ class PublicBrowsingTest {
     }
 
     @Test void bookingBuyingAndAccountsStillNeedSignIn() throws Exception {
-        mvc.perform(post("/api/bookings").contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/bookings").with(request -> {
+            request.setRemoteAddr("192.0.2.139");
+            return request;
+        }).contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/packages/2/checkout")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/packages/mine")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/me/bookings")).andExpect(status().isUnauthorized());

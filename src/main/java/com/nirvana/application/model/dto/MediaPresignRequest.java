@@ -25,4 +25,8 @@ public class MediaPresignRequest {
     @Schema(description = "Type of media being uploaded", example = "IMAGE", required = true)
     @NotNull
     private MediaType mediaType;
+
+    @Schema(description = "Exact number of bytes in the file to upload")
+    @NotNull
+    private Long sizeBytes;
 }

@@ -52,7 +52,7 @@ public class BookingLifecycleJob {
                 }
                 lifecycle.expireUnpaid(bookingId);
             } catch (RuntimeException ex) {
-                log.warn("Could not expire unpaid booking {}: {}", bookingId, ex.getMessage());
+                log.warn("Could not expire unpaid booking {}: {}", bookingId, ex.getClass().getSimpleName());
             }
         }
     }
@@ -68,7 +68,7 @@ public class BookingLifecycleJob {
             try {
                 lifecycle.autoComplete(bookingId, endedBefore);
             } catch (RuntimeException ex) {
-                log.warn("Could not auto-complete booking {}: {}", bookingId, ex.getMessage());
+                log.warn("Could not auto-complete booking {}: {}", bookingId, ex.getClass().getSimpleName());
             }
         }
     }
@@ -84,7 +84,7 @@ public class BookingLifecycleJob {
             try {
                 lifecycle.sendReminder(bookingId, reminderLeadHours);
             } catch (RuntimeException ex) {
-                log.warn("Could not send reminder for booking {}: {}", bookingId, ex.getMessage());
+                log.warn("Could not send reminder for booking {}: {}", bookingId, ex.getClass().getSimpleName());
             }
         }
     }

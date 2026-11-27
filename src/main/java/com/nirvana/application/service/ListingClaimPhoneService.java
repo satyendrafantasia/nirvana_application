@@ -6,7 +6,6 @@ import com.nirvana.application.otp.OtpGenerator;
 import com.nirvana.application.otp.sender.SmsSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -48,9 +47,6 @@ public class ListingClaimPhoneService {
     private final SmsProperties smsProperties;
     private final com.nirvana.application.otp.FirebasePhoneTokens phoneTokens;
 
-    /** Local development only: write codes to the log when SMS is switched off. */
-    @Value("${listing-claims.log-codes:false}")
-    private boolean logCodes;
 
     private static LocalDateTime now() {
         return LocalDateTime.now(ZoneOffset.UTC);
@@ -58,7 +54,7 @@ public class ListingClaimPhoneService {
 
     @Transactional
     public Map<String, Object> send(Long userId, String placeId) {
-        if (!smsProperties.phoneCodesAvailable() && !logCodes)
+        if (!smsProperties.phoneCodesAvailable())
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Text messages are not available right now. Submit without verifying and our team will call the spa.");
         // Text only spas that can still be claimed, so this cannot be used to message any business on Google.
@@ -101,11 +97,9 @@ public class ListingClaimPhoneService {
             try {
                 sms.sendOtpSms(phone, message);
             } catch (RuntimeException e) {
-                log.warn("Listing claim SMS failed for verification {}", verificationId, e);
+                log.warn("event=listing_claim.sms_delivery_failed");
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "We could not send the text message. Please try again.");
             }
-        } else {
-            log.info("[local] Listing claim code for {}: {}", verificationId, code);
         }
         return Map.of("verificationId", verificationId, "phone", mask(display),
                 "expiresInMinutes", CODE_TTL.toMinutes(), "resendAfterSeconds", RESEND_AFTER.toSeconds());

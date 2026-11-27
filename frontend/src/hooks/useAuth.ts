@@ -7,6 +7,4 @@ export const useAuth = () => {
   return ctx;
 };
 
-export const getToken = () => {
-  return localStorage.getItem('nirvana_token');
-};
+export { currentAccess as getToken } from '../api/client';

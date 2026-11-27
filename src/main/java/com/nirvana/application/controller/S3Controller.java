@@ -33,11 +33,10 @@ public class S3Controller {
     @GetMapping("/download/{key}")
     public ResponseEntity<byte[]> download(@PathVariable String key) {
         byte[] data = s3Service.downloadFile(key);
-        String url = s3Service.getFileUrl(key);
-        // Content type not always known; letting client handle if absent
         HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + key + "\"");
-        headers.add("X-File-Url", url);
+        headers.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
+                .filename("download").build());
+        headers.setCacheControl("private, no-store");
         return ResponseEntity.ok()
                 .headers(headers)
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)

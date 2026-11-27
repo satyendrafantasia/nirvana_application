@@ -27,7 +27,7 @@ public class GooglePlacesClient {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("Google Places API key is not configured");
         }
-        RestTemplate restTemplate = restTemplateBuilder.build();
+        RestTemplate restTemplate = restTemplateBuilder.redirects(org.springframework.boot.http.client.ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW).build();
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + "/details/json")
                 .queryParam("place_id", placeId)
                 .queryParam("fields", "place_id,name,formatted_address,international_phone_number,website,address_component,geometry")
