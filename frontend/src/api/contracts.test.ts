@@ -132,6 +132,9 @@ describe('Spring API contracts', () => {
             serviceId: 3,
             serviceName: 'Massage',
             servicePriceCents: 125000,
+            payAtSpaCheckoutCents: 147500,
+            currency: 'INR',
+            paymentMode: 'OFFLINE',
             status: 'CONFIRMED',
             canCancel: false
           }
@@ -143,6 +146,8 @@ describe('Spring API contracts', () => {
     expect(r.items[0]).toMatchObject({
       id: '8',
       canCancel: false,
+      payAtSpaCheckoutCents: 147500,
+      currency: 'INR',
       service: { id: '3', price: 1250 }
     });
     expect(requests[0].params).toEqual({ page: 1, size: 20 });

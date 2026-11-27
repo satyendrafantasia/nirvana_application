@@ -96,6 +96,8 @@ interface BookingWire {
   serviceName: string;
   serviceDurationMinutes: number;
   servicePriceCents: number;
+  payAtSpaCheckoutCents?: number | null;
+  currency?: string;
   startTs: string;
   status: string;
   paymentMode: 'ONLINE' | 'OFFLINE';
@@ -130,6 +132,8 @@ export const getUserBookings = async (
       slot: b.startTs,
       status: b.status,
       paymentMode: b.paymentMode,
+      payAtSpaCheckoutCents: b.payAtSpaCheckoutCents ?? undefined,
+      currency: b.currency,
       invoiceAvailable: b.invoiceAvailable,
       canCancel: b.canCancel,
       spaAcknowledged: b.spaAcknowledged,

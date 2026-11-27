@@ -124,7 +124,8 @@ public class RewardsController {
                 giftError = rejected.getReason();
             }
         }
-        var lines = CheckoutMath.breakdown(price, otherDiscount, priced.loyaltyPointsRedeemed(), pointsCents, spa.getTaxPercent(), giftBalance);
+        var lines = CheckoutMath.breakdown(spa, service, price, otherDiscount,
+                priced.loyaltyPointsRedeemed(), pointsCents, giftBalance);
         // Pricing locks the coupon row to count its uses; a preview must not keep that lock or change anything.
         TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         String currency = service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency();

@@ -1,5 +1,11 @@
 package com.nirvana.application.rewards;
 
+import com.nirvana.application.model.Service;
+import com.nirvana.application.model.Spa;
+import com.nirvana.application.service.gst.GstMath;
+
+import java.math.BigDecimal;
+
 /**
  * The order in which a booking's price is reduced. Every step works on what is left after the
  * one before, and nothing goes below zero:
@@ -30,10 +36,14 @@ public final class CheckoutMath {
         return Math.max(0, points) * Math.max(0, rules.pointValuePaise);
     }
 
-    /** Same rounding as booking checkout. */
-    public static int tax(Integer taxPercent, int taxablePaise) {
-        if (taxPercent == null || taxPercent <= 0 || taxablePaise <= 0) return 0;
-        return (int) Math.round(taxablePaise * (taxPercent / 100.0));
+    /** Booking GST uses the service rate when set, otherwise the registered spa's default. */
+    public static int bookingTax(Spa spa, Service service, int taxablePaise) {
+        if (GstMath.normalizeGstin(spa.getGstin()) == null) return 0;
+        BigDecimal rate = service.getGstRatePct();
+        if (rate == null && spa.getTaxPercent() != null) {
+            rate = BigDecimal.valueOf(spa.getTaxPercent());
+        }
+        return Math.toIntExact(GstMath.taxOnExclusive(taxablePaise, GstMath.bps(rate)));
     }
 
     /** The part of the total a gift card pays: all of it when the balance allows, else the balance. */
@@ -49,11 +59,11 @@ public final class CheckoutMath {
      * @param otherDiscountPaise coupon and off-peak discounts already priced
      * @param pointsPaise        value of the points being spent (already capped)
      */
-    public static Breakdown breakdown(int pricePaise, int otherDiscountPaise, int pointsRedeemed, int pointsPaise,
-                                      Integer taxPercent, int giftBalance) {
+    public static Breakdown breakdown(Spa spa, Service service, int pricePaise, int otherDiscountPaise,
+                                      int pointsRedeemed, int pointsPaise, int giftBalance) {
         int price = Math.max(0, pricePaise);
         int discount = Math.min(price, Math.max(0, otherDiscountPaise) + Math.max(0, pointsPaise));
-        int tax = tax(taxPercent, price - discount);
+        int tax = bookingTax(spa, service, price - discount);
         int total = Math.max(0, price - discount + tax);
         int gift = giftCardShare(giftBalance, total);
         return new Breakdown(price, discount, pointsRedeemed, pointsPaise, tax, total, gift, total - gift);

@@ -54,6 +54,7 @@ export interface BookingSummary {
   invoiceAvailable?: boolean;
   spaAcknowledged?: boolean;
   refundStatus?: string;
+  payAtSpaCheckoutCents?: number;
   totalCents?: number;
   currency?: string;
   razorpay?: PaymentIntent;

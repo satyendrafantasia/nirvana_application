@@ -104,6 +104,9 @@ export default function MyBookings() {
             {b.status.replaceAll('_', ' ')} ·{' '}
             {b.paymentMode === 'OFFLINE' ? 'Pay at spa' : 'Online payment'}
           </p>
+          {b.paymentMode === 'OFFLINE' && b.payAtSpaCheckoutCents != null && b.currency && (
+            <p>Original Pay at spa total · {money(b.payAtSpaCheckoutCents, b.currency)}</p>
+          )}
           {b.status === 'CONFIRMED' && <p>{b.spaAcknowledged ? 'Confirmed by the spa' : 'Awaiting a reply from the spa'}</p>}
           {b.therapistName && <p>Therapist: {b.therapistName}</p>}
           {b.refundStatus && b.refundStatus !== 'NONE' && <p>Refund: {b.refundStatus.toLowerCase()}</p>}

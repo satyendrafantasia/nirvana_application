@@ -33,6 +33,7 @@ import com.nirvana.application.repository.SlotRepository;
 import com.nirvana.application.repository.SpaRepository;
 import com.nirvana.application.repository.TherapistRepository;
 import com.nirvana.application.repository.UserRepository;
+import com.nirvana.application.rewards.CheckoutMath;
 import com.nirvana.application.service.BookingService;
 import com.nirvana.application.service.NotificationService;
 import com.nirvana.application.service.PackageSubscriptionService;
@@ -245,7 +246,7 @@ public class BookingServiceImpl implements BookingService {
                 redeemLoyalty);
 
         int discountCents = pricing.discountCents();
-        int taxCents = calculateTax(spa, service, priceCents - discountCents);
+        int taxCents = CheckoutMath.bookingTax(spa, service, priceCents - discountCents);
         int totalCents = priceCents + taxCents - discountCents;
         // A gift card pays towards the total after tax; see rewards.CheckoutMath for the order.
         boolean useWallet = request.isUseWalletCredit();
@@ -673,6 +674,9 @@ public class BookingServiceImpl implements BookingService {
                 .serviceName(booking.getService().getName())
                 .serviceDurationMinutes(booking.getService().getDurationMin())
                 .servicePriceCents(booking.getService().getPriceCents())
+                .payAtSpaCheckoutCents(booking.getPaymentMode() == PaymentMode.OFFLINE
+                        && booking.getPaymentType() != BookingPaymentType.PAID_BY_PACKAGE ? booking.getRemainderCents() : null)
+                .currency(booking.getCurrency())
                 .startTs(booking.getStartTs())
                 .endTs(booking.getEndTs())
                 .status(booking.getStatus())
@@ -701,20 +705,6 @@ public class BookingServiceImpl implements BookingService {
         if (slot.getStatus() == SlotStatus.BOOKED && updated < slot.getCapacityUnit()) {
             slot.setStatus(SlotStatus.OPEN);
         }
-    }
-
-    /**
-     * GST on the booking. Only a spa registered for GST (a valid GSTIN) may charge it; the rate is the
-     * service's own, else the spa's tax_percent.
-     */
-    private int calculateTax(Spa spa, com.nirvana.application.model.Service service, int taxableAmount) {
-        if (com.nirvana.application.service.gst.GstMath.normalizeGstin(spa.getGstin()) == null) {
-            return 0;
-        }
-        java.math.BigDecimal rate = service.getGstRatePct() != null ? service.getGstRatePct()
-                : spa.getTaxPercent() == null ? java.math.BigDecimal.ZERO : java.math.BigDecimal.valueOf(spa.getTaxPercent());
-        return (int) com.nirvana.application.service.gst.GstMath.taxOnExclusive(taxableAmount,
-                com.nirvana.application.service.gst.GstMath.bps(rate));
     }
 
     private BookingCreateResponse buildResponse(Booking booking, int totalCents) {

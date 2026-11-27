@@ -11,6 +11,8 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -356,6 +358,61 @@ class RewardsTest {
     }
 
     // ------------------------------------------------------------------ checkout
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+            "No GSTIN,                 ,                  ,    150000, 0,     150000",
+            "Invalid GSTIN,            09AABCF1234B1ZB,  12.5, 150004, 0,     150004",
+            "Service rate override,    09AABCF1234B1ZA,  12.5, 150004, 18751, 168755",
+            "Spa rate fallback,        09AABCF1234B1ZA,      , 150003, 27001, 177004"
+    })
+    void payAtSpaTaxAgreesAcrossPreviewConfirmationAndOwnerDesk(String scenario, String gstin,
+            java.math.BigDecimal serviceRate, int price, int expectedTax, int expectedTotal) throws Exception {
+        jdbc.update("update spa set gstin=?, tax_percent=18 where id=1", gstin);
+        jdbc.update("update service set price_cents=?, base_price_cents=?, gst_rate_pct=?, currency='INR' where id=1",
+                price, price, serviceRate);
+        long slotId = slot(14); // No morning discount; amounts are in paise.
+        var preview = call(post("/api/v1/checkout/preview"), CUSTOMER, "ROLE_USER",
+                Map.of("spaId", 1, "serviceId", 1, "slotId", slotId, "guests", 1));
+        assertEquals(200, preview.status(), () -> preview.body().toString());
+        assertEquals(expectedTax, preview.body().required("taxCents").intValue());
+        assertEquals(expectedTotal, preview.body().required("totalCents").intValue());
+        assertEquals(expectedTotal, preview.body().required("payableCents").intValue());
+
+        var confirmation = book(CUSTOMER, slotId, Map.of());
+        long id = booked(confirmation);
+        assertEquals("CONFIRMED", confirmation.body().required("status").textValue());
+        assertEquals("OFFLINE", confirmation.body().required("paymentMode").textValue());
+        assertEquals(expectedTax, confirmation.body().required("taxCents").intValue());
+        assertEquals(expectedTotal, confirmation.body().required("totalCents").intValue());
+        assertEquals(expectedTax, bookingInt(id, "tax_cents"));
+        assertEquals(expectedTotal, bookingInt(id, "remainder_cents"));
+
+        var desk = call(get("/api/owner/spas/1/desk/records").param("period", "CUSTOM")
+                        .param("from", day.toString()).param("to", day.toString())
+                        .param("search", confirmation.body().required("bookingReference").textValue()),
+                2, "ROLE_SPA_OWNER", null);
+        assertEquals(200, desk.status(), () -> desk.body().toString());
+        var items = desk.body().required("items");
+        assertEquals(1, items.size(), () -> items.toString());
+        assertEquals(id, items.get(0).required("id").longValue());
+        assertEquals("DUE_AT_SPA", items.get(0).required("payment").textValue());
+        assertEquals(expectedTotal, items.get(0).required("payable").intValue());
+
+        // A later catalogue edit and a part payment must not rewrite the customer's checkout amount.
+        jdbc.update("update service set price_cents=? where id=1", price + 1000);
+        jdbc.update("insert into spa_desk_receipt(booking_id,spa_id,collected_by,collected_at,amount_cents,currency,method)"
+                + " values(?,1,2,utc_timestamp(6),100,'INR','CASH')", id);
+        em.clear();
+        int count = jdbc.queryForObject("select count(*) from booking where user_id=? and status='CONFIRMED'", Integer.class, CUSTOMER);
+        var mine = call(get("/api/me/bookings").param("status", "CONFIRMED").param("size", String.valueOf(count)),
+                CUSTOMER, "ROLE_USER", null);
+        assertEquals(200, mine.status(), () -> mine.body().toString());
+        var appointment = java.util.stream.StreamSupport.stream(mine.body().at("/page/content").spliterator(), false)
+                .filter(row -> row.required("bookingId").longValue() == id).findFirst().orElseThrow();
+        assertEquals(expectedTotal, appointment.required("payAtSpaCheckoutCents").intValue());
+        assertEquals("INR", appointment.required("currency").textValue());
+    }
 
     @Test void previewShowsEachStepInOrderAndSpendsNothing() throws Exception {
         grant(CUSTOMER, 700, "6 month");

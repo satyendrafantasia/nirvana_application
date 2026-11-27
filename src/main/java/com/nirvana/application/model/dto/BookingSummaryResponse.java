@@ -22,6 +22,8 @@ public class BookingSummaryResponse {
     String serviceName;
     Integer serviceDurationMinutes;
     Integer servicePriceCents;
+    Integer payAtSpaCheckoutCents;
+    String currency;
     OffsetDateTime startTs;
     OffsetDateTime endTs;
     BookingStatus status;
