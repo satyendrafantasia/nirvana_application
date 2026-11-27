@@ -1,5 +1,7 @@
 // Static hosting must send these client-side routes to the private app shell.
 const paths = new Set([
+  '/about',
+  '/contact',
   '/discover',
   '/admin/city-discovery',
   '/admin/listing-claims',

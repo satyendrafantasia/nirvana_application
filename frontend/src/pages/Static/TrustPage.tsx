@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { deletionDate } from '../../api/accountApi';
 import { TrackingChoice } from '../../telemetry';
-const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL?.trim() || 'contact@nirvana-spa.in';
+import { ProductAttribution, SupportEmailLink } from '../../components/common/CompanyInfo';
 
 export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
   // Set by account settings right after a deletion request.
@@ -15,6 +15,7 @@ export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
         </p>
       )}
       <h1 className="text-3xl">{kind === 'privacy' ? 'Privacy policy' : 'Booking terms'}</h1>
+      {kind === 'privacy' && <ProductAttribution />}
       {import.meta.env.VITE_OPERATOR_NAME && <p>Operated by {import.meta.env.VITE_OPERATOR_NAME}.</p>}
       {kind === 'privacy' ? (
         <>
@@ -115,7 +116,7 @@ export default function TrustPage({ kind }: { kind: 'privacy' | 'terms' }) {
           </p>
         </>
       )}
-      <p>For privacy or booking enquiries, email <a className="underline" href={'mailto:' + supportEmail}>{supportEmail}</a>.</p>
+      <p>For privacy or booking enquiries, email <SupportEmailLink />.</p>
       <p>
         <Link to="/support" className="underline">
           Contact booking support
