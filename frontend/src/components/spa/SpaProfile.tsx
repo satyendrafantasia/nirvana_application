@@ -43,6 +43,7 @@ export type SpaProfileProps = {
   openNow?: boolean;
   /** Who the information comes from, when it is not Nirvana's own. */
   source?: ReactNode;
+  storefrontActions?: ReactNode;
   media: ReactNode;
   hours?: string[];
   phone?: string;
@@ -406,8 +407,9 @@ export default function SpaProfile(p: SpaProfileProps) {
               {p.spaId ? 'Choose a treatment' : 'Services & prices'}
             </Button>
             <Button as="a" variant="secondary" href={directions} target="_blank" rel="noreferrer">
-              Get directions ↗
-            </Button>
+                Get directions ↗
+              </Button>
+              {p.storefrontActions}
           </div>
         </div>
         <div className="spa-hero-media">{p.media}</div>

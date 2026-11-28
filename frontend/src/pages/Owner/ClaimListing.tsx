@@ -60,7 +60,7 @@ export function PhoneCheck({
   verifiedId?: string;
   skipped: boolean;
   onVerified: (verificationId: string) => void;
-  onSkip: (skip: boolean) => void;
+  onSkip?: (skip: boolean) => void;
 }) {
   const [sent, setSent] = useState<CodeSent>();
   const [code, setCode] = useState('');
@@ -90,8 +90,7 @@ export function PhoneCheck({
   if (verifiedId)
     return (
       <p className="rounded-xl bg-green-50 p-4 text-green-900" role="status">
-        ✓ Phone verified. We will show the review team that you answered the number on your Google
-        listing.
+        {onSkip ? '✓ Phone verified. We will show the review team that you answered the number on your Google listing.' : 'Phone verified. You can now enable WhatsApp enquiries.'}
       </p>
     );
   if (!hasPhone)
@@ -108,7 +107,7 @@ export function PhoneCheck({
           Our team will call the number on your Google listing to confirm you manage this spa.
           Review may take longer this way.
         </p>
-        <button type="button" className="underline" onClick={() => onSkip(false)}>
+        <button type="button" className="underline" onClick={() => onSkip?.(false)}>
           Verify by text message instead
         </button>
       </div>
@@ -116,8 +115,7 @@ export function PhoneCheck({
   return (
     <div className="space-y-3 rounded-xl border p-4">
       <p>
-        We will text a 6-digit code to the phone number on your Google listing — not the one you
-        typed above. This shows our team that you can answer the spa’s phone.
+        {onSkip ? 'We will text a 6-digit code to the phone number on your Google listing — not the one you typed above. This shows our team that you can answer the spa’s phone.' : 'We will send a six-digit code to the business phone number on your Google listing.'}
       </p>
       {sent && (
         <div className="space-y-3">
@@ -164,9 +162,9 @@ export function PhoneCheck({
         >
           {send.isPending ? 'Sending…' : sent ? 'Send a new code' : 'Text me a code'}
         </Button>
-        <button type="button" className="text-sm underline" onClick={() => onSkip(true)}>
+        {onSkip && <button type="button" className="text-sm underline" onClick={() => onSkip(true)}>
           I can’t get texts on that number
-        </button>
+        </button>}
       </div>
       <div ref={phone.slot} />
     </div>

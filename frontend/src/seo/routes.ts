@@ -30,6 +30,7 @@ export function isAppRoute(value: string) {
   const path = value.replace(/\/+$/, '');
   return (
     paths.has(path) ||
+    /^\/s\/\d+(\/[a-z0-9-]+)?$/.test(path) ||
     /^\/discover\/places\/[^/]+$/.test(path) ||
     /^\/(booking|owner)(\/|$)/.test(path) ||
     /^\/(spas|features|b)\/[^/]+$/.test(path)

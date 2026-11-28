@@ -71,6 +71,28 @@ class ListingClaimTest {
         return form;
     }
 
+    @Test void storefrontRequiresApprovedCurrentOwnerAndEnquiriesRequireVerifiedOptIn() throws Exception {
+        var row=jdbc.queryForMap("SELECT s.id, m.user_id FROM spa s JOIN spa_manager m ON m.id=s.spa_manager_id LIMIT 1");
+        long spa=((Number)row.get("id")).longValue(), owner=((Number)row.get("user_id")).longValue();
+        String place="storefront_test", publicPath="/api/spas/"+spa+"/storefront", settings="/api/owner/spas/"+spa+"/storefront";
+        jdbc.update("UPDATE spa SET google_place_id=?, is_active=TRUE, is_verified=TRUE WHERE id=?",place,spa);
+        jdbc.update("INSERT INTO spa_listing_claim(spa_id,user_id,google_place_id,terms_version,declaration,consented_at,status) VALUES(?,?,?,'v1','owner',NOW(),'PENDING')",spa,owner,place);
+        mvc.perform(get(publicPath)).andExpect(status().isNotFound());
+        jdbc.update("UPDATE spa_listing_claim SET status='APPROVED' WHERE google_place_id=?",place);
+        mvc.perform(get(publicPath)).andExpect(status().isOk()).andExpect(jsonPath("$.whatsappNumber").isEmpty());
+        mvc.perform(put(settings).with(authentication(auth(owner+1000,"ROLE_SPA_OWNER"))).contentType("application/json")
+                .content("{\"enabled\":true}")).andExpect(status().isForbidden());
+        var authenticated=authentication(auth(owner,"ROLE_SPA_OWNER"));
+        mvc.perform(put(settings).with(authenticated).contentType("application/json").content("{\"enabled\":true}")).andExpect(status().isConflict());
+        jdbc.update("INSERT INTO listing_claim_phone_check(verification_id,user_id,google_place_id,phone_number,code_hash,created_at,expires_at,verified_at) VALUES('proof',?,?, '+12025550123','test',NOW(),NOW()+INTERVAL 5 MINUTE,NOW())", owner,place);
+        mvc.perform(put(settings).with(authenticated).contentType("application/json").content("{\"enabled\":true,\"verificationId\":\"proof\"}")).andExpect(status().isOk());
+        mvc.perform(get(publicPath)).andExpect(jsonPath("$.whatsappNumber").value("+12025550123")).andExpect(jsonPath("$.placeId").doesNotExist());
+        mvc.perform(put(settings).with(authenticated).contentType("application/json").content("{\"enabled\":false}")).andExpect(status().isOk());
+        mvc.perform(get(publicPath)).andExpect(jsonPath("$.whatsappNumber").isEmpty());
+        jdbc.update("UPDATE spa SET is_active=FALSE WHERE id=?",spa);
+        mvc.perform(get(publicPath)).andExpect(status().isNotFound());
+    }
+
     @Test void customersCannotSearchOrClaim() throws Exception {
         var customer = auth(1, "ROLE_USER");
         mvc.perform(post("/api/owner/claims/search").with(authentication(customer)).contentType("application/json")

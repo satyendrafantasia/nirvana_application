@@ -101,6 +101,7 @@ export const createBooking = async (payload: BookingPayload): Promise<CreatedBoo
 interface BookingWire {
   endTs?: string;
   originalPreference?: string;
+  repeatTherapistId?: number;
   therapistName?: string;
   bookingId: number;
   bookingReference: string;
@@ -135,6 +136,7 @@ export const getUserBookings = async (
       reference: b.bookingReference,
       therapistName: b.therapistName,
       originalPreference: b.originalPreference,
+      repeatTherapistId: b.repeatTherapistId,
       spaId: String(b.spaId),
       spaName: b.spaName,
       service: {

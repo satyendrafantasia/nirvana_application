@@ -15,6 +15,7 @@ import InvoiceLinks from './InvoiceLinks';
 import AddToCalendar from '../../components/booking/AddToCalendar';
 import BookedAddOnLines from '../../components/booking/BookedAddOnLines';
 import MyGroups, { GroupBadge } from './MyGroups';
+import BookAgain from '../../components/booking/BookAgain';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -103,6 +104,7 @@ export default function MyBookings() {
           </p>
           <h2 className="text-xl font-semibold">{b.service.name}</h2>
           <GroupBadge bookingId={b.id} />
+          {b.status === 'COMPLETED' && b.spaId && <BookAgain booking={b} />}
           <p>
             {new Date(b.slot).toLocaleString()} · {b.service.durationMinutes + (b.addOns ?? []).reduce((sum, a) => sum + a.extraMinutes, 0)} minutes
           </p>

@@ -108,6 +108,7 @@ function Tabs({ section, full }: { section: string; full: boolean }) {
   );
 }
 import PushAlerts from './PushAlerts';
+import StorefrontSettings from './StorefrontSettings';
 
 export default function OwnerPortal() {
   const { user } = useAuth();
@@ -216,6 +217,7 @@ function Portal() {
               )}
               {section==='overview' && <Requests key={id} spa={id}/>}
               {section==='bookings' && <div key={id}><AppointmentForm spa={id} desk/><Requests spa={id}/></div>}
+              {section==='settings' && full && <StorefrontSettings key={'storefront-'+id} spa={id}/>}
               {section==='settings' && <BookingPolicy key={id} spa={id}/>}
               {section==='payments' && <FinancialReports key={id} spa={id} owner={full} finance={isAdmin(user?.roles)}/>}
               {section==='payments' && full && <GstDocuments key={'gst-'+id} spa={id}/>}

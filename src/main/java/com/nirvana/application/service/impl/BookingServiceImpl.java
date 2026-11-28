@@ -681,6 +681,10 @@ public class BookingServiceImpl implements BookingService {
             original = String.valueOf(booking.getTherapist().getId());
         else if ("LABEL".equals(mode)) original = "type:" + booking.getTherapistType();
         return BookingSummaryResponse.builder().originalPreference(original).therapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()))
+                .repeatTherapistId(booking.getStatus() == BookingStatus.COMPLETED && booking.getTherapist() != null
+                        && Boolean.TRUE.equals(booking.getSpa().getAllowTherapistSelection())
+                        && booking.getTherapist().getPublicName() != null && !booking.getTherapist().getPublicName().isBlank()
+                        ? booking.getTherapist().getId() : null)
                 .bookingId(booking.getId())
                 .bookingReference(booking.getBookingReference())
                 .spaId(booking.getSpa().getId())

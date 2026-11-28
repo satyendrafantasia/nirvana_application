@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { enquiryLink, ShareStorefront, storefrontPath } from '../../components/spa/StorefrontLinks';
+import Button from '../../components/common/Button';
+import { isAxiosError } from 'axios';
 import client from '../../api/client';
 import { getSpaDetails } from '../../api/spaApi';
 import Spinner from '../../components/common/Spinner';
@@ -44,7 +47,9 @@ export function spaProfile(spa: Spa): Omit<SpaProfileProps, 'media' | 'back' | '
   };
 }
 
-const SpaDetails = () => {
+type Storefront = {spaId: number; name: string; whatsappNumber: string | null};
+
+const SpaDetails = ({ storefront }: { storefront?: Storefront }) => {
   const { spaId = '' } = useParams();
   const spa = useQuery({
     queryKey: ['spa', spaId],
@@ -65,7 +70,7 @@ const SpaDetails = () => {
     queryKey: ['spa-google-photos', spaId],
     queryFn: async ({ signal }) =>
       (await client.get<GooglePlace>(`/api/spas/${spaId}/google-photos`, { signal })).data,
-    enabled: Boolean(spa.data && !spa.data.coverImage && spa.data.googlePlaceId),
+    enabled: Boolean(!storefront && spa.data && !spa.data.coverImage && spa.data.googlePlaceId),
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000
@@ -89,9 +94,13 @@ const SpaDetails = () => {
     <SpaProfile
       {...spaProfile(spa.data)}
       back={{ to: '/spas', label: 'All spas' }}
-      source={googlePhotos.data?.photos?.length ? <Attribution place={googlePhotos.data} /> : undefined}
+      storefrontActions={storefront && <>
+        {enquiryLink(storefront.whatsappNumber, storefront.name) && <Button as="a" variant="secondary" href={enquiryLink(storefront.whatsappNumber, storefront.name)} target="_blank" rel="noopener noreferrer">Ask on WhatsApp</Button>}
+        <ShareStorefront path={storefrontPath(spaId, storefront.name)}/>
+      </>}
+      source={!storefront && googlePhotos.data?.photos?.length ? <Attribution place={googlePhotos.data} /> : undefined}
       media={
-        googlePhotos.data?.photos?.length ? (
+        !storefront && googlePhotos.data?.photos?.length ? (
           <PlaceGallery
             // Google sends only the photos (its cheapest tier); the name is the spa's own.
             place={{ ...googlePhotos.data, displayName: { text: spa.data.name } }}
@@ -123,5 +132,17 @@ const SpaDetails = () => {
     </SpaProfile>
   );
 };
+
+export function ClaimedStorefront() {
+  const {spaId = ''} = useParams();
+  const storefront = useQuery({queryKey: ['public-storefront', spaId], retry: false,
+    queryFn: async () => (await client.get<Storefront>(`/api/spas/${encodeURIComponent(spaId)}/storefront`)).data});
+  if (storefront.isError) {
+    const missing = isAxiosError(storefront.error) && storefront.error.response?.status === 404;
+    return <section className="mx-auto max-w-xl p-8 space-y-3"><h1>{missing ? 'Storefront unavailable' : 'Could not load storefront'}</h1>
+      {!missing && <Button onClick={() => void storefront.refetch()}>Try again</Button>} <Link className="underline" to="/spas">Browse spas</Link></section>;
+  }
+  return storefront.data ? <SpaDetails storefront={storefront.data}/> : <Spinner/>;
+}
 
 export default SpaDetails;

@@ -51,6 +51,7 @@ export interface BookingSummary {
   service: Service;
   slot: string;
   originalPreference?: string;
+  repeatTherapistId?: number;
   therapistName?: string;
   paymentMode: 'ONLINE' | 'OFFLINE';
   status: string;

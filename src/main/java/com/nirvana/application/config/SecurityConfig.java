@@ -93,6 +93,7 @@ public class SecurityConfig {
                                 "/api/spas/{id:\\d+}",
                                 "/api/spas/{id:\\d+}/services",
                                 "/api/spas/{id:\\d+}/add-ons",
+                                "/api/spas/{id:\\d+}/storefront",
                                 "/api/spas/{id:\\d+}/reviews",
                                 "/api/spas/{id:\\d+}/google-photos",
                                 "/api/spas/{id:\\d+}/google-photos/{photoId}/image",

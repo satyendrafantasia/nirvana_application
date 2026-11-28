@@ -17,6 +17,7 @@ const AdminPayouts = lazy(() => import('../pages/Staff/AdminPayouts'));
 const Home = lazy(() => import('../pages/Home/Home'));
 const SpaSearch = lazy(() => import('../pages/SpaSearch/SpaSearch'));
 const SpaDetails = lazy(() => import('../pages/SpaDetails/SpaDetails'));
+const ClaimedStorefront = lazy(() => import('../pages/SpaDetails/SpaDetails').then(m => ({default: m.ClaimedStorefront})));
 const Booking = lazy(() => import('../pages/Booking/Booking'));
 const Login = lazy(() => import('../pages/Auth/Login'));
 const Register = lazy(() => import('../pages/Auth/Register'));
@@ -151,6 +152,7 @@ const AppRouter = () => {
       {/* Anyone can browse spas; booking and buying ask them to sign in. */}
       <Route path="/spas" element={<SpaSearch />} />
       <Route path="/spas/:spaId" element={<SpaDetails />} />
+      <Route path="/s/:spaId/:slug?" element={<ClaimedStorefront />} />
       {/* A spa answers its booking SMS here, from a private link, without an account. */}
       <Route path="/b/:token" element={<SpaBookingReply />} />
       <Route

@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 @Builder
 public class BookingSummaryResponse {
     String originalPreference;
+    Long repeatTherapistId;
     String therapistName;
     Long bookingId;
     String bookingReference;
