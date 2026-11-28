@@ -108,7 +108,8 @@ public class LeadOnboardingService {
         Spa spa = new Spa();
         String name = (String) lead.get("name");
         spa.setName(name);
-        spa.setBookingMode("ENQUIRY");
+        // Bookable straight away; the spa confirms or declines each booking from its SMS link.
+        spa.setBookingMode("INSTANT");
         spa.setPhone((String) lead.get("phone"));
         spa.setEmail((String) lead.get("email"));
         // A link longer than the spa's field is almost always a pasted search URL; a cut-off link wouldn't work.

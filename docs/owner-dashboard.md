@@ -52,7 +52,7 @@ Use period=TODAY, YESTERDAY, WEEK, MONTH, YEAR or CUSTOM. Custom reports accept 
 
 ## Reception and booking policies
 
-Under Settings the spa owner can choose enquiry only, request to book, or instant booking. Spas created by lead onboarding start in enquiry mode. Changing to request or instant booking records the operator and requires an attestation covering the treatment menu, prices, capacity, hours and a working contact. Booking mode applies to new customer reservations.
+Under Settings the spa owner can choose enquiry only, request to book, or instant booking. Spas created by lead onboarding start with instant booking; the spa confirms or declines each booking from its SMS link, and a decline refunds the guest in full. Changing to request or instant booking records the operator and requires an attestation covering the treatment menu, prices, capacity, hours and a working contact. Booking mode applies to new customer reservations.
 
 A request is for one guest and one advertised slot. It expires at the earlier of the appointment start and two hours after submission. Pending requests hold no capacity and collect no money. Reception accepts or declines under Bookings. Acceptance reruns the normal booking checks in the same transaction, creates a pay-at-spa appointment, and records the answer. Customers can check My bookings for the outcome.
 

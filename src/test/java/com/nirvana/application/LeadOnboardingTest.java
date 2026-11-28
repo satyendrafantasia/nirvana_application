@@ -84,6 +84,7 @@ class LeadOnboardingTest {
         assertEquals("APPROVED", spa.get("kyc_status"));
         assertEquals(Boolean.TRUE, spa.get("is_active"));
         assertEquals(Boolean.TRUE, spa.get("is_verified"));
+        assertEquals("INSTANT", spa.get("booking_mode"), "guests can book a lead spa, not only enquire");
         assertEquals("Haryana", spa.get("state"));
         assertEquals("122001", spa.get("postal_code"));
         assertEquals(5, jdbc.queryForObject("SELECT COUNT(*) FROM service WHERE spa_id=? AND is_active=1", Integer.class, spaId));
@@ -150,5 +151,28 @@ class LeadOnboardingTest {
         var again = onboarding.onboard(List.of(withHours), 14, admin());
         assertEquals(0, again.onboarded());
         assertEquals(1, again.skipped());
+    }
+
+    @Test void migrationOpensEnquiryOnlyLeadSpasButKeepsAnOwnersChoice() throws Exception {
+        leads.importLeads(json.readTree(SEARCH.replace("LONG_QUERY", "x")), "test", null);
+        long first = lead("990000000000000001"), second = lead("990000000000000002");
+        onboarding.onboard(List.of(first, second), 7, admin());
+        long imported = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, first);
+        long ownerChose = jdbc.queryForObject("SELECT spa_id FROM spa_lead WHERE id=?", Long.class, second);
+        long ordinary = jdbc.queryForObject("SELECT MIN(id) FROM spa WHERE meta IS NULL OR JSON_EXTRACT(meta,'$.onboardedFromLead') IS NULL", Long.class);
+        // As V69 left them: lead spas on enquiry; one owner then chose enquiry on purpose.
+        jdbc.update("UPDATE spa SET booking_mode='ENQUIRY' WHERE id IN (?,?,?)", imported, ownerChose, ordinary);
+        jdbc.update("INSERT INTO booking_policy_history(spa_id,mode,actor,updated_at) VALUES(?,'ENQUIRY',?,UTC_TIMESTAMP())", ownerChose, admin());
+
+        String sql;
+        try (var in = getClass().getResourceAsStream("/db/migration/V91__lead_spas_instant_booking.sql")) {
+            sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        jdbc.update(sql.lines().filter(l -> !l.startsWith("--")).collect(java.util.stream.Collectors.joining("\n")).replace(";", ""));
+
+        String mode = "SELECT booking_mode FROM spa WHERE id=?";
+        assertEquals("INSTANT", jdbc.queryForObject(mode, String.class, imported));
+        assertEquals("ENQUIRY", jdbc.queryForObject(mode, String.class, ownerChose), "the owner's own choice stays");
+        assertEquals("ENQUIRY", jdbc.queryForObject(mode, String.class, ordinary), "only lead spas change");
     }
 }
