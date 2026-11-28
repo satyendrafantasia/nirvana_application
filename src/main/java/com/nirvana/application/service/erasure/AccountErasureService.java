@@ -200,6 +200,9 @@ public class AccountErasureService {
 
         // Records the business must keep stay, with the free text and network details removed.
         db.update("UPDATE booking SET customer_notes = NULL, ip_address = NULL WHERE user_id = ?", id);
+        // Group bookings: the guests' names and phones were given by this booker.
+        db.update("UPDATE booking_group_member m JOIN booking b ON b.id = m.booking_id SET m.guest_name = 'Guest', m.guest_phone = NULL "
+                + "WHERE b.user_id = ?", id);
         db.update("UPDATE review SET meta = NULL WHERE user_id = ?", id);
         db.update("UPDATE chat_message SET content = '[Removed: the sender deleted their account]' WHERE sender_user_id = ?", id);
         db.update("UPDATE spa_listing_claim SET client_ip = NULL, user_agent = NULL WHERE user_id = ?", id);
@@ -270,6 +273,9 @@ public class AccountErasureService {
                 + "b.therapist_preference AS therapistPreference, b.created_at AS bookedAt, b.cancelled_at AS cancelledAt, "
                 + "b.cancellation_reason_text AS cancellationReason FROM booking b LEFT JOIN spa s ON s.id = b.spa_id "
                 + "LEFT JOIN service sv ON sv.id = b.service_id WHERE b.user_id = ? ORDER BY b.start_ts DESC", userId));
+        out.put("groupBookingGuests", rows("SELECT b.booking_reference AS booking, m.position, m.guest_name AS guestName, "
+                + "m.guest_phone AS guestPhone FROM booking_group_member m JOIN booking b ON b.id = m.booking_id "
+                + "WHERE b.user_id = ? ORDER BY m.group_id, m.position", userId));
         out.put("payments", rows("SELECT b.booking_reference AS booking, p.amount_cents AS amount, p.currency, "
                 + "p.payment_status AS status, p.payment_method AS method, p.card_brand AS cardBrand, p.card_last4 AS cardLast4, "
                 + "p.captured_at AS paidAt, p.refunded_cents AS refundedAmount, p.refunded_at AS refundedAt "

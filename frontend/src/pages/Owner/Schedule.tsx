@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import { RoomTools, WeeklyRoster, Room } from './RoomTools';
 import Button from '../../components/common/Button';
+import { ScheduleGroupBadges } from './GroupLinks';
 
 type Interval = { kind: 'WORK' | 'BREAK' | 'TIME_OFF'; start: string; end: string };
 type Therapist = {
@@ -322,6 +323,7 @@ function Daily({ day, base, spaId }: { day: Day; base: string; spaId: string }) 
                       {s.service} ·{' '}
                       {rooms.data?.find((r) => r.id === s.roomId)?.name || 'Unassigned legacy room'}
                     </p>
+                    <ScheduleGroupBadges spa={spaId} bookingIds={s.bookingIds} />
                   </div>
                   <span className="rounded-full bg-primary-50 px-3 py-1 text-sm">
                     {s.closed

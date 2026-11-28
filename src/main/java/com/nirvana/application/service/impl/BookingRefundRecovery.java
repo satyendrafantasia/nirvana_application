@@ -41,7 +41,7 @@ public class BookingRefundRecovery {
     }
 
     public void enqueue(Booking booking, Payment payment, int amount, String reason) {
-        if (!"RAZORPAY".equals(payment.getGateway()) || payment.getTransactionId() == null
+        if (!"RAZORPAY".equals(payment.getGateway()) || payment.gatewayPaymentId() == null
                 || amount <= 0 || amount > remaining(payment) - cases.voucherTotal(payment.getId())) throw new IllegalArgumentException("Invalid original-payment refund");
         var previous = cases.findTopByBookingIdOrderByCreatedAtDesc(booking.getId()).orElse(null);
         if (previous != null && previous.getStatus() == RefundRequestStatus.REVIEW_REQUIRED)
@@ -76,7 +76,7 @@ public class BookingRefundRecovery {
         if (refund.getStatus() != RefundRequestStatus.PROCESSING
                 || (refund.getNextCheckAt() != null && refund.getNextCheckAt().isAfter(now))) return;
         String remoteId = refund.getGatewayRefundId();
-        JsonNode remote = remoteId == null ? gateway.submit(refund) : gateway.fetch(refund.getPayment().getTransactionId(), remoteId);
+        JsonNode remote = remoteId == null ? gateway.submit(refund) : gateway.fetch(refund.getPayment().gatewayPaymentId(), remoteId);
         apply(refund, remote);
     }
 
@@ -90,7 +90,7 @@ public class BookingRefundRecovery {
             throw new IllegalArgumentException("Enter the refund ID shown in Razorpay");
         if (cases.findByGatewayRefundId(gatewayRefundId).isPresent())
             throw new IllegalArgumentException("This provider refund is already attached to a case");
-        JsonNode remote = gateway.fetch(refund.getPayment().getTransactionId(), gatewayRefundId);
+        JsonNode remote = gateway.fetch(refund.getPayment().gatewayPaymentId(), gatewayRefundId);
         refund.setGatewayRefundId(gatewayRefundId);
         refund.setStatus(RefundRequestStatus.PROCESSING);
         booking.setRefundStatus(RefundStatus.PROCESSING);
@@ -168,7 +168,7 @@ public class BookingRefundRecovery {
     private void apply(PaymentRefund refund, JsonNode remote) {
         Payment payment = refund.getPayment();
         if (remote == null || remote.path("id").asText().isBlank()
-                || !payment.getTransactionId().equals(remote.path("payment_id").asText())
+                || !payment.gatewayPaymentId().equals(remote.path("payment_id").asText())
                 || !refund.getCurrency().equalsIgnoreCase(remote.path("currency").asText())
                 || refund.getAmountCents() != remote.path("amount").asInt(-1)
                 || (refund.getGatewayRefundId() != null && !refund.getGatewayRefundId().equals(remote.path("id").asText())))
@@ -177,7 +177,9 @@ public class BookingRefundRecovery {
         refund.setGatewayRefundId(remote.path("id").asText());
         switch (remote.path("status").asText()) {
             case "processed" -> {
-                postProcessedTotal(payment, refund.getGatewayRefundId());
+                // A group guest's share of a shared provider payment counts only its own refunds.
+                if (payment.sharedCapture()) postTotal(payment, Optional.ofNullable(payment.getRefundedCents()).orElse(0) + refund.getAmountCents());
+                else postProcessedTotal(payment, refund.getGatewayRefundId());
                 refund.setStatus(RefundRequestStatus.COMPLETED);
                 refund.getBooking().setRefundStatus(RefundStatus.COMPLETED);
                 refund.setProcessedAt(now);
@@ -198,7 +200,10 @@ public class BookingRefundRecovery {
     }
 
     private void postProcessedTotal(Payment payment, String requiredRefundId) {
-        int total = gateway.processedAmount(payment, requiredRefundId);
+        postTotal(payment, gateway.processedAmount(payment, requiredRefundId));
+    }
+
+    private void postTotal(Payment payment, int total) {
         if (total <= Optional.ofNullable(payment.getRefundedCents()).orElse(0)) return;
         payment.setRefundedCents(total);
         payment.setRefundedAt(OffsetDateTime.now(ZoneOffset.UTC));

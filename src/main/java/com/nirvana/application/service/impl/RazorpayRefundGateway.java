@@ -42,7 +42,7 @@ public class RazorpayRefundGateway {
 
     JsonNode submit(PaymentRefund refund) {
         requireCredentials();
-        String paymentId = refund.getPayment().getTransactionId();
+        String paymentId = refund.getPayment().gatewayPaymentId();
         String receipt = receipt(refund);
         return client.post().uri("/payments/{payment}/refund", paymentId)
                 .header("X-Refund-Idempotency", paymentId + "-" + receipt)

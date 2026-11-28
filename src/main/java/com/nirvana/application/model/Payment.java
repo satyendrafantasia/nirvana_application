@@ -104,6 +104,20 @@ public class Payment extends BaseEntity {
     @Column(name="payment_link_order_id", length=128)
     private String paymentLinkOrderId;
 
+    /** A group booking's guests share one provider payment; see booking groups (V88). */
+    @Column(name="shared_gateway_payment_id", length=128)
+    private String sharedGatewayPaymentId;
+
+    /** The provider payment to refund against: this row's own capture, or the group's shared one. */
+    public String gatewayPaymentId() {
+        return transactionId != null ? transactionId : sharedGatewayPaymentId;
+    }
+
+    /** True for one guest's share of a group payment, where refunds are counted per share. */
+    public boolean sharedCapture() {
+        return transactionId == null && sharedGatewayPaymentId != null;
+    }
+
     @ElementCollection
     @CollectionTable(name="booking_refund_posting",joinColumns=@JoinColumn(name="payment_id"))
     @MapKeyColumn(name="cumulative_cents")
