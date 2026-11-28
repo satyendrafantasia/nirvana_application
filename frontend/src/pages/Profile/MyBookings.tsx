@@ -12,6 +12,7 @@ import SlotGrid from '../../components/booking/SlotGrid';
 import { replacementTimes } from '../Booking/availableTimes';
 import HealthForm from '../../components/health/HealthForm';
 import InvoiceLinks from './InvoiceLinks';
+import MyGroups, { GroupBadge } from './MyGroups';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -82,6 +83,7 @@ export default function MyBookings() {
     <div className="mx-auto max-w-5xl p-6 space-y-5">
       <h1 className="text-3xl font-bold">My appointments</h1>
       <Requests/>
+      <MyGroups />
       {wallet.data?.map(w => <p key={w.currency}>Wallet credit: {money(w.balance, w.currency)}</p>)}
       {bookings.isLoading && <p role="status">Loading appointments…</p>}
       {(bookings.isError || action.isError) && (
@@ -97,6 +99,7 @@ export default function MyBookings() {
             {b.spaName} · {b.reference}
           </p>
           <h2 className="text-xl font-semibold">{b.service.name}</h2>
+          <GroupBadge bookingId={b.id} />
           <p>
             {new Date(b.slot).toLocaleString()} · {b.service.durationMinutes} minutes
           </p>

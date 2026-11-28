@@ -9,6 +9,9 @@ import SelectSlot from './SelectSlot';
 import ReviewBooking from './ReviewBooking';
 import Payment from './Payment';
 import BookingConfirmation from './BookingConfirmation';
+import GuestCountPicker from './GuestCountPicker';
+import GroupBooking from './GroupBooking';
+import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { BookingSummary } from '../../types/booking';
 
@@ -21,6 +24,9 @@ const Booking = () => {
   const [currentStep, setCurrentStep] = useState(state.service && state.spaId ? 2 : 1);
   const [timeConflict,setTimeConflict]=useState(false);
   const [summary, setSummary] = useState<BookingSummary | null>(null);
+  // Couples and groups (2 to 6 guests) book together in their own flow; one guest uses the steps below.
+  const [party, setParty] = useState(1);
+  const [grouping, setGrouping] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const heading = panel.current?.querySelector('h2');
@@ -58,14 +64,32 @@ const Booking = () => {
   }, [currentStep, state.paymentMode, state.service, state.slot, state.spaId]);
 
   if (pathname === '/booking/receipt' && !summary) return <Navigate replace to="/me/bookings" />;
+  if (grouping && party > 1 && state.spaId)
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <div className="booking-step rounded-3xl bg-white p-6 shadow-card">
+          <GroupBooking spaId={state.spaId} spaName={state.spaName} size={party} firstService={state.service?.id}
+            onBack={() => setGrouping(false)} />
+        </div>
+      </div>
+    );
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       {recovered.data?.reference && <p className="card p-4" role="status">Your previous checkout created booking {recovered.data.reference} · {recovered.data.status}. <a href="/me/bookings">Open My bookings</a></p>}
       <StepIndicator currentStep={currentStep>2?currentStep-1:currentStep} steps={steps} />
       <div key={currentStep} ref={panel} className="booking-step mt-6 rounded-3xl bg-white p-6 shadow-card">
-        {currentStep === 1 && <SelectService onNext={() => setCurrentStep(2)} />}
+        {currentStep === 1 && (
+          <div className="space-y-6">
+            <GuestCountPicker value={party} onChange={setParty} />
+            {party > 1 && state.spaId && (
+              <Button onClick={() => setGrouping(true)}>Choose treatments for {party} guests</Button>
+            )}
+            <SelectService onNext={() => (party > 1 ? setGrouping(true) : setCurrentStep(2))} />
+          </div>
+        )}
         {currentStep === 2 && (
-          <>{timeConflict && !state.selectedSlot && <p role="alert">This time is no longer available. Select another time.</p>}<SelectSlot onNext={() => {setTimeConflict(false);setCurrentStep(4);}} onBack={() => setCurrentStep(1)} /></>
+          <><div className="mb-6"><GuestCountPicker value={party} onChange={(n) => { setParty(n); if (n > 1) setGrouping(true); }} /></div>
+          {timeConflict && !state.selectedSlot && <p role="alert">This time is no longer available. Select another time.</p>}<SelectSlot onNext={() => {setTimeConflict(false);setCurrentStep(4);}} onBack={() => setCurrentStep(1)} /></>
         )}
         {currentStep === 4 && (
           <ReviewBooking onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(2)} />

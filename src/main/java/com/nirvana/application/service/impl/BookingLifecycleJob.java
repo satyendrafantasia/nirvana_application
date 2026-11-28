@@ -28,6 +28,7 @@ public class BookingLifecycleJob {
     private final BookingLifecycleService lifecycle;
     private final PaymentService paymentService;
     private final RazorpayProperties razorpayProperties;
+    private final com.nirvana.application.groups.GroupCheckout groupCheckout;
 
     @Value("${reliability.bookings.pending-payment-expiry-minutes:30}")
     private int pendingPaymentExpiryMinutes;
@@ -90,6 +91,8 @@ public class BookingLifecycleJob {
     }
 
     private boolean gatewayConfirmsUnpaid(Long bookingId) {
+        // A group guest's payment is the group's single order, not a payment row of its own.
+        if (!groupCheckout.confirmsUnpaid(bookingId)) return false;
         for (Payment payment : paymentRepository.findByBookingId(bookingId)) {
             boolean open = payment.getPaymentStatus() == PaymentStatus.INIT || payment.getPaymentStatus() == PaymentStatus.PENDING;
             if (!open || !"RAZORPAY".equals(payment.getGateway()) || payment.getIntentId() == null) {

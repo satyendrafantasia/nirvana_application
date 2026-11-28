@@ -7,6 +7,7 @@ import Fields from '../../features/Fields';
 import { Schema } from '../../features/model';
 import Button from '../../components/common/Button';
 import HealthQuestions, { HealthTerms } from './HealthQuestions';
+import SideBySideSetting from './SideBySideSetting';
 type RecordValue = Record<string, unknown>;
 const serviceSchema: Schema = {
   type: 'object',
@@ -262,6 +263,7 @@ export default function OwnerCatalog({
               </Button>
             )}
             {kind === 'services' && <HealthQuestions spaId={spaId} serviceId={String(row.id)} />}
+            {kind === 'services' && <SideBySideSetting spaId={spaId} serviceId={String(row.id)} />}
             {kind === 'therapists' && Boolean(row.active) && (
               <Button
                 variant="ghost"

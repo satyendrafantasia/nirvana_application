@@ -83,6 +83,14 @@ public class PaymentService {
         this.paymentMfaVerifier = paymentMfaVerifier;
     }
 
+    /** Couples and group bookings pay with one order; see com.nirvana.application.groups. */
+    @org.springframework.beans.factory.annotation.Autowired @org.springframework.context.annotation.Lazy
+    private com.nirvana.application.groups.GroupCheckout groupCheckout;
+
+    private Long groupOf(Long bookingId) {
+        return groupCheckout == null ? null : groupCheckout.groupOf(bookingId);
+    }
+
     private static final String GATEWAY_RAZORPAY = "RAZORPAY";
     private static final String GATEWAY_UPI = "UPI";
     private static final int UPI_EXPIRY_MINUTES = 30;
@@ -95,6 +103,8 @@ public class PaymentService {
     @Transactional
     public CheckoutState payAtSpa(Long bookingId) {
         Booking booking = ownedBooking(bookingId);
+        Long group = groupOf(bookingId);
+        if (group != null) return groupCheckout.payAtSpa(group);
         if (booking.getStatus() == BookingStatus.CONFIRMED)
             return new CheckoutState(booking.getStatus(), booking.getPaymentMode());
         if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getPaymentMode() != PaymentMode.ONLINE)
@@ -160,6 +170,8 @@ public class PaymentService {
         paymentMfaVerifier.verifyPaymentChallenge();
 
         Booking booking = ownedBooking(bookingId);
+        Long group = groupOf(bookingId);
+        if (group != null) return groupCheckout.initiate(group); // one order for the whole group
 
         if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
             throw new IllegalStateException("Booking not in PENDING_PAYMENT: " + booking.getStatus());
@@ -253,6 +265,11 @@ public class PaymentService {
         log.info("event=payment.verify_challenge");
         paymentMfaVerifier.verifyPaymentChallenge();
         Booking booking = ownedBooking(bookingId);
+        Long group = groupOf(bookingId);
+        if (group != null) {
+            groupCheckout.confirm(group, request);
+            return;
+        }
         Payment payment = paymentRepository.findByIntentId(request.getRazorpayOrderId())
                 .filter(p -> Objects.equals(p.getBooking().getId(), bookingId) && GATEWAY_RAZORPAY.equals(p.getGateway()))
                 .orElseThrow(() -> new IllegalArgumentException("Order does not belong to this booking"));
@@ -275,7 +292,10 @@ public class PaymentService {
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reconcileCapturedPayment(String orderId, String paymentId) {
         Long bookingId = paymentRepository.findBookingIdByIntentId(orderId).orElse(null);
-        if (bookingId == null) return; // Other products and payment links use their own reconciliation paths.
+        if (bookingId == null) {
+            if (groupCheckout != null) groupCheckout.reconcileCaptured(orderId, paymentId); // a group's order, if it is one
+            return; // Other products and payment links use their own reconciliation paths.
+        }
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
         // Reload after acquiring the booking lock so concurrent checkout/webhook events see committed state.

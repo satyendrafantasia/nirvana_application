@@ -5,6 +5,7 @@ import client, { errorMessage } from '../../api/client';
 import { getSlots } from '../../api/bookingApi';
 import { bookingActions, canSpaCancel } from './bookingActions';
 import HealthFormPanel from './HealthFormPanel';
+import { DeskGroupBadge } from './GroupLinks';
 
 const periods = {
   TODAY: 'Today',
@@ -1154,6 +1155,7 @@ function Appointment({
           </button>
         ))}
       </div>
+      <DeskGroupBadge spa={spa} booking={b.id} />
       <HealthFormPanel spa={spa} booking={b.id} />
       <details onToggle={(e) => setShowHistory(e.currentTarget.open)}>
         <summary className="text-sm text-primary-700">Appointment history</summary>
