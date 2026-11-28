@@ -2,6 +2,7 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.config.SendGridProperties;
 import com.nirvana.application.model.NotificationLog;
+import com.nirvana.application.model.dto.CheckoutReminderEmail;
 import com.nirvana.application.model.dto.InvoiceEmailDto;
 import com.nirvana.application.model.enums.NotificationChannel;
 import com.nirvana.application.model.enums.NotificationStatus;
@@ -87,6 +88,51 @@ public class SendGridEmailService implements EmailService {
     @Override
     public void sendCorporateBenefitsActivated(String employeeEmail, String dealName) {
         log.debug("Notification delivery processed");
+    }
+
+    @Override
+    public boolean sendCheckoutReminder(CheckoutReminderEmail dto) {
+        if (properties.getFromEmail() == null || properties.getFromEmail().isBlank()
+                || dto.toEmail() == null || dto.toEmail().isBlank()) {
+            log.warn("SendGrid checkout reminder skipped: sender or recipient missing");
+            return false;
+        }
+        String subject = CheckoutReminderEmailContent.subject(dto);
+        Mail mail = new Mail(new Email(properties.getFromEmail(), properties.getFromName()), subject,
+                new Email(dto.toEmail(), dto.toName()), new Content("text/html", CheckoutReminderEmailContent.render(dto)));
+        if (dto.oneClickUnsubscribeUrl() != null) {
+            // RFC 8058 one-click unsubscribe, shown by Gmail and others next to the sender.
+            mail.addHeader("List-Unsubscribe", "<" + dto.oneClickUnsubscribeUrl() + ">");
+            mail.addHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+        }
+        NotificationLog logEntry = NotificationLog.builder()
+                .channel(NotificationChannel.EMAIL)
+                .status(NotificationStatus.QUEUED)
+                .destination(dto.toEmail())
+                .title(subject)
+                .message("Checkout reminder for booking " + dto.bookingReference())
+                .build();
+        try {
+            Request request = new Request();
+            request.setMethod(Method.POST);
+            request.setEndpoint("mail/send");
+            request.setBody(mail.build());
+            int statusCode = sendGrid.api(request).getStatusCode();
+            if (statusCode >= 400) {
+                logEntry.setStatus(NotificationStatus.FAILED);
+                logEntry.setErrorMessage("Email provider returned status " + statusCode);
+                return false;
+            }
+            logEntry.setStatus(NotificationStatus.SENT);
+            logEntry.setProviderMessageId(String.valueOf(statusCode));
+            return true;
+        } catch (IOException e) {
+            logEntry.setStatus(NotificationStatus.FAILED);
+            logEntry.setErrorMessage("Email transport failed");
+            return false;
+        } finally {
+            notificationLogRepository.save(logEntry);
+        }
     }
 
 }

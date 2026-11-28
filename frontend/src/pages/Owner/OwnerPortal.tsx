@@ -2,6 +2,7 @@ import { AppointmentForm, Requests, BookingPolicy } from './AppointmentOperation
 import FinancialReports from './FinancialReports';
 import GstDocuments from './GstDocuments';
 import GiftCardReport from './GiftCardReport';
+import CheckoutRecoveryStats from './CheckoutRecoveryStats';
 import { isAdmin } from '../../auth/roles';
 import {useState} from 'react';
 import OwnerDesk from './OwnerDesk';
@@ -218,6 +219,7 @@ function Portal() {
               {section==='payments' && <FinancialReports key={id} spa={id} owner={full} finance={isAdmin(user?.roles)}/>}
               {section==='payments' && full && <GstDocuments key={'gst-'+id} spa={id}/>}
               {section==='payments' && full && <GiftCardReport key={'gift'+id} spa={id}/>}
+              {section==='payments' && full && <CheckoutRecoveryStats key={'recovery'+id} spa={id}/>}
               {section === 'availability' && (
                 <div className="space-y-6" key={id}>
                   <Schedule spaId={id} />

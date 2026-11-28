@@ -30,6 +30,9 @@ const NotFound = lazy(() => import('../pages/Static/NotFound'));
 const SpaBookingReply = lazy(() => import('../pages/SpaBookingReply/SpaBookingReply'));
 const GiftCards = lazy(() => import('../pages/GiftCards/GiftCards'));
 const GiftCardsAdmin = lazy(() => import('../pages/Staff/GiftCardsAdmin'));
+const ResumeCheckout = lazy(() => import('../pages/Booking/ResumeCheckout'));
+const StopReminders = lazy(() => import('../pages/Booking/StopReminders'));
+const CheckoutRecoveryStats = lazy(() => import('../pages/Owner/CheckoutRecoveryStats'));
 import { isAdmin, isStaff } from '../auth/roles';
 import { RequireAuth } from '../components/layout/RequireAuth';
 
@@ -93,6 +96,17 @@ const AppRouter = () => {
           </RequireAuth>
         }
       />
+      <Route
+        path="/admin/checkout-recovery"
+        element={
+          <RequireAuth allowed={isAdmin}>
+            <div className="mx-auto max-w-5xl px-4 py-8"><CheckoutRecoveryStats /></div>
+          </RequireAuth>
+        }
+      />
+      {/* From a checkout reminder: the resume link needs the guest's account, the unsubscribe link doesn't. */}
+      <Route path="/booking/resume/:token" element={<RequireAuth redirectTo="/auth/login"><ResumeCheckout /></RequireAuth>} />
+      <Route path="/booking/stop-reminders" element={<StopReminders />} />
       <Route path="/owner/booking-alerts/:bookingId" element={
         <RequireAuth redirectTo="/owner/login"><SpaBookingReply owner /></RequireAuth>
       } />

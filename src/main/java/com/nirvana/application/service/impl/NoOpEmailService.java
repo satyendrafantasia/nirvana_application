@@ -3,6 +3,7 @@ package com.nirvana.application.service.impl;
 
 import com.nirvana.application.config.SendGridProperties;
 import com.nirvana.application.model.NotificationLog;
+import com.nirvana.application.model.dto.CheckoutReminderEmail;
 import com.nirvana.application.model.dto.InvoiceEmailDto;
 import com.nirvana.application.model.enums.NotificationChannel;
 import com.nirvana.application.model.enums.NotificationStatus;
@@ -74,6 +75,36 @@ public class NoOpEmailService implements EmailService {
                 "<p>Deal: <strong>" + InvoiceEmailContent.text(Optional.ofNullable(dealName).orElse("N/A")) + "</strong></p>" +
                 "<p>Open the app to explore available offers.</p>";
         sendSimpleMail(employeeEmail, subject, body);
+    }
+
+    @Override
+    public boolean sendCheckoutReminder(CheckoutReminderEmail dto) {
+        if (dto.toEmail() == null || dto.toEmail().isBlank()) return false;
+        String subject = CheckoutReminderEmailContent.subject(dto);
+        NotificationLog logEntry = NotificationLog.builder()
+                .channel(NotificationChannel.EMAIL)
+                .status(NotificationStatus.QUEUED)
+                .destination(dto.toEmail())
+                .title(subject)
+                .message("Checkout reminder for booking " + dto.bookingReference())
+                .build();
+        try {
+            MimeMessage message = buildMimeMessage(dto.toEmail(), dto.toName(), subject, CheckoutReminderEmailContent.render(dto));
+            if (dto.oneClickUnsubscribeUrl() != null) {
+                message.setHeader("List-Unsubscribe", "<" + dto.oneClickUnsubscribeUrl() + ">");
+                message.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+            }
+            mailSender.send(message);
+            logEntry.setStatus(NotificationStatus.SENT);
+            return true;
+        } catch (MessagingException | MailException e) {
+            logEntry.setStatus(NotificationStatus.FAILED);
+            logEntry.setErrorMessage("Email transport failed");
+            log.error("Notification delivery failed");
+            return false;
+        } finally {
+            notificationLogRepository.save(logEntry);
+        }
     }
 
     private void sendSimpleMail(String toEmail, String subject, String html) {
