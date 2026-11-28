@@ -344,9 +344,11 @@ class CheckoutRecoveryTest {
 
         String forgedBody = tokens.sign(43L, nonce, Purpose.RESUME, expires).split("\\.")[0] + "." + token.split("\\.")[1];
         assertTrue(tokens.verify(forgedBody, Purpose.RESUME, now.toInstant()).isEmpty(), "body swapped");
-        char last = token.charAt(token.length() - 1);
-        String flipped = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
-        assertTrue(tokens.verify(flipped, Purpose.RESUME, now.toInstant()).isEmpty(), "signature changed");
+        // The first Base64 character contains six signature bits. The last can include unused bits.
+        int signatureStart = token.indexOf('.') + 1;
+        StringBuilder flipped = new StringBuilder(token);
+        flipped.setCharAt(signatureStart, token.charAt(signatureStart) == 'A' ? 'B' : 'A');
+        assertTrue(tokens.verify(flipped.toString(), Purpose.RESUME, now.toInstant()).isEmpty(), "signature changed");
         assertTrue(tokens.verify("garbage", Purpose.RESUME, now.toInstant()).isEmpty());
         assertTrue(tokens.verify(null, Purpose.RESUME, now.toInstant()).isEmpty());
 
