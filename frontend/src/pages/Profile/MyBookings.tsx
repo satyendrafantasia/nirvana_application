@@ -12,6 +12,7 @@ import SlotGrid from '../../components/booking/SlotGrid';
 import { replacementTimes } from '../Booking/availableTimes';
 import HealthForm from '../../components/health/HealthForm';
 import InvoiceLinks from './InvoiceLinks';
+import AddToCalendar from '../../components/booking/AddToCalendar';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -123,6 +124,16 @@ export default function MyBookings() {
                 Confirm pay at spa
               </Button>
               </>
+            )}
+            {b.status === 'CONFIRMED' && new Date(b.slot).getTime() > Date.now() && (
+              <AddToCalendar booking={{
+                id: b.id,
+                reference: b.reference,
+                serviceName: b.service.name,
+                spaName: b.spaName,
+                start: b.slot,
+                durationMinutes: b.service.durationMinutes
+              }} />
             )}
             {b.status === 'CONFIRMED' && (
               <Button

@@ -20,7 +20,18 @@ public final class BookingEmailContent {
     private BookingEmailContent() {
     }
 
-    public record Email(String templateCode, String subject, String html) {
+    /** A file sent with the email, such as the booking's calendar invite. */
+    public record Attachment(String fileName, String contentType, byte[] content) {
+    }
+
+    public record Email(String templateCode, String subject, String html, Attachment attachment) {
+        public Email(String templateCode, String subject, String html) {
+            this(templateCode, subject, html, null);
+        }
+
+        public Email withAttachment(Attachment file) {
+            return new Email(templateCode, subject, html, file);
+        }
     }
 
     public static Email customerConfirmed(Booking b, String subject) {

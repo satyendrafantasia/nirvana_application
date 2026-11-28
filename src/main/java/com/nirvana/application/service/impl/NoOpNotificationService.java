@@ -40,6 +40,7 @@ public class NoOpNotificationService implements NotificationService {
     private final NotificationLogRepository notificationLogRepository;
     private final JavaMailSender mailSender;
     private final SendGridProperties properties;
+    private final com.nirvana.application.service.calendar.BookingCalendar calendar;
 
     @Override
     public void sendRequestUpdate(String email, String subject, String html) {
@@ -53,12 +54,14 @@ public class NoOpNotificationService implements NotificationService {
 
     @Override
     public void notifyCustomerBookingConfirmed(Booking booking) {
-        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerConfirmed(booking, properties.getCustomerSubject()));
+        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerConfirmed(booking, properties.getCustomerSubject())
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
     public void notifyCustomerBookingCancelled(Booking booking) {
-        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerCancelled(booking));
+        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerCancelled(booking)
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
@@ -68,7 +71,8 @@ public class NoOpNotificationService implements NotificationService {
 
     @Override
     public void notifyCustomerBookingRescheduled(Booking booking) {
-        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerRescheduled(booking));
+        send(booking, booking.getUser(), customerDestination(booking), BookingEmailContent.customerRescheduled(booking)
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
@@ -119,7 +123,7 @@ public class NoOpNotificationService implements NotificationService {
                 .build();
 
         try {
-            mailSender.send(buildMimeMessage(destination, email.subject(), email.html()));
+            mailSender.send(buildMimeMessage(destination, email));
             logEntry.setStatus(NotificationStatus.SENT);
             logEntry.setSentAt(OffsetDateTime.now(ZoneOffset.UTC));
         } catch (MessagingException | MailException e) {
@@ -149,15 +153,19 @@ public class NoOpNotificationService implements NotificationService {
         return booking.getUser() != null ? booking.getUser().getEmail() : null;
     }
 
-    private MimeMessage buildMimeMessage(String toEmail, String subject, String html) throws MessagingException {
+    private MimeMessage buildMimeMessage(String toEmail, Email email) throws MessagingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
         if (properties.getFromEmail() != null && !properties.getFromEmail().isBlank()) {
             helper.setFrom(properties.getFromEmail());
         }
         helper.setTo(new InternetAddress(toEmail));
-        helper.setSubject(subject);
-        helper.setText(html, true);
+        helper.setSubject(email.subject());
+        helper.setText(email.html(), true);
+        if (email.attachment() != null) {
+            helper.addAttachment(email.attachment().fileName(),
+                    new org.springframework.core.io.ByteArrayResource(email.attachment().content()), email.attachment().contentType());
+        }
         return message;
     }
 }

@@ -3,6 +3,7 @@ import { BookingSummary } from '../../types/booking';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { useState } from 'react';
 import HealthForm from '../../components/health/HealthForm';
+import AddToCalendar from '../../components/booking/AddToCalendar';
 
 interface BookingConfirmationProps {
   summary: BookingSummary | null;
@@ -51,6 +52,17 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
         <p className="text-sm text-slate-500">
           Booking details will appear here after confirmation.
         </p>
+      )}
+
+      {summary?.id && summary.status === 'CONFIRMED' && (
+        <AddToCalendar booking={{
+          id: summary.id,
+          reference: summary.reference,
+          serviceName: summary.service.name,
+          spaName: summary.spaName,
+          start: summary.slot,
+          durationMinutes: summary.service.durationMinutes
+        }} />
       )}
 
       {summary?.id && (summary.status === 'CONFIRMED' || summary.status === 'PENDING_PAYMENT') && (
