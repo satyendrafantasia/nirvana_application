@@ -103,7 +103,7 @@ describe('checkout reminder resume link', () => {
     const html = renderToStaticMarkup(
       <QueryClientProvider client={client}>
         <BookingContext.Provider value={{ state: { guests: 1 }, setHold: noop, setSpa: noop, setService: noop,
-          setAvailabilityDate: noop, setSlot: noop, setGuests: noop, setTherapist: noop, setPaymentMode: noop, setNotes: noop, reset: noop }}>
+          setAvailabilityDate: noop, setSlot: noop, setGuests: noop, setTherapist: noop, setPaymentMode: noop, setNotes: noop, setAddOns: noop, reset: noop }}>
           <MemoryRouter initialEntries={[resumePath(token)]}>
             <Routes><Route path="/booking/resume/:token" element={<ResumeCheckout />} /></Routes>
           </MemoryRouter>
