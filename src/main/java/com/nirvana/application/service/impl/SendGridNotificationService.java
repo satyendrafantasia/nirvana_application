@@ -30,6 +30,7 @@ public class SendGridNotificationService implements NotificationService {
 
     private final SendGrid sendGrid;
     private final SendGridProperties properties;
+    private final com.nirvana.application.service.calendar.BookingCalendar calendar;
 
     @Override
     public void sendRequestUpdate(String email, String subject, String html) {
@@ -43,12 +44,14 @@ public class SendGridNotificationService implements NotificationService {
 
     @Override
     public void notifyCustomerBookingConfirmed(Booking booking) {
-        toCustomer(booking, BookingEmailContent.customerConfirmed(booking, properties.getCustomerSubject()));
+        toCustomer(booking, BookingEmailContent.customerConfirmed(booking, properties.getCustomerSubject())
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
     public void notifyCustomerBookingCancelled(Booking booking) {
-        toCustomer(booking, BookingEmailContent.customerCancelled(booking));
+        toCustomer(booking, BookingEmailContent.customerCancelled(booking)
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
@@ -58,7 +61,8 @@ public class SendGridNotificationService implements NotificationService {
 
     @Override
     public void notifyCustomerBookingRescheduled(Booking booking) {
-        toCustomer(booking, BookingEmailContent.customerRescheduled(booking));
+        toCustomer(booking, BookingEmailContent.customerRescheduled(booking)
+                .withAttachment(calendar.emailAttachment(booking)));
     }
 
     @Override
@@ -96,7 +100,7 @@ public class SendGridNotificationService implements NotificationService {
                 throw new com.nirvana.application.service.BookingContactUnavailable("No email address");
             return;
         }
-        sendEmail(user.getEmail(), email.subject(), email.html(), email.templateCode());
+        sendEmail(user.getEmail(), email.subject(), email.html(), email.templateCode(), email.attachment());
     }
 
     private void toSpa(Booking booking, Email email) {
@@ -108,10 +112,15 @@ public class SendGridNotificationService implements NotificationService {
                 throw new com.nirvana.application.service.BookingContactUnavailable("No email address");
             return;
         }
-        sendEmail(to, email.subject(), email.html(), email.templateCode());
+        sendEmail(to, email.subject(), email.html(), email.templateCode(), email.attachment());
     }
 
     private void sendEmail(String toEmail, String subject, String htmlContent, String templateCode) {
+        sendEmail(toEmail, subject, htmlContent, templateCode, null);
+    }
+
+    private void sendEmail(String toEmail, String subject, String htmlContent, String templateCode,
+                           BookingEmailContent.Attachment file) {
         if (properties.getFromEmail() == null || properties.getFromEmail().isBlank()) {
             throw new IllegalStateException("Sender email is missing");
         }
@@ -119,6 +128,14 @@ public class SendGridNotificationService implements NotificationService {
         var from = new com.sendgrid.helpers.mail.objects.Email(properties.getFromEmail(), properties.getFromName());
         var to = new com.sendgrid.helpers.mail.objects.Email(toEmail);
         Mail mail = new Mail(from, subject, to, new Content("text/html", htmlContent));
+        if (file != null) {
+            var attachment = new com.sendgrid.helpers.mail.objects.Attachments();
+            attachment.setContent(java.util.Base64.getEncoder().encodeToString(file.content()));
+            attachment.setType(file.contentType());
+            attachment.setFilename(file.fileName());
+            attachment.setDisposition("attachment");
+            mail.addAttachments(attachment);
+        }
         Request request = new Request();
         try {
             request.setMethod(Method.POST);

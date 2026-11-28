@@ -161,3 +161,17 @@ export const rescheduleBooking = async (id: string, targetSlotId: string, choice
     changeTherapistPreference: choice !== undefined,
     therapistId: choice && !choice.startsWith('type:') ? Number(choice) : undefined,
     therapistType: choice?.startsWith('type:') ? choice.slice(5) : undefined })).data;
+/** Saves the booking's calendar invite (.ics) for Apple Calendar, Outlook and other calendar apps. */
+export const downloadCalendarInvite = async (id: string, reference?: string): Promise<void> => {
+  const response = await client.get<Blob>(`/api/me/bookings/${id}/calendar.ics`, { responseType: 'blob' });
+  const header = String(response.headers['content-disposition'] ?? '');
+  const name = /filename="([^"]+)"/.exec(header)?.[1] ?? `nirvana-booking-${reference ?? id}.ics`;
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
