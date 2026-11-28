@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import { getSpaServices } from '../../api/spaApi';
+import AddOnPicker from '../../components/booking/AddOnPicker';
+import { type AddOn, addOnParams } from '../../api/addOnApi';
 import { getSlots } from '../../api/bookingApi';
 
 export type Mode = 'INSTANT' | 'REQUEST' | 'ENQUIRY';
@@ -148,6 +150,8 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
     [date, setDate] = useState(''),
     [slot, setSlot] = useState(''),
     [therapist, setTherapist] = useState('');
+  const [extras, setExtras] = useState<AddOn[]>([]);
+  const addOnIds = desk ? extras.map(extra => extra.id) : [];
   const [channel, setChannel] = useState('WALK_IN'),
     [name, setName] = useState(''),
     [contact, setContact] = useState(''),
@@ -160,9 +164,9 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
     queryFn: () => getSpaServices(spa)
   });
   const slots = useQuery({
-    queryKey: ['ops-slots', spa, service, date],
+    queryKey: ['ops-slots', spa, service, date, addOnIds],
     enabled: !!date && !!service,
-    queryFn: () => getSlots(spa, service, date)
+    queryFn: () => getSlots(spa, service, date, 1, addOnIds)
   });
   const rooms = useQuery({
     queryKey: ['desk-rooms', spa, service, date, slots.dataUpdatedAt],
@@ -175,12 +179,12 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
       ).data
   });
   const team = useQuery({
-    queryKey: ['desk-slot-team', spa, slot],
+    queryKey: ['desk-slot-team', spa, slot, addOnIds],
     enabled: desk && !!slot,
     queryFn: async () =>
       (
         await client.get<{ id: number; name: string }[]>(
-          '/api/owner/spas/' + spa + '/desk-slots/' + slot + '/therapists'
+          '/api/owner/spas/' + spa + '/desk-slots/' + slot + '/therapists', { params: addOnParams(addOnIds) }
         )
       ).data
   });
@@ -204,6 +208,7 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
               slotId: Number(slot),
               therapistId: therapist ? Number(therapist) : null,
               channel,
+              addOnIds,
               name,
               contact,
               guestId: guest ? Number(guest) : null
@@ -216,6 +221,7 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
           ).data.id,
     onSuccess: () => {
       setKey(crypto.randomUUID());
+      setExtras([]);
       setSlot('');
       void qc.invalidateQueries();
     }
@@ -283,6 +289,7 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
           value={service}
           onChange={(e) => {
             setService(e.target.value);
+            setExtras([]);
             setSlot('');
             setTherapist('');
           }}
@@ -295,6 +302,11 @@ export function AppointmentForm({ spa, desk = false }: { spa: string; desk?: boo
           ))}
         </select>
       </label>
+      {desk && service && (
+        <AddOnPicker spaId={spa} serviceId={service} guests={1} selected={extras}
+          durationMinutes={services.data?.find(s => s.id === service)?.durationMinutes}
+          onChange={value => { setExtras(value); setSlot(''); setTherapist(''); }} />
+      )}
       <label>
         Appointment date
         <input

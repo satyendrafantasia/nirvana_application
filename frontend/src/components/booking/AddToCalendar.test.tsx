@@ -46,6 +46,11 @@ describe('Add to calendar', () => {
     expect(url.searchParams.get('location')).toBe('Lotus & Stone');
   });
 
+  it('uses the scheduled end including upgrades even when the service duration differs', () => {
+    const url = new URL(googleCalendarUrl({ ...booking, end: '2027-01-02T13:00:00+05:30' }));
+    expect(url.searchParams.get('dates')).toBe('20270102T053000Z/20270102T073000Z');
+  });
+
   it('offers Google Calendar and the .ics download', () => {
     const html = renderToStaticMarkup(<AddToCalendar booking={booking} />);
     expect(html).toContain('Add to calendar');

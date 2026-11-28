@@ -126,19 +126,23 @@ export default function GroupBooking({
   spaName,
   size,
   firstService,
+  initialGuests,
+  initialDate,
   onBack
 }: {
   spaId: string;
   spaName?: string;
   size: number;
   firstService?: string;
+  initialGuests?: GuestChoice[];
+  initialDate?: string;
   onBack: () => void;
 }) {
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>('guests');
-  const [guests, setGuests] = useState<GuestChoice[]>(() => resize([], size, firstService));
+  const [guests, setGuests] = useState<GuestChoice[]>(() => resize(initialGuests || [], size, firstService));
   useEffect(() => setGuests((g) => resize(g, size, firstService)), [size, firstService]);
-  const [date, setDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [date, setDate] = useState(() => initialDate || new Date().toLocaleDateString('en-CA'));
   const [start, setStart] = useState<string>();
   const [hold, setHold] = useState<{ holdToken: string; expiresAt: string; therapists: (string | null)[] }>();
   const [mode, setMode] = useState<'ONLINE' | 'OFFLINE'>('ONLINE');

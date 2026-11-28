@@ -14,6 +14,7 @@ import com.nirvana.application.repository.BookingRepository;
 import com.nirvana.application.repository.CheckoutRecoveryRepository;
 import com.nirvana.application.repository.PaymentRepository;
 import com.nirvana.application.service.EmailService;
+import com.nirvana.application.service.addons.BookingAddOns;
 import com.nirvana.application.service.impl.BookingEmailContent;
 import com.nirvana.application.service.impl.SessionAllocation;
 import com.nirvana.application.service.impl.SlotAvailabilityService;
@@ -64,7 +65,8 @@ public class CheckoutRecoveryService {
     public record Resume(Long spaId, String spaName, Long serviceId, String serviceName, boolean serviceAvailable,
                          int guests, String therapistId, String therapistType, String therapistName,
                          LocalDate date, OffsetDateTime originalStart, Long originalSlotId, boolean originalAvailable,
-                         String pendingBookingReference, List<AlternativeTime> alternatives) {}
+                         String pendingBookingReference, List<AlternativeTime> alternatives,
+                         Long groupId, List<BookingAddOns.AddOn> addOns, boolean addOnsChanged, boolean checkoutResolved) {}
 
     public record Stats(OffsetDateTime from, OffsetDateTime to, long sent, long failed, long clicked, long converted,
                         long recoveredCents, double clickRate, double conversionRate) {}
@@ -82,6 +84,7 @@ public class CheckoutRecoveryService {
     private final CheckoutRecoveryTokens tokens;
     private final SlotAvailabilityService availability;
     private final EntityManager em;
+    private final BookingAddOns bookingAddOns;
     private final Settings settings;
 
     /** Tunables, all under checkout-recovery.* in application.yaml. */
@@ -95,7 +98,7 @@ public class CheckoutRecoveryService {
 
     public CheckoutRecoveryService(CheckoutRecoveryRepository recoveries, BookingRepository bookings,
                                    PaymentRepository payments, EmailService email, CheckoutRecoveryWhatsApp whatsApp,
-                                   CheckoutRecoveryTokens tokens, SlotAvailabilityService availability, EntityManager em,
+                                   CheckoutRecoveryTokens tokens, SlotAvailabilityService availability, EntityManager em, BookingAddOns bookingAddOns,
                                    @Value("${checkout-recovery.enabled:true}") boolean enabled,
                                    @Value("${checkout-recovery.delay-minutes:40}") int delayMinutes,
                                    @Value("${checkout-recovery.max-age-minutes:360}") int maxAgeMinutes,
@@ -115,6 +118,7 @@ public class CheckoutRecoveryService {
         this.tokens = tokens;
         this.availability = availability;
         this.em = em;
+        this.bookingAddOns = bookingAddOns;
         this.settings = new Settings(enabled, delayMinutes, maxAgeMinutes, minLeadMinutes, perUserHours, linkTtlHours,
                 unsubscribeTtlDays, attributionDays, pendingExpiryMinutes, stripSlash(frontendUrl), stripSlash(apiBaseUrl));
     }
@@ -181,15 +185,18 @@ public class CheckoutRecoveryService {
         return new Outcome(null, new Claim(row.getId(), b.getId(), channel, destination));
     }
 
+    private boolean paymentTimedOut(Booking booking) {
+        return booking.getStatus() == BookingStatus.CANCELLED && booking.getCancelledBy() == CancellationActor.SYSTEM
+                && "PAYMENT_TIMEOUT".equals(booking.getCancellationReasonCode());
+    }
+
     /** The booking-level rules; null when the checkout may be reminded. */
     Skip eligibility(Booking b, OffsetDateTime now) {
         if (b == null) return Skip.NOT_FOUND;
         if (b.getPaymentMode() != PaymentMode.ONLINE) return Skip.NOT_ONLINE;
         boolean pending = b.getStatus() == BookingStatus.PENDING_PAYMENT;
-        boolean timedOut = b.getStatus() == BookingStatus.CANCELLED && b.getCancelledBy() == CancellationActor.SYSTEM
-                && "PAYMENT_TIMEOUT".equals(b.getCancellationReasonCode());
         // Confirmed, completed, or cancelled on purpose by the guest or the spa.
-        if (!pending && !timedOut) return Skip.NOT_ABANDONED;
+        if (!pending && !paymentTimedOut(b)) return Skip.NOT_ABANDONED;
         if (b.getScheduledBy() == CancellationActor.SPA || b.getScheduledBy() == CancellationActor.ADMIN)
             return Skip.BOOKED_BY_STAFF;
         List<Payment> paid = payments.findByBookingId(b.getId());
@@ -315,8 +322,24 @@ public class CheckoutRecoveryService {
         String pendingReference = b.getStatus() == BookingStatus.PENDING_PAYMENT ? b.getBookingReference() : null;
         Long originalSlot = null;
         List<AlternativeTime> alternatives = List.of();
-        if (serviceAvailable) {
-            List<AlternativeTime> free = freeTimes(spa.getId(), service.getId(), date, guests, now);
+        Long groupId = recoveries.findGroupForBooking(b.getId()).orElse(null);
+        boolean resolved = (pendingReference == null && !paymentTimedOut(b)) || b.getPaymentMode() != PaymentMode.ONLINE
+                || payments.findByBookingId(b.getId()).stream().anyMatch(p -> PAID.contains(p.getPaymentStatus()));
+        String currency = service.getCurrency() != null ? service.getCurrency() : spa.getDefaultCurrency();
+        var previous = bookingAddOns.forBooking(b.getId()).lines();
+        var ids = previous.stream().map(BookingAddOns.Line::addOnId).toList();
+        List<BookingAddOns.AddOn> current = previous.isEmpty() || !serviceAvailable ? List.of()
+                : bookingAddOns.bookable(spa.getId(), service.getId()).stream().filter(a -> ids.contains(a.id()))
+                .filter(a -> currency == null || currency.equalsIgnoreCase(a.currency())).toList();
+        if (current.stream().mapToInt(BookingAddOns.AddOn::extraMinutes).sum() > BookingAddOns.MAX_EXTRA_MINUTES) {
+            current = List.of();
+        }
+        boolean changed = previous.size() != current.size() || current.stream().anyMatch(a -> previous.stream()
+                .noneMatch(p -> java.util.Objects.equals(p.addOnId(), a.id()) && p.unitPriceCents() == a.priceCents()
+                        && p.extraMinutes() == a.extraMinutes()));
+        if (serviceAvailable && groupId == null && !resolved) {
+            int extraMinutes = current.stream().mapToInt(BookingAddOns.AddOn::extraMinutes).sum();
+            List<AlternativeTime> free = freeTimes(spa.getId(), service.getId(), date, guests, now, extraMinutes);
             OffsetDateTime original = b.getStartTs();
             // While the guest's own unpaid booking still holds the time, it can't be offered again.
             Optional<AlternativeTime> same = pendingReference != null ? Optional.empty()
@@ -334,12 +357,12 @@ public class CheckoutRecoveryService {
         boolean originalAvailable = originalSlot != null;
         return new Resume(spa.getId(), spa.getName(), service.getId(), service.getName(), serviceAvailable, guests,
                 therapistId, therapistType, therapistName, date, b.getStartTs(), originalSlot, originalAvailable,
-                pendingReference, alternatives);
+                pendingReference, alternatives, groupId, current, changed, resolved);
     }
 
-    private List<AlternativeTime> freeTimes(Long spaId, Long serviceId, LocalDate from, int guests, OffsetDateTime now) {
+    private List<AlternativeTime> freeTimes(Long spaId, Long serviceId, LocalDate from, int guests, OffsetDateTime now, int extraMinutes) {
         OffsetDateTime earliest = now.plusMinutes(30);
-        return availability.getAvailableSlotsForServiceRange(spaId, serviceId, from, ALTERNATIVE_DAYS, guests).days().stream()
+        return availability.getAvailableSlotsForServiceRange(spaId, serviceId, from, ALTERNATIVE_DAYS, guests, extraMinutes).days().stream()
                 .flatMap(day -> day.slots().stream().map(s -> new AlternativeTime(s.slotId(), s.startTs(), day.date()) )
                         .filter(t -> t.startTs() != null && t.startTs().isAfter(earliest))
                         .filter(t -> bookable(day.slots(), t.slotId(), guests)))

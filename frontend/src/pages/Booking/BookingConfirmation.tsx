@@ -63,6 +63,7 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
           serviceName: summary.service.name,
           spaName: summary.spaName,
           start: summary.slot,
+          end: summary.endTs,
           durationMinutes: summary.service.durationMinutes
         }} />
       )}

@@ -35,6 +35,9 @@ public interface CheckoutRecoveryRepository extends JpaRepository<CheckoutRecove
                                         @Param("startsAfter") OffsetDateTime startsAfter,
                                         Pageable page);
 
+    @Query(value = "SELECT group_id FROM booking_group_member WHERE booking_id = :id", nativeQuery = true)
+    Optional<Long> findGroupForBooking(@Param("id") long id);
+
     boolean existsByBookingId(Long bookingId);
 
     long countByUserIdAndSentAtAfter(Long userId, OffsetDateTime since);

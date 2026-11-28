@@ -38,9 +38,23 @@ function recorder() {
   const record = (name: string) => (...args: unknown[]) => { calls.push([name, args]); };
   const flow: PrefillTarget = {
     setSpa: record('setSpa'), setService: record('setService'), setAvailabilityDate: record('setAvailabilityDate'),
-    setGuests: record('setGuests'), setTherapist: record('setTherapist'), setSlot: record('setSlot')
+    setAddOns: record('setAddOns'), setGuests: record('setGuests'), setTherapist: record('setTherapist'), setSlot: record('setSlot')
   };
   return { calls, flow };
+}
+
+function renderResume(client: QueryClient, token: string) {
+  const noop = vi.fn();
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <BookingContext.Provider value={{ state: { guests: 1 }, setHold: noop, setSpa: noop, setService: noop,
+        setAvailabilityDate: noop, setSlot: noop, setGuests: noop, setTherapist: noop, setPaymentMode: noop, setNotes: noop, setAddOns: noop, reset: noop }}>
+        <MemoryRouter initialEntries={[resumePath(token)]}>
+          <Routes><Route path="/booking/resume/:token" element={<ResumeCheckout />} /></Routes>
+        </MemoryRouter>
+      </BookingContext.Provider>
+    </QueryClientProvider>
+  );
 }
 
 describe('checkout reminder resume link', () => {
@@ -63,6 +77,14 @@ describe('checkout reminder resume link', () => {
     expect(calls[0][1]).toEqual(['3', 'Lotus Spa']);
     expect(calls[4][1]).toEqual(['12', undefined, 'Meera']);
     expect(calls[5][1]).toEqual([original]);
+  });
+
+  it('restores the current add-on menu selection before choosing the time', () => {
+    const oil = { id: 6, name: 'Aromatherapy', priceCents: 15000, currency: 'INR', extraMinutes: 15 };
+    const prefill = resumePrefill({ ...resume, addOns: [oil] }, [service]);
+    const { calls, flow } = recorder();
+    applyPrefill(prefill!, flow);
+    expect(calls.find(([name]) => name === 'setAddOns')?.[1]).toEqual([[oil]]);
   });
 
   it('leaves the time open when the original was taken, and uses the alternative the guest picks', () => {
@@ -91,6 +113,35 @@ describe('checkout reminder resume link', () => {
     expect(resumePrefill(resume, [service], [slot('501', resume.originalStart, false)])?.slot).toBeUndefined();
   });
 
+  it('opens booking history for a resolved checkout', () => {
+    const client = new QueryClient();
+    client.setQueryData(['checkout-resume', 'paid'], { ...resume, checkoutResolved: true });
+    const html = renderResume(client, 'paid');
+    expect(html).toContain('View booking status in My bookings');
+    expect(html).not.toContain('See all times');
+  });
+
+  it('keeps a pending group together when the booker follows their reminder', () => {
+    const client = new QueryClient();
+    client.setQueryData(['checkout-resume', 'group-token'], { ...resume, groupId: 8, pendingBookingReference: 'GROUP-8' });
+    const html = renderResume(client, 'group-token');
+    expect(html).toContain('Continue payment in My bookings');
+    expect(html).not.toContain('See all times');
+  });
+
+  it('restores the group form with the guests and their treatments after timeout', () => {
+    const client = new QueryClient();
+    client.setQueryData(['checkout-resume', 'expired-group'], { ...resume, groupId: 8, originalAvailable: false });
+    client.setQueryData(['checkout-resume-group', 8], { size: 2, members: [
+      { guestName: 'Asha', serviceId: 7 }, { guestName: 'Ravi', serviceId: 7 }
+    ] });
+    client.setQueryData(['booking-services', '3'], [service]);
+    const html = renderResume(client, 'expired-group');
+    expect(html).toContain('Resume your group booking');
+    expect(html).toContain('Ravi');
+    expect(html).not.toContain('Nearest free times');
+  });
+
   it('shows the nearest free times when the original time was taken', () => {
     const token = 'tok.sig';
     const client = new QueryClient();
@@ -99,17 +150,7 @@ describe('checkout reminder resume link', () => {
       alternatives: [{ slotId: 777, startTs: '2026-12-02T12:30:00+05:30', date: '2026-12-02' }]
     });
     client.setQueryData(['booking-services', '3'], [service]);
-    const noop = vi.fn();
-    const html = renderToStaticMarkup(
-      <QueryClientProvider client={client}>
-        <BookingContext.Provider value={{ state: { guests: 1 }, setHold: noop, setSpa: noop, setService: noop,
-          setAvailabilityDate: noop, setSlot: noop, setGuests: noop, setTherapist: noop, setPaymentMode: noop, setNotes: noop, setAddOns: noop, reset: noop }}>
-          <MemoryRouter initialEntries={[resumePath(token)]}>
-            <Routes><Route path="/booking/resume/:token" element={<ResumeCheckout />} /></Routes>
-          </MemoryRouter>
-        </BookingContext.Provider>
-      </QueryClientProvider>
-    );
+    const html = renderResume(client, token);
     expect(html).toContain('Deep Tissue Massage at Lotus Spa with Meera');
     expect(html).toContain('has been taken');
     expect(html).toContain('Nearest free times');

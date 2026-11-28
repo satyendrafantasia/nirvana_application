@@ -138,6 +138,7 @@ export default function MyBookings() {
                 serviceName: b.service.name,
                 spaName: b.spaName,
                 start: b.slot,
+                end: b.endTs,
                 durationMinutes: b.service.durationMinutes
               }} />
             )}

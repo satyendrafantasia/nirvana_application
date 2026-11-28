@@ -9,6 +9,7 @@ public class BookingCreateResponse {
     /** The treatment for all guests; priceCents is this plus the add-ons. */
     @lombok.Getter @lombok.Setter private Integer serviceCents;
     @lombok.Getter @lombok.Setter private java.util.List<com.nirvana.application.service.addons.BookingAddOns.Line> addOns;
+    @lombok.Getter @lombok.Setter private java.time.OffsetDateTime endTs;
     private Long bookingId;
     private String bookingReference;
     private String status;

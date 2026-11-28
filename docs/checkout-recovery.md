@@ -8,7 +8,7 @@ the booking flow, prefilled with the same spa, service, therapist choice, guests
 `CheckoutRecoveryJob` runs every `checkout-recovery.interval-ms` (5 minutes) on instances where
 `app.scheduling.enabled` is on. It looks at online checkouts started between
 `max-age-minutes` (6 h) and `delay-minutes` (40 min) ago that are either still `PENDING_PAYMENT`
-past their payment window, or were cancelled by the system with `PAYMENT_TIMEOUT`.
+past their payment window, or were cancelled by the system with `PAYMENT_TIMEOUT`. A slot selection or temporary hold alone does not start a reminder.
 
 Each checkout is claimed under a row lock on the booking and the guest before anything is sent, and
 the reminder row is written first, so a restart or a second instance never sends it twice. A send
@@ -43,6 +43,12 @@ invalidates links already sent).
 - `/booking/resume/<token>` (sign-in required, the same account only): records the click and
   prefills the booking flow. If the original time is free it is selected; if it was released and
   taken, the six nearest free times in the next week are offered. Expires after `link-ttl-hours` (48 h).
+  Time suggestions include the current duration of the original add-ons. If a spa changed their
+  price, duration or availability, the guest reviews the new terms before continuing.
+  A group with an outstanding payment opens My bookings. A timed-out group returns to the group
+  form with the original guests, treatments and date so the booker can check therapist preferences
+  and choose a time that fits the entire party. Opening a reminder after the checkout was paid or
+  deliberately cancelled directs the guest to their booking history.
 - `/booking/stop-reminders?t=<token>` (no sign-in): turns reminders off, with an undo.
 - Mail apps get `List-Unsubscribe` / `List-Unsubscribe-Post` (RFC 8058) pointing at
   `POST /api/public/checkout-reminders/unsubscribe?t=<token>`, on `CHECKOUT_RECOVERY_API_BASE_URL`

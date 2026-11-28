@@ -173,6 +173,19 @@ class AddOnBookingTest {
 
     // ------------------------------------------------------------------ price, tax, desk and invoice
 
+    @Test void frontDeskBooksTheExtendedVisitAtTheMenuPrice() throws Exception {
+        long extension = create("Extension", EXTENSION, 30, true, List.of());
+        long slot = slot(10);
+        var request = Map.of("slotId", slot, "name", "Test guest", "channel", "WALK_IN",
+                "requestKey", "desk-addon-test", "addOnIds", List.of(extension));
+        var reply = owner(post("/api/owner/spas/1/desk-appointments"), request);
+        assertEquals(200, reply.status(), () -> reply.body().toString());
+        long id = reply.body().asLong();
+        assertEquals(SERVICE + EXTENSION, jdbc.queryForObject("select price_cents from booking where id=?", Integer.class, id));
+        assertEquals(90, jdbc.queryForObject("select timestampdiff(minute,start_ts,end_ts) from booking where id=?", Integer.class, id));
+        assertEquals(id, owner(post("/api/owner/spas/1/desk-appointments"), request).body().asLong());
+    }
+
     @Test void theServerPricesAddOnsAndTheyFlowThroughTaxTheDeskAndTheInvoice() throws Exception {
         long stones = create("Hot stones", STONES, 0, true, List.of(1L));
         long extension = create("Extension", EXTENSION, 30, true, List.of());

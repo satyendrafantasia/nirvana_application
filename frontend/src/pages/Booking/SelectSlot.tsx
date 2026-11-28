@@ -6,6 +6,7 @@ import { getSlots, getTherapistDirectory, isSlotConflict } from '../../api/booki
 import client, { errorMessage } from '../../api/client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import AddOnPicker from '../../components/booking/AddOnPicker';
 import SlotGrid from '../../components/booking/SlotGrid';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -17,7 +18,7 @@ interface SelectSlotProps {
 }
 
 const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
-  const { state, setSlot, setGuests, setHold, setTherapist, setAvailabilityDate } = useBookingFlow();
+  const { state, setAddOns, setSlot, setGuests, setHold, setTherapist, setAvailabilityDate } = useBookingFlow();
   const preferred = state.therapistType ? 'type:' + state.therapistType : state.therapistId || '';
   const date = state.availabilityDate ?? new Date().toLocaleDateString('en-CA');
   const reserving = useRef(false);
@@ -144,6 +145,18 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
         </p>
       )}
       {wait.isSuccess && <p role="status">You have joined the waitlist.</p>}
+      {state.spaId && state.service && (
+        <fieldset disabled={hold.isPending}>
+          <AddOnPicker
+            spaId={state.spaId}
+            serviceId={state.service.id}
+            durationMinutes={state.service.durationMinutes}
+            guests={state.guests}
+            selected={state.addOns ?? []}
+            onChange={setAddOns}
+          />
+        </fieldset>
+      )}
       <Link className="text-primary-700 underline" to="/features/availability">
         View a full week of availability
       </Link>

@@ -43,6 +43,7 @@ export interface BookingPayload {
   bookingSource?: string;
 }
 export interface BookingSummary {
+  endTs?: string;
   id: string;
   reference?: string;
   spaId?: string;

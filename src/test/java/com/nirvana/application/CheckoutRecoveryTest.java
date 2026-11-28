@@ -21,6 +21,7 @@ import com.nirvana.application.repository.CheckoutRecoveryRepository;
 import com.nirvana.application.repository.RoleRepository;
 import com.nirvana.application.security.UserPrincipal;
 import com.nirvana.application.service.EmailService;
+import com.nirvana.application.service.addons.BookingAddOns;
 import com.nirvana.application.service.impl.SlotAvailabilityService;
 import com.nirvana.application.service.recovery.CheckoutRecoveryService;
 import com.nirvana.application.service.recovery.CheckoutRecoveryService.Skip;
@@ -67,6 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class CheckoutRecoveryTest {
 
+    @Autowired BookingAddOns addOns;
     @Autowired CheckoutRecoveryService recovery;
     @Autowired CheckoutRecoveryTokens tokens;
     @Autowired CheckoutRecoveryRepository recoveries;
@@ -84,7 +86,7 @@ class CheckoutRecoveryTest {
     void setUp() {
         now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
         when(email.sendCheckoutReminder(any())).thenReturn(true);
-        when(availability.getAvailableSlotsForServiceRange(anyLong(), anyLong(), any(), anyInt(), anyInt()))
+        when(availability.getAvailableSlotsForServiceRange(anyLong(), anyLong(), any(), anyInt(), anyInt(), eq(0)))
                 .thenReturn(new WeekSlotsResponse(1L, 1L, List.of()));
     }
 
@@ -361,6 +363,49 @@ class CheckoutRecoveryTest {
     // ------------------ resuming and clicks ------------------
 
     @Test
+    void resumeUsesCurrentAddOnDurationAndFlagsChangedTerms() {
+        Booking b = abandoned(guest());
+        String currency = b.getService().getCurrency();
+        var extra = addOns.create(1L, new BookingAddOns.Input("Extra time", null, 50000, currency, 30, true, 0, List.of(), null));
+        var selection = addOns.select(b.getSpa(), b.getService(), List.of(extra.id()), 1);
+        addOns.record(b.getId(), selection);
+        var claim = sent(b);
+        addOns.update(1L, extra.id(), new BookingAddOns.Input("Extra time", null, 50000, currency, 45, true, 0, List.of(), extra.version()));
+        when(availability.getAvailableSlotsForServiceRange(eq(1L), eq(b.getService().getId()), any(), anyInt(), eq(1), eq(45)))
+                .thenReturn(new WeekSlotsResponse(1L, b.getService().getId(), List.of()));
+        var result = recovery.resume(token(claim, Purpose.RESUME), b.getUser().getId(), now);
+        assertTrue(result.addOnsChanged());
+        assertEquals(List.of(extra.id()), result.addOns().stream().map(BookingAddOns.AddOn::id).toList());
+        verify(availability).getAvailableSlotsForServiceRange(eq(1L), eq(b.getService().getId()), any(), anyInt(), eq(1), eq(45));
+    }
+
+    @Test
+    void paidCheckoutCannotBeRestartedFromAnOldReminder() {
+        Booking b = abandoned(guest());
+        var claim = sent(b);
+        payment(b, PaymentStatus.CAPTURED, null);
+        var result = recovery.resume(token(claim, Purpose.RESUME), b.getUser().getId(), now);
+        assertTrue(result.checkoutResolved());
+        assertTrue(result.alternatives().isEmpty());
+        verifyNoInteractions(availability);
+    }
+
+    @Test
+    void groupReminderDoesNotOfferASingleGuestSlot() {
+        Booking b = abandoned(guest());
+        var claim = sent(b);
+        jdbc.update("INSERT INTO booking_group(spa_id,booker_user_id,group_size,start_ts,currency,total_cents,payment_mode,created_at,updated_at) VALUES(?,?,2,?,'INR',400000,'ONLINE',NOW(),NOW())",
+                b.getSpa().getId(), b.getUser().getId(), java.sql.Timestamp.from(b.getStartTs().toInstant()));
+        Long groupId = jdbc.queryForObject("SELECT id FROM booking_group WHERE booker_user_id=?", Long.class, b.getUser().getId());
+        jdbc.update("INSERT INTO booking_group_member(booking_id,group_id,position,guest_name,is_booker) VALUES(?,?,1,'Guest',TRUE)", b.getId(), groupId);
+        var result = recovery.resume(token(claim, Purpose.RESUME), b.getUser().getId(), now);
+        assertEquals(groupId, result.groupId());
+        assertFalse(result.originalAvailable());
+        assertTrue(result.alternatives().isEmpty());
+        verifyNoInteractions(availability);
+    }
+
+    @Test
     void resumePrefillsTheSameChoicesAndRecordsTheClick() throws Exception {
         User u = guest();
         OffsetDateTime start = now.plusDays(2).withMinute(0).withSecond(0);
@@ -372,7 +417,7 @@ class CheckoutRecoveryTest {
         var claim = sent(b);
         String token = token(claim, Purpose.RESUME);
         LocalDate day = start.toLocalDate();
-        when(availability.getAvailableSlotsForServiceRange(eq(1L), eq(b.getService().getId()), any(), anyInt(), eq(2)))
+        when(availability.getAvailableSlotsForServiceRange(eq(1L), eq(b.getService().getId()), any(), anyInt(), eq(2), eq(0)))
                 .thenReturn(new WeekSlotsResponse(1L, b.getService().getId(), List.of(new DaySlotsResponse(day, List.of(
                         slot(901L, start, 2), slot(902L, start.plusHours(1), 2))))));
 
@@ -405,7 +450,7 @@ class CheckoutRecoveryTest {
         var claim = sent(b);
         LocalDate day = start.toLocalDate();
         // The original 12:00 is gone; 9:00 is too far, 11:00 and 14:00 are near, 13:00 is full.
-        when(availability.getAvailableSlotsForServiceRange(eq(1L), anyLong(), any(), anyInt(), anyInt()))
+        when(availability.getAvailableSlotsForServiceRange(eq(1L), anyLong(), any(), anyInt(), anyInt(), eq(0)))
                 .thenReturn(new WeekSlotsResponse(1L, 1L, List.of(new DaySlotsResponse(day, List.of(
                         slot(1L, start.minusHours(3), 1), slot(2L, start.minusHours(1), 1), slot(3L, start.plusHours(1), 0),
                         slot(4L, start.plusHours(2), 1), slot(5L, start.plusHours(5), 1), slot(6L, start.plusHours(6), 1),

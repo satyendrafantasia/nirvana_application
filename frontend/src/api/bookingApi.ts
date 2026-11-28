@@ -65,6 +65,7 @@ export interface TherapistDirectory {
 export const getTherapistDirectory = async (spa: string, service: string) =>
   (await client.get<TherapistDirectory>(`/api/spas/${spa}/services/${service}/therapists`)).data;
 export interface CreatedBooking {
+  endTs?: string;
   therapistName?: string;
   bookingId: number;
   bookingReference: string;
@@ -98,6 +99,7 @@ export const createBooking = async (payload: BookingPayload): Promise<CreatedBoo
   return response.data;
 };
 interface BookingWire {
+  endTs?: string;
   originalPreference?: string;
   therapistName?: string;
   bookingId: number;
@@ -143,6 +145,7 @@ export const getUserBookings = async (
         currency: 'INR'
       },
       slot: b.startTs,
+      endTs: b.endTs,
       status: b.status,
       paymentMode: b.paymentMode,
       payAtSpaCheckoutCents: b.payAtSpaCheckoutCents ?? undefined,

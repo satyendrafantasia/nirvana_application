@@ -1,4 +1,5 @@
 import client from './client';
+import type { AddOn } from './addOnApi';
 import type { Service } from '../types/spa';
 import type { Slot } from '../types/booking';
 
@@ -28,6 +29,10 @@ export interface CheckoutResume {
   /** Set while the guest's own unpaid booking still holds the time. */
   pendingBookingReference?: string | null;
   alternatives: AlternativeTime[];
+  groupId?: number | null;
+  addOns?: AddOn[];
+  addOnsChanged?: boolean;
+  checkoutResolved?: boolean;
 }
 
 export interface RecoveryStats {
@@ -74,6 +79,7 @@ export interface ResumePrefill {
   therapistType?: string;
   therapistName?: string;
   slot?: Slot;
+  addOns?: AddOn[];
 }
 
 /**
@@ -102,6 +108,7 @@ export function resumePrefill(
     therapistId: resume.therapistId || undefined,
     therapistType: resume.therapistId ? undefined : resume.therapistType || undefined,
     therapistName: resume.therapistName || undefined,
+    ...(resume.addOns?.length ? { addOns: resume.addOns } : {}),
     slot
   };
 }
@@ -111,6 +118,7 @@ export interface PrefillTarget {
   setSpa: (spaId: string, spaName?: string) => void;
   setService: (service: Service) => void;
   setAvailabilityDate: (date: string) => void;
+  setAddOns: (addOns: AddOn[]) => void;
   setGuests: (guests: number) => void;
   setTherapist: (id?: string, type?: string, publicName?: string) => void;
   setSlot: (slot?: Slot) => void;
@@ -121,6 +129,7 @@ export function applyPrefill(prefill: ResumePrefill, flow: PrefillTarget) {
   flow.setSpa(prefill.spaId, prefill.spaName);
   flow.setService(prefill.service);
   flow.setAvailabilityDate(prefill.availabilityDate);
+  if (prefill.addOns?.length) flow.setAddOns(prefill.addOns);
   flow.setGuests(prefill.guests);
   flow.setTherapist(prefill.therapistId, prefill.therapistType, prefill.therapistName);
   if (prefill.slot) flow.setSlot(prefill.slot);

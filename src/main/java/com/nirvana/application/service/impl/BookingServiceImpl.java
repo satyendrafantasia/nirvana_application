@@ -729,6 +729,7 @@ public class BookingServiceImpl implements BookingService {
         BookingCreateResponse response = new BookingCreateResponse();
         response.setTherapistName(SessionAllocation.customerDisplay(booking.getSpa(),booking.getTherapist()));
         response.setBookingId(booking.getId());
+        response.setEndTs(booking.getEndTs());
         response.setBookingReference(booking.getBookingReference());
         response.setStatus(booking.getStatus().name());
         response.setPaymentMode(booking.getPaymentMode() != null ? booking.getPaymentMode().name() : null);

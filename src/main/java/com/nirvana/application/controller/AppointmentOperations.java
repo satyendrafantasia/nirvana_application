@@ -24,6 +24,7 @@ import java.util.*;
 public class AppointmentOperations {
     private final JdbcTemplate db;
     private final SpaRepository spas;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
     private final UserRepository users;
     private final SlotRepository slots;
     private final com.nirvana.application.service.impl.SessionAllocation allocation;
@@ -111,22 +112,24 @@ public class AppointmentOperations {
         var rows=db.queryForList("SELECT user_id,slot_id FROM appointment_request WHERE spa_id=? AND id=? AND state='PENDING' AND deadline>UTC_TIMESTAMP() FOR UPDATE",spa,id);
         if(rows.isEmpty())throw new IllegalStateException("Request expired or already answered");
         var row=rows.get(0);
-        Long booked=input.accept()?reserve(spa,num(row,"slot_id"),num(row,"user_id"),null,"request-"+id):null;
+        Long booked=input.accept()?reserve(spa,num(row,"slot_id"),num(row,"user_id"),null,"request-"+id,List.of()):null;
         db.update("UPDATE appointment_request SET state=?,booking_id=?,answered_by=? WHERE id=?",input.accept()?"ACCEPTED":"DECLINED",booked,actor(),id);
         if (!input.accept()) requestAlerts.enqueue(id,"REQUEST_DECLINED");
     }
     static long num(Map<String,Object> row,String key){return ((Number)row.get(key)).longValue();}
-    private long reserve(long spa,long slot,long user,Long therapist,String key){
+    private long reserve(long spa,long slot,long user,Long therapist,String key,List<Long> addOnIds){
         var services=db.queryForList("SELECT service_id FROM slot WHERE id=? AND spa_id=?",Long.class,slot,spa);
         if(services.isEmpty())throw new IllegalArgumentException("Choose a slot from this spa");
         var input=new BookingCreateRequest();
         input.setSpaId(spa);input.setServiceId(services.get(0));input.setSlotId(slot);input.setGuests(1);
         input.setPaymentMode("OFFLINE");input.setTherapistId(therapist);input.setRequestKey(key);
+        input.setAddOnIds(addOnIds);
         return booking.createFromDesk(user,input).getBookingId();
     }
     public record DeskAppointment(@NotNull Long slotId,Long therapistId,Long guestId,@Size(max=100) String name,
         @Size(max=100) String contact,@NotNull @Pattern(regexp="WALK_IN|PHONE") String channel,
-        @NotNull @Pattern(regexp="[A-Za-z0-9_-]{8,64}") String requestKey){}
+        @NotNull @Pattern(regexp="[A-Za-z0-9_-]{8,64}") String requestKey,
+        @Size(max=com.nirvana.application.service.addons.BookingAddOns.MAX_PER_BOOKING) List<@NotNull @Positive Long> addOnIds){}
     @GetMapping("/owner/spas/{spa}/desk-rooms")
     @PreAuthorize("@staffAccess.desk(#spa)")
     public List<Map<String,Object>> roomChoices(@PathVariable long spa,@RequestParam long service,@RequestParam java.time.LocalDate date){
@@ -137,9 +140,10 @@ public class AppointmentOperations {
     public record TherapistOption(long id,String name){}
     @GetMapping("/owner/spas/{spa}/desk-slots/{slot}/therapists")
     @PreAuthorize("@staffAccess.desk(#spa)")
-    public List<TherapistOption> staffChoices(@PathVariable long spa,@PathVariable long slot){
+    public List<TherapistOption> staffChoices(@PathVariable long spa,@PathVariable long slot,@RequestParam(required=false) List<Long> addOnIds){
         var selected=slots.findById(slot).filter(s->s.getSpa().getId().equals(spa)).orElseThrow();
-        return allocation.eligible(selected,null,null).stream().map(t->new TherapistOption(t.getId(),t.getName())).toList();
+        int minutes=addOns.select(selected.getSpa(),selected.getService(),addOnIds,1).extraMinutes();
+        return allocation.eligible(selected,null,null,minutes).stream().map(t->new TherapistOption(t.getId(),t.getName())).toList();
     }
     @GetMapping("/owner/spas/{spa}/desk-guests")
     @PreAuthorize("@staffAccess.desk(#spa)")
@@ -166,7 +170,7 @@ public class AppointmentOperations {
             db.update("INSERT INTO desk_guest(spa_id,user_id,guest_name,contact) VALUES(?,?,?,?)",spa,guest,profile.getName(),input.contact());
         } else if(db.queryForObject("SELECT COUNT(*) FROM booking WHERE spa_id=? AND user_id=?",Integer.class,spa,guest)==0)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Guest not found at this spa");
-        long id=reserve(spa,input.slotId(),guest,input.therapistId(),input.requestKey());
+        long id=reserve(spa,input.slotId(),guest,input.therapistId(),input.requestKey(),input.addOnIds());
         db.update("INSERT INTO desk_origin(booking_id,spa_id,request_key,channel,actor) VALUES(?,?,?,?,?)",id,spa,input.requestKey(),input.channel(),actor());
         return id;
     }

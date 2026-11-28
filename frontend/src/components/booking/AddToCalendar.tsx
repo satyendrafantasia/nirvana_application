@@ -9,6 +9,7 @@ export interface CalendarBooking {
   spaName: string;
   /** ISO start time. */
   start: string;
+  end?: string;
   durationMinutes?: number;
   location?: string;
 }
@@ -18,7 +19,7 @@ const googleTime = (date: Date) => date.toISOString().replace(/[-:]/g, '').repla
 /** A Google Calendar "add event" link holding the same details as the .ics invite. */
 export function googleCalendarUrl(booking: CalendarBooking, origin = globalThis.location?.origin): string {
   const start = new Date(booking.start);
-  const end = new Date(start.getTime() + (booking.durationMinutes || 60) * 60_000);
+  const end = booking.end ? new Date(booking.end) : new Date(start.getTime() + (booking.durationMinutes || 60) * 60_000);
   const details = [
     booking.reference && `Booking reference: ${booking.reference}`,
     origin && `Reschedule or cancel in My bookings: ${origin}/me/bookings`
