@@ -15,24 +15,33 @@ public class SessionAllocation {
     private final TherapistRoster roster;
     public static final String TAKEN="This time is no longer available";
     public List<Therapist> eligible(Slot slot, Long ownHold, Long ownBooking) {
-        return snapshot(slot.getSpa(),slot.getService().getId(),slot.getStartTs(),slot.getEndTs(),ownHold,ownBooking).eligible(slot);
+        return eligible(slot,ownHold,ownBooking,0);
+    }
+    /** extraMinutes: add-on time after the slot, for which the therapist and room must also be free. */
+    public List<Therapist> eligible(Slot slot, Long ownHold, Long ownBooking, int extraMinutes) {
+        return snapshot(slot.getSpa(),slot.getService().getId(),slot.getStartTs(),slot.getEndTs().plusMinutes(Math.max(0,extraMinutes)),ownHold,ownBooking)
+            .eligible(slot,extraMinutes);
     }
 
     private record Occupied(Long room,Long therapist,java.time.OffsetDateTime start,java.time.OffsetDateTime end) {}
     public record Snapshot(List<Therapist> team, java.time.ZoneId zone, Map<TherapistRoster.Key,List<TherapistRoster.Interval>> shifts,
                            List<Occupied> occupied) {
         public List<Therapist> eligible(Slot slot){
+            return eligible(slot,0);
+        }
+        public List<Therapist> eligible(Slot slot,int extraMinutes){
             var room=slot.getRoom();
             if(room==null || !room.isActive() || !room.getSpa().getId().equals(slot.getSpa().getId())
                     || slot.getEndTs().isBefore(slot.getStartTs().plusMinutes(slot.getService().getDurationMin()))) return List.of();
+            var end=slot.getEndTs().plusMinutes(Math.max(0,extraMinutes));
             Set<Long> busy=new HashSet<>();
             for(var o:occupied){
-                if(!o.start.isBefore(slot.getEndTs()) || !o.end.isAfter(slot.getStartTs()))continue;
+                if(!o.start.isBefore(end) || !o.end.isAfter(slot.getStartTs()))continue;
                 if(o.room==null || o.therapist==null || o.room.equals(room.getId()))return List.of();
                 busy.add(o.therapist);
             }
             return team.stream().filter(t->slot.allowsTherapist(t.getId()) && !busy.contains(t.getId())
-                    && TherapistRoster.covers(shifts,t.getId(),zone,slot.getStartTs(),slot.getEndTs())).toList();
+                    && TherapistRoster.covers(shifts,t.getId(),zone,slot.getStartTs(),end)).toList();
         }
     }
     public Snapshot snapshot(Spa spa,long service,java.time.OffsetDateTime from,java.time.OffsetDateTime until,Long ownHold,Long ownBooking){
@@ -41,11 +50,16 @@ public class SessionAllocation {
             and b.status in ('PENDING_PAYMENT','CONFIRMED','ARRIVED') and b.startTs<:until and b.endTs>:from
             """,Object[].class).setParameter("spa",spa.getId()).setParameter("exclude",ownBooking==null?-1L:ownBooking)
                 .setParameter("from",from).setParameter("until",until).getResultList());
-        rows.addAll(em.createQuery("""
-            select h.room.id,h.therapist.id,h.slot.startTs,h.slot.endTs from BookingHold h where h.spa.id=:spa and h.id<>:exclude and h.convertedToBooking=false
-            and h.expiresAt>:now and h.slot.startTs<:until and h.slot.endTs>:from
+        // A hold also keeps its add-on minutes after the slot.
+        for(var h:em.createQuery("""
+            select h.room.id,h.therapist.id,h.slot.startTs,h.slot.endTs,h.extraMinutes from BookingHold h where h.spa.id=:spa and h.id<>:exclude and h.convertedToBooking=false
+            and h.expiresAt>:now and h.slot.startTs<:until and h.slot.endTs>:earliest
             """,Object[].class).setParameter("spa",spa.getId()).setParameter("exclude",ownHold==null?-1L:ownHold)
-            .setParameter("now",java.time.OffsetDateTime.now()).setParameter("from",from).setParameter("until",until).getResultList());
+            .setParameter("now",java.time.OffsetDateTime.now()).setParameter("earliest",from.minusMinutes(com.nirvana.application.service.addons.BookingAddOns.MAX_EXTRA_MINUTES))
+            .setParameter("until",until).getResultList()){
+            var end=((java.time.OffsetDateTime)h[3]).plusMinutes(((Number)h[4]).intValue());
+            if(end.isAfter(from))rows.add(new Object[]{h[0],h[1],h[2],end});
+        }
         var zone=TherapistRoster.zone(spa);
         return new Snapshot(therapists.findActiveAvailableForSpaAndService(spa.getId(),service).stream().sorted(Comparator.comparing(Therapist::getId)).toList(),
             zone,roster.load(spa.getId(),from.atZoneSameInstant(zone).toLocalDate(),until.atZoneSameInstant(zone).toLocalDate()),
@@ -69,7 +83,10 @@ public class SessionAllocation {
             throw new IllegalStateException(TAKEN+"; choose a published therapist");
     }
     public Therapist choose(Slot slot,Long therapist,String type,Long hold,Long booking){
-        return eligible(slot,hold,booking).stream().filter(t->therapist==null || therapist.equals(t.getId()))
+        return choose(slot,therapist,type,hold,booking,0);
+    }
+    public Therapist choose(Slot slot,Long therapist,String type,Long hold,Long booking,int extraMinutes){
+        return eligible(slot,hold,booking,extraMinutes).stream().filter(t->therapist==null || therapist.equals(t.getId()))
                 .filter(t->type==null || type.isBlank() || type.equalsIgnoreCase(t.getType()))
                 .findFirst().orElseThrow(()->new IllegalStateException(TAKEN));
     }

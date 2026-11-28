@@ -27,6 +27,7 @@ public class SlotController {
 
     private final SlotAvailabilityService slotAvailabilityService;
     private final BookingHoldService bookingHoldService;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
     @GetMapping("/week")
     public WeekSlotsResponse getWeekSlots(
@@ -35,10 +36,12 @@ public class SlotController {
             @RequestParam(name = "date", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(name = "days", defaultValue = "7") @Min(1) @Max(14) int days,
-            @RequestParam(name = "guests", defaultValue = "1") @Min(1) int guests
+            @RequestParam(name = "guests", defaultValue = "1") @Min(1) int guests,
+            @RequestParam(name = "addOnIds", required = false) List<Long> addOnIds
     ) {
         LocalDate startDate = date != null ? date : LocalDate.now();
-        return slotAvailabilityService.getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests);
+        int extra = addOns.select(spaId, serviceId, addOnIds, guests).extraMinutes();
+        return slotAvailabilityService.getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, extra);
     }
 
     @GetMapping
@@ -46,9 +49,13 @@ public class SlotController {
             @PathVariable Long spaId,
             @PathVariable Long serviceId,
             @RequestParam(name = "date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(name = "guests", defaultValue = "1") @Min(1) int guests
+            @RequestParam(name = "guests", defaultValue = "1") @Min(1) int guests,
+            @RequestParam(name = "addOnIds", required = false) List<Long> addOnIds,
+            // Moving a booking that has add-ons: the minutes it was sold with (the server checks again on the move).
+            @RequestParam(name = "extraMinutes", defaultValue = "0") @Min(0) @Max(com.nirvana.application.service.addons.BookingAddOns.MAX_EXTRA_MINUTES) int extraMinutes
     ) {
-        return slotAvailabilityService.getAvailableSlotsForServiceOnDate(spaId, serviceId, date, guests);
+        int extra = Math.max(extraMinutes, addOns.select(spaId, serviceId, addOnIds, guests).extraMinutes());
+        return slotAvailabilityService.getAvailableSlotsForServiceOnDate(spaId, serviceId, date, guests, extra);
     }
 
     @PostMapping("/{slotId}/hold")

@@ -17,7 +17,15 @@ public final class GstDocumentHtml {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
 
+    /** A line of what the supply is made of: the treatment and each add-on, before any discount. */
+    public record Charge(String description, int quantity, long amountCents) {
+    }
+
     public static String render(GstDocument d, GstDocument original) {
+        return render(d, original, java.util.List.of());
+    }
+
+    public static String render(GstDocument d, GstDocument original, java.util.List<Charge> charges) {
         boolean taxed = d.taxCents() > 0 || (d.rateBps() != null && d.rateBps() > 0 && d.supplierGstin() != null);
         boolean intra = d.intraState();
         String half = d.rateBps() == null ? "" : GstMath.percent(d.rateBps() / 2);
@@ -58,6 +66,16 @@ public final class GstDocumentHtml {
         if (d.recipientEmail() != null) h.append("<p>").append(e(d.recipientEmail())).append("</p>");
         if (d.recipientPhone() != null) h.append("<p>").append(e(d.recipientPhone())).append("</p>");
         h.append("</div></section>");
+
+        // What the booking is made of, when it has add-ons.
+        if (charges != null && !charges.isEmpty()) {
+            h.append("<table class=\"items\"><thead><tr><th>Charges</th><th class=\"r\">Qty</th><th class=\"r\">Amount</th></tr></thead><tbody>");
+            for (Charge c : charges) {
+                h.append("<tr><td>").append(e(c.description())).append("</td><td class=\"r\">").append(c.quantity()).append("</td>")
+                        .append(cell(d, c.amountCents())).append("</tr>");
+            }
+            h.append("</tbody></table>");
+        }
 
         // The line.
         h.append("<table class=\"items\"><thead><tr><th>Description</th><th>SAC</th><th class=\"r\">Qty</th>");

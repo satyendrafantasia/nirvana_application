@@ -116,6 +116,10 @@ public class GstInvoiceService {
         int quantity = (int) Math.max(1, num(b.get("guest_count")));
         String serviceName = str(b.get("service_name"));
         String description = serviceName + (quantity > 1 ? " (" + quantity + " guests)" : "");
+        // Add-ons are part of the same supply; the printed document lists each one's amount.
+        var extras = db.queryForList("SELECT name FROM booking_addon WHERE booking_id=? ORDER BY id", String.class, bookingId);
+        if (!extras.isEmpty()) description += " with " + String.join(", ", extras);
+        if (description.length() > 500) description = description.substring(0, 497) + "...";
         Recipient guest = guest(spaId, num(b.get("user_id")));
 
         Draft d = new Draft();

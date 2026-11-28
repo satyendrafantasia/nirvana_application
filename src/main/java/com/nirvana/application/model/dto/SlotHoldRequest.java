@@ -30,6 +30,12 @@ public class SlotHoldRequest {
     @Max(30)
     private Integer holdMinutes = 10;
 
+    /** Add-ons the guest chose: their minutes are reserved after the slot. */
+    @jakarta.validation.constraints.Size(max = 10)
+    private java.util.List<Long> addOnIds;
+    public java.util.List<Long> getAddOnIds() { return addOnIds; }
+    public void setAddOnIds(java.util.List<Long> ids) { addOnIds = ids; }
+
     public Long getSpaId() {
         return spaId;
     }

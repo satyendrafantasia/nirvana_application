@@ -34,6 +34,7 @@ public class BookingHoldServiceImpl implements BookingHoldService {
     private final SessionAllocation allocation;
     private final ServiceRepository serviceRepository;
     private final UserRepository userRepository;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
     @Override
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -46,7 +47,8 @@ public class BookingHoldServiceImpl implements BookingHoldService {
                 .orElseThrow(() -> new EntityNotFoundException("Slot not found: " + request.getSlotId()));
 
         bookingHoldRepository.deleteByExpiresAtBefore(OffsetDateTime.now(ZoneOffset.UTC));
-        validateSlot(spa, service, slot, request.getGuests());
+        int extra = addOns.select(spa, service, request.getAddOnIds(), request.getGuests()).extraMinutes();
+        validateSlot(spa, service, slot, request.getGuests(), extra);
 
         OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Optional.ofNullable(request.getHoldMinutes()).orElse(10));
         BookingHold hold = new BookingHold();
@@ -54,7 +56,8 @@ public class BookingHoldServiceImpl implements BookingHoldService {
         hold.setTherapistPreference(SessionAllocation.preference(request.getTherapistId(),request.getTherapistType()));
         hold.setRequestedLabel(request.getTherapistType());
         hold.setRoom(slot.getRoom());
-        hold.setTherapist(allocation.choose(slot,request.getTherapistId(),request.getTherapistType(),null,null));
+        hold.setTherapist(allocation.choose(slot,request.getTherapistId(),request.getTherapistType(),null,null,extra));
+        hold.setExtraMinutes(extra);
         hold.setSpa(spa);
         hold.setServicesJson(service.getId().toString());
         hold.setSlot(slot);
@@ -69,7 +72,7 @@ public class BookingHoldServiceImpl implements BookingHoldService {
         return response;
     }
 
-    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests) {
+    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests, int extraMinutes) {
         if (!slot.getSpa().getId().equals(spa.getId())) {
             throw new IllegalArgumentException("Slot does not belong to Spa");
         }
@@ -80,7 +83,7 @@ public class BookingHoldServiceImpl implements BookingHoldService {
                 !Boolean.TRUE.equals(service.getIsActive()) || guests<service.getMinPersons() || guests>service.getMaxPersons())
             throw new IllegalStateException("Spa, service or guest count is unavailable");
         int held=bookingHoldRepository.findActiveHoldUnits(slot.getId(),OffsetDateTime.now());
-        availability.requireBookable(slot,guests,held);
+        availability.requireBookable(slot,guests,held,extraMinutes);
 
     }
 }

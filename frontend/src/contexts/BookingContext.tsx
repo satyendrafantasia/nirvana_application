@@ -2,6 +2,7 @@ import { createContext, ReactNode, useState, useEffect } from 'react';
 import { Service } from '../types/spa';
 import { useAuth } from '../hooks/useAuth';
 import { Slot } from '../types/booking';
+import { AddOn } from '../api/addOnApi';
 
 interface BookingState {
   holdToken?: string;
@@ -10,6 +11,8 @@ interface BookingState {
   spaId?: string;
   spaName?: string;
   service?: Service;
+  /** Chosen with the treatment; their minutes lengthen the slot. */
+  addOns?: AddOn[];
   availabilityDate?: string;
   slot?: string;
   selectedSlot?: Slot;
@@ -26,6 +29,7 @@ interface BookingContextValue {
   state: BookingState;
   setSpa: (spaId: string, spaName?: string) => void;
   setService: (service: Service) => void;
+  setAddOns: (addOns: AddOn[]) => void;
   setAvailabilityDate: (date: string) => void;
   setSlot: (slot?: Slot) => void;
   setGuests: (guests: number) => void;
@@ -54,11 +58,12 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<BookingState>({
     bookingSource: 'WEB',
     guests: 1,
+    addOns: [],
     paymentMode: 'ONLINE'
   });
 
   useEffect(() => {
-    if (!user) setState({ bookingSource: 'WEB', guests: 1, paymentMode: 'ONLINE' });
+    if (!user) setState({ bookingSource: 'WEB', guests: 1, addOns: [], paymentMode: 'ONLINE' });
   }, [user]);
   const setSpa = (spaId: string, spaName?: string) =>
     setState((prev) => ({
@@ -66,6 +71,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       spaId,
       spaName,
       service: undefined,
+      addOns: [],
       availabilityDate: undefined,
       preferredTherapistName: undefined,
       therapistId: undefined,
@@ -75,12 +81,16 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     setState((prev) => ({
       ...withSelectedSlot(prev),
       service,
+      addOns: [],
       availabilityDate: new Date().toLocaleDateString('en-CA'),
       preferredTherapistName: undefined,
       guests: service.minPersons || 1,
       therapistId: undefined,
       therapistType: undefined
     }));
+  // A different length needs a different time: the chosen slot and its hold no longer fit.
+  const setAddOns = (addOns: AddOn[]) =>
+    setState(prev => ({ ...withSelectedSlot(prev), addOns }));
   const setSlot = (selectedSlot?: Slot) =>
     setState(prev => withSelectedSlot(prev, selectedSlot));
   const setGuests = (guests: number) =>
@@ -94,7 +104,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
   const setNotes = (notes: string) => setState((prev) => ({ ...prev, notes }));
   const setHold = (holdToken: string, holdExpiresAt: string, heldTherapistName?: string) =>
     setState((prev) => ({ ...prev, holdToken, holdExpiresAt, heldTherapistName }));
-  const reset = () => setState({ bookingSource: 'WEB', guests: 1, paymentMode: 'ONLINE' });
+  const reset = () => setState({ bookingSource: 'WEB', guests: 1, addOns: [], paymentMode: 'ONLINE' });
 
   return (
     <BookingContext.Provider
@@ -103,6 +113,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
         setHold,
         setSpa,
         setService,
+        setAddOns,
         setAvailabilityDate,
         setSlot,
         setGuests,

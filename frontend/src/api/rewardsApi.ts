@@ -1,6 +1,7 @@
 import client from './client';
 import { loadRazorpay } from './paymentApi';
 import { RazorpayResult } from '../types/payment';
+import { BookedAddOn } from './addOnApi';
 
 // ---------------------------------------------------------------- loyalty points
 
@@ -95,6 +96,7 @@ export interface CheckoutPreviewInput {
   redeemLoyaltyPoints?: boolean;
   giftCardCode?: string;
   useWalletCredit?: boolean;
+  addOnIds?: number[];
 }
 
 export interface CheckoutPreview {
@@ -116,6 +118,10 @@ export interface CheckoutPreview {
   walletBalanceCents?: number;
   walletError?: string;
   payableCents: number;
+  /** The treatment for all guests; priceCents adds the add-ons. */
+  serviceCents?: number;
+  addOns?: BookedAddOn[];
+  extraMinutes?: number;
 }
 
 export const previewCheckout = async (input: CheckoutPreviewInput) =>
@@ -132,7 +138,12 @@ export interface CheckoutLine {
  * points, tax, total, gift card, and what is left to pay.
  */
 export function checkoutLines(p: CheckoutPreview): CheckoutLine[] {
-  const lines: CheckoutLine[] = [{ label: 'Treatment', cents: p.priceCents, kind: 'charge' }];
+  const addOns = p.addOns ?? [];
+  const lines: CheckoutLine[] = [
+    { label: 'Treatment', cents: addOns.length && p.serviceCents != null ? p.serviceCents : p.priceCents, kind: 'charge' }
+  ];
+  for (const a of addOns)
+    lines.push({ label: a.quantity > 1 ? `${a.name} × ${a.quantity}` : a.name, cents: a.amountCents, kind: 'charge' });
   if (p.discountCents > 0)
     lines.push({ label: p.couponCode ? `Discounts (coupon ${p.couponCode})` : 'Off-peak discount', cents: -p.discountCents, kind: 'discount' });
   if (p.pointsCents > 0)

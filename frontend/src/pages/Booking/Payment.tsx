@@ -124,8 +124,11 @@ export default function Payment({
   // Razorpay first when it's switched on; pay at spa when it isn't, or when the guest chose it.
   const method = options.data?.online ? (state.paymentMode ?? 'ONLINE') : 'OFFLINE';
   const byPackage = usePackage || useSpaPackage;
+  const addOnIds = (state.addOns ?? []).map((a) => a.id);
+  // A package session pays for the treatment only, so add-ons are paid another way.
+  const packageBlocked = addOnIds.length > 0;
   const preview = useQuery({
-    queryKey: ['checkout-preview', state.spaId, state.service?.id, state.selectedSlot?.id, state.guests, applied, loyalty, useWallet],
+    queryKey: ['checkout-preview', state.spaId, state.service?.id, state.selectedSlot?.id, state.guests, addOnIds, applied, loyalty, useWallet],
     enabled: !!state.spaId && !!state.service && !byPackage && !created,
     placeholderData: (previous) => previous,
     queryFn: () =>
@@ -134,6 +137,7 @@ export default function Payment({
         serviceId: state.service!.id,
         slotId: state.selectedSlot?.id,
         guests: state.guests,
+        addOnIds: addOnIds.length ? addOnIds : undefined,
         couponCode: applied.coupon || undefined,
         redeemLoyaltyPoints: loyalty,
         giftCardCode: useWallet ? undefined : applied.giftCard || undefined,
@@ -166,6 +170,7 @@ export default function Payment({
           serviceId: state.service.id,
           slotId: state.selectedSlot.id,
           guests: state.guests,
+          addOnIds: addOnIds.length ? addOnIds : undefined,
           therapistId: state.therapistId,
           therapistType: state.therapistType,
           paymentMode: method,
@@ -294,6 +299,7 @@ export default function Payment({
           <input
             type="checkbox"
             checked={usePackage}
+            disabled={packageBlocked}
             onChange={(e) => {
               setUsePackage(e.target.checked);
               setUseSpaPackage(false);
@@ -305,6 +311,7 @@ export default function Payment({
           <input
             type="checkbox"
             checked={useSpaPackage}
+            disabled={packageBlocked}
             onChange={(e) => {
               setUseSpaPackage(e.target.checked);
               setUsePackage(false);
@@ -312,6 +319,9 @@ export default function Payment({
           />{' '}
           Use a package I bought for this spa
         </label>
+        {packageBlocked && (
+          <p className="text-sm text-slate-600">Package sessions can't pay for add-ons. Remove the add-ons to use a package.</p>
+        )}
         <label className="block">
           Special requests
           <textarea

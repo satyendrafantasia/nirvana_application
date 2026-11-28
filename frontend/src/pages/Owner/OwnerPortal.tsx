@@ -15,6 +15,7 @@ import Drafts from '../Staff/Drafts';
 import SpaSettings from '../Staff/SpaSettings';
 import Schedule from './Schedule';
 import OwnerCatalog from './OwnerCatalog';
+import OwnerAddOns from './OwnerAddOns';
 import ClaimListing from './ClaimListing';
 import Media from '../Staff/Media';
 import FrontDeskTeam from './FrontDeskTeam';
@@ -236,6 +237,7 @@ function Portal() {
                   kind={section as 'therapists' | 'services' | 'packages'}
                 />
               )}
+              {section === 'services' && full && <OwnerAddOns key={'add-ons-' + id} spaId={id} />}
               {section === 'settings' && (
                 <Link className="underline text-primary-700" to={'/spas/' + id}>
                   Preview public spa profile

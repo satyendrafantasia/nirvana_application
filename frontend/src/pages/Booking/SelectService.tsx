@@ -7,13 +7,14 @@ import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { Spa } from '../../types/spa';
 import Spinner from '../../components/common/Spinner';
+import AddOnPicker from '../../components/booking/AddOnPicker';
 
 interface SelectServiceProps {
   onNext: () => void;
 }
 
 const SelectService = ({ onNext }: SelectServiceProps) => {
-  const { state, setSpa, setService } = useBookingFlow();
+  const { state, setSpa, setService, setAddOns } = useBookingFlow();
 
   const {
     data: spas,
@@ -68,6 +69,17 @@ const SelectService = ({ onNext }: SelectServiceProps) => {
             <ServiceCard key={service.id} service={service} onBook={(svc) => { setService(svc); track('select_service'); }} />
           ))}
         </div>
+      )}
+
+      {state.spaId && state.service && (
+        <AddOnPicker
+          spaId={state.spaId}
+          serviceId={state.service.id}
+          durationMinutes={state.service.durationMinutes}
+          guests={state.guests}
+          selected={state.addOns ?? []}
+          onChange={setAddOns}
+        />
       )}
     </div>
   );

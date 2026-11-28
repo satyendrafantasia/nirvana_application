@@ -40,6 +40,7 @@ public class RewardsController {
     private final SpaRepository spas;
     private final ServiceRepository services;
     private final SlotRepository slots;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
     public record Loyalty(int balance, int pointValuePaise, int maxRedeemPercent, int pointsPer100Rupees, int expiryMonths,
                           int expiringSoonPoints, Instant expiringSoonAt, List<LoyaltyLedger.Entry> history) {
@@ -71,18 +72,23 @@ public class RewardsController {
     }
 
     public record PreviewInput(@NotNull Long spaId, @NotNull Long serviceId, Long slotId, @NotNull @Min(1) @Max(20) Integer guests,
-                               @Size(max = 64) String couponCode, Boolean redeemLoyaltyPoints, @Size(max = 32) String giftCardCode, Boolean useWalletCredit) {
+                               @Size(max = 64) String couponCode, Boolean redeemLoyaltyPoints, @Size(max = 32) String giftCardCode, Boolean useWalletCredit,
+                               @Size(max = 10) java.util.List<Long> addOnIds) {
     }
 
     /**
      * Everything the checkout will charge, line by line, before anything is booked or spent.
      * A coupon or gift card that cannot be used is left out and explained instead of failing.
      */
-    /** discountCents is coupon plus off-peak; points are shown on their own line. */
+    /**
+     * discountCents is coupon plus off-peak; points are shown on their own line. priceCents is the
+     * treatment (serviceCents) plus the add-ons, each listed in addOns.
+     */
     public record Preview(String currency, int priceCents, int discountCents, String couponCode, String couponError,
                          int pointsRedeemed, int pointsCents, int pointsBalance, int taxCents,
                          int totalCents, int giftCardCents, int giftCardBalanceCents, String giftCardError, int payableCents,
-                         int walletCents, int walletBalanceCents, String walletError) {
+                         int walletCents, int walletBalanceCents, String walletError,
+                         int serviceCents, java.util.List<com.nirvana.application.service.addons.BookingAddOns.Line> addOns, int extraMinutes) {
     }
 
     @PostMapping("/api/v1/checkout/preview")
@@ -94,20 +100,22 @@ public class RewardsController {
         var service = services.findByIdAndSpa_Id(input.serviceId(), spa.getId()).orElseThrow(() -> new EntityNotFoundException("Treatment not found"));
         Slot slot = input.slotId() == null ? null : slots.findById(input.slotId()).filter(s -> s.getSpa() != null && s.getSpa().getId().equals(spa.getId())).orElse(null);
         int unit = service.getPriceCents() != null ? service.getPriceCents() : (service.getBasePriceCents() != null ? service.getBasePriceCents() : 0);
-        int price = unit * input.guests();
+        int serviceCents = unit * input.guests();
+        var chosen = addOns.select(spa, service, input.addOnIds(), input.guests());
+        int price = Math.addExact(serviceCents, chosen.totalCents());
         boolean points = Boolean.TRUE.equals(input.redeemLoyaltyPoints());
 
         String couponError = null;
         PricingService.PricingResult withCoupon = null;
         if (input.couponCode() != null && !input.couponCode().isBlank()) {
             try {
-                withCoupon = pricing.evaluatePricing(user, spa, service, slot, input.guests(), price, input.couponCode(), points);
+                withCoupon = pricing.evaluatePricing(user, spa, service, slot, input.guests(), serviceCents, chosen.totalCents(), input.couponCode(), points);
             } catch (ResponseStatusException rejected) {
                 couponError = rejected.getReason();
             }
         }
         PricingService.PricingResult priced = withCoupon != null ? withCoupon
-                : pricing.evaluatePricing(user, spa, service, slot, input.guests(), price, null, points);
+                : pricing.evaluatePricing(user, spa, service, slot, input.guests(), serviceCents, chosen.totalCents(), null, points);
         int pointsCents = CheckoutMath.pointsValue(priced.loyaltyPointsRedeemed(), rules);
         int otherDiscount = Math.max(0, priced.discountCents() - pointsCents);
 
@@ -132,6 +140,7 @@ public class RewardsController {
         return new Preview(currency, price, otherDiscount, priced.appliedCouponCode(), couponError,
                 lines.pointsRedeemed(), lines.pointsPaise(), ledger.spendable(userId), lines.taxPaise(), lines.totalPaise(),
                 useWallet ? 0 : lines.giftCardPaise(), useWallet ? 0 : giftBalance, useWallet ? null : giftError, lines.payablePaise(),
-                useWallet ? lines.giftCardPaise() : 0, useWallet ? giftBalance : 0, useWallet ? giftError : null);
+                useWallet ? lines.giftCardPaise() : 0, useWallet ? giftBalance : 0, useWallet ? giftError : null,
+                serviceCents, chosen.lines(), chosen.extraMinutes());
     }
 }

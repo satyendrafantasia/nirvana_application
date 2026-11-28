@@ -3,6 +3,7 @@ import { BookingSummary } from '../../types/booking';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { useState } from 'react';
 import HealthForm from '../../components/health/HealthForm';
+import BookedAddOnLines from '../../components/booking/BookedAddOnLines';
 
 interface BookingConfirmationProps {
   summary: BookingSummary | null;
@@ -42,6 +43,7 @@ const BookingConfirmation = ({ summary, onRestart }: BookingConfirmationProps) =
           <p className="text-lg font-semibold text-slate-900">{summary.spaName}</p>
           <p className="text-sm text-slate-500">Service</p>
           <p className="text-lg font-semibold text-slate-900">{summary.service.name}</p>
+          <BookedAddOnLines addOns={summary.addOns} />
           <p className="text-sm text-slate-500">Date and time</p>
           <time dateTime={summary.slot}>{new Date(summary.slot).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</time>
           {summary.therapistName && <p>Therapist: {summary.therapistName}</p>}

@@ -33,4 +33,6 @@ public class BookingSummaryResponse {
     boolean invoiceAvailable;
     boolean canCancel;
     String cancellationReason;
+    /** The add-ons on this booking, as they were sold; empty when none. */
+    java.util.List<com.nirvana.application.service.addons.BookingAddOns.Line> addOns;
 }

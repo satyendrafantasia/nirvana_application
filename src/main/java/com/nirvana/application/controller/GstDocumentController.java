@@ -30,6 +30,7 @@ public class GstDocumentController {
     private final StaffAccess access;
     private final JdbcTemplate db;
     private final com.nirvana.application.service.impl.PaymentService payments;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
     /** What a list shows of a document. */
     public record DocumentView(Long id, String docType, String title, String documentNumber, LocalDate issueDate,
@@ -82,7 +83,20 @@ public class GstDocumentController {
                 .header("Content-Disposition", "inline; filename=" + file)
                 .header("X-Content-Type-Options", "nosniff")
                 .contentType(new MediaType(MediaType.TEXT_HTML, java.nio.charset.StandardCharsets.UTF_8))
-                .body(GstDocumentHtml.render(d, original));
+                .body(GstDocumentHtml.render(d, original, charges(d)));
+    }
+
+    /** The treatment and each add-on as separate lines, for a booking's invoice that has add-ons. */
+    private List<GstDocumentHtml.Charge> charges(GstDocument d) {
+        if (d.bookingId() == null || GstDocument.CREDIT_NOTE.equals(d.docType()) || GstDocument.COMMISSION_INVOICE.equals(d.docType())) return List.of();
+        var chosen = addOns.forBooking(d.bookingId());
+        if (chosen.isEmpty()) return List.of();
+        var booking = db.queryForMap("SELECT b.price_cents,b.guest_count,s.name FROM booking b JOIN service s ON s.id=b.service_id WHERE b.id=?", d.bookingId());
+        var charges = new java.util.ArrayList<GstDocumentHtml.Charge>();
+        charges.add(new GstDocumentHtml.Charge((String) booking.get("name"), Math.max(1, ((Number) booking.get("guest_count")).intValue()),
+                ((Number) booking.get("price_cents")).longValue() - chosen.totalCents()));
+        for (var line : chosen.lines()) charges.add(new GstDocumentHtml.Charge(line.name(), line.quantity(), line.amountCents()));
+        return charges;
     }
 
     /** The guest, the spa's desk, or an admin; Nirvana's commission invoices only to the owner and admins. */

@@ -69,6 +69,14 @@ public class BookingCreateRequest {
     public String getGiftCardCode() { return giftCardCode; }
     public void setGiftCardCode(String value) { giftCardCode = value; }
 
+    /** Left out of the JSON when empty, so the checkout-key fingerprint of a booking without add-ons is unchanged. */
+    @Size(max = 10)
+    @Schema(description = "Add-ons chosen with the treatment; the server prices them", example = "[12, 15]")
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+    private java.util.List<Long> addOnIds;
+    public java.util.List<Long> getAddOnIds() { return addOnIds; }
+    public void setAddOnIds(java.util.List<Long> ids) { addOnIds = ids; }
+
     @Schema(description = "Hold token for reserved slot if applicable")
     private String holdToken;
 

@@ -57,5 +57,7 @@ public record InvoiceResponseDto(
         Long sgstCents,
         Long igstCents,
         /** Such as "18%". */
-        String rateLabel
+        String rateLabel,
+        /** The add-ons on the booking; amountCents is the treatment plus these. */
+        java.util.List<com.nirvana.application.service.addons.BookingAddOns.Line> addOns
 ) {}
