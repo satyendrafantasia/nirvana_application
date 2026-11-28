@@ -1,9 +1,10 @@
-import { lazy } from 'react';
+import { lazy, Suspense, useLayoutEffect, useRef } from 'react';
+import { RememberSearchLink } from '../pages/Discovery/PlaceDetailsLink';
 const Support = lazy(() => import('../pages/Support/Support'));
 import TrustPage from '../pages/Static/TrustPage';
 import { AboutPage, ContactPage } from '../pages/Static/CompanyPages';
 const Discovery = lazy(() => import('../pages/Discovery/Discovery'));
-import { Route, Routes } from 'react-router-dom';
+import { matchPath, Route, Routes, useLocation, type Location } from 'react-router-dom';
 const PlacePage = lazy(() => import('../pages/Discovery/PlacePage'));
 const Packages = lazy(() => import('../pages/Packages/Packages'));
 const MyPackages = lazy(() => import('../pages/Packages/MyPackages'));
@@ -38,8 +39,56 @@ import { isAdmin, isStaff } from '../auth/roles';
 import { RequireAuth } from '../components/layout/RequireAuth';
 
 const AppRouter = () => {
+  const location = useLocation();
+  const search = useRef<{
+    location: Location; scrollY: number; link: HTMLAnchorElement; restoration: ScrollRestoration;
+  }>();
+  const origin = search.current;
+  const showingDetails = !!origin && location.state?.discoveryFrom === origin.location.key &&
+    !!matchPath('/discover/places/:placeId', location.pathname);
+  const wasShowingDetails = useRef(false);
+  useLayoutEffect(() => {
+    let frame: number | undefined;
+    if (!showingDetails && origin) {
+      if (location.key !== origin.location.key) {
+        window.history.scrollRestoration = origin.restoration;
+        search.current = undefined;
+      } else if (wasShowingDetails.current) {
+        origin.link.focus({ preventScroll: true });
+        const restorePosition = () => window.scrollTo({ top: origin.scrollY, behavior: 'instant' });
+        restorePosition();
+        frame = window.requestAnimationFrame(restorePosition);
+      }
+    }
+    wasShowingDetails.current = showingDetails;
+    return () => { if (frame !== undefined) window.cancelAnimationFrame(frame); };
+  }, [location.key, origin, showingDetails]);
+
+  // Keep the search mounted for this detail visit. Google results stay in component memory.
   return (
-    <Routes>
+    <RememberSearchLink.Provider value={link => {
+      const restoration = search.current?.restoration ?? window.history.scrollRestoration;
+      // The browser cannot restore scroll against the hidden search DOM during a history traversal.
+      window.history.scrollRestoration = 'manual';
+      search.current = { location, scrollY: window.scrollY, link, restoration };
+    }}>
+      <div hidden={showingDetails}>
+        <PageRoutes location={showingDetails ? origin.location : location} />
+      </div>
+      {showingDetails && (
+        <Suspense fallback={<p role="status">Loading spa details…</p>}>
+          <Routes>
+            <Route path="/discover/places/:placeId" element={<RequireAuth><PlacePage fromSearch /></RequireAuth>} />
+          </Routes>
+        </Suspense>
+      )}
+    </RememberSearchLink.Provider>
+  );
+};
+
+function PageRoutes({ location }: { location: Location }) {
+  return (
+    <Routes location={location}>
       <Route path="/discover/places/:placeId" element={<RequireAuth><PlacePage /></RequireAuth>} />
       <Route
         path="/discover"
@@ -194,6 +243,6 @@ const AppRouter = () => {
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
-};
+}
 
 export default AppRouter;

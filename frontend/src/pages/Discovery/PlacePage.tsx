@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import client, { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
@@ -100,7 +100,8 @@ export function placeProfile(
   };
 }
 
-export default function PlacePage() {
+export default function PlacePage({ fromSearch = false }: { fromSearch?: boolean }) {
+  const navigate = useNavigate();
   const { placeId = '' } = useParams();
   const query = useQuery({
     queryKey: ['google-place-profile', placeId],
@@ -115,7 +116,7 @@ export default function PlacePage() {
     refetchOnWindowFocus: false
   });
   useEffect(() => {
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [placeId]);
   useEffect(() => {
     if (query.data?.displayName?.text) document.title = query.data.displayName.text + ' | Nirvana';
@@ -125,13 +126,14 @@ export default function PlacePage() {
       <SpaProfile
         key={placeId}
         {...placeProfile(query.data)}
-        back={{ to: '/discover', label: 'Search spas' }}
+        back={fromSearch ? { onClick: () => navigate(-1), label: 'Back to results' } : { to: '/discover', label: 'Search spas' }}
         source={<Attribution place={query.data} />}
         media={<PlaceGallery place={query.data} />}
       />
     );
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
+      {fromSearch && <button type="button" className="mb-5 font-medium text-primary-700" onClick={() => navigate(-1)}>← Back to results</button>}
       {query.isPending && <p role="status">Loading spa details…</p>}
       {query.isError && (
         <div role="alert">

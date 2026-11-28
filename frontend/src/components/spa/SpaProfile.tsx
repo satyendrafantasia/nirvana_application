@@ -1,5 +1,5 @@
 import { AppointmentForm, usePolicy, modeText } from '../../pages/Owner/AppointmentOperations';
-import { ReactNode, useState } from 'react';
+import { type MouseEvent, ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,7 +32,7 @@ export type ProfileReview = {
 };
 
 export type SpaProfileProps = {
-  back: { to: string; label: string };
+  back: { to: string; label: string } | { onClick: () => void; label: string };
   name: string;
   address?: string;
   rating?: number;
@@ -370,6 +370,19 @@ export function SpaPackages({ spaId }: { spaId: string }) {
 export default function SpaProfile(p: SpaProfileProps) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  // Section jumps belong to this detail visit; Back should still return to its search.
+  const jumpToSection = (event: MouseEvent<HTMLAnchorElement>) => {
+    if ('to' in p.back || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const hash = event.currentTarget.hash;
+    const section = document.getElementById(hash.slice(1));
+    if (!section) return;
+    event.preventDefault();
+    navigate({ pathname: location.pathname, search: location.search, hash }, {
+      replace: true, state: location.state, preventScrollReset: true
+    });
+    section.scrollIntoView();
+  };
   const policy = usePolicy(user ? p.spaId : undefined);
   const mode = user ? policy.data?.mode : undefined;
   const signInFor = (section: string) =>
@@ -381,9 +394,15 @@ export default function SpaProfile(p: SpaProfileProps) {
   const hasMore = !!(p.phone || p.website || p.email || p.hours?.length);
   return (
     <div className="spa-profile mx-auto max-w-6xl px-4 py-6 sm:py-10">
-      <Link to={p.back.to} className="mb-5 inline-block font-medium text-primary-700">
-        ← {p.back.label}
-      </Link>
+      {'to' in p.back ? (
+        <Link to={p.back.to} className="mb-5 inline-block font-medium text-primary-700">
+          ← {p.back.label}
+        </Link>
+      ) : (
+        <button type="button" onClick={p.back.onClick} className="mb-5 font-medium text-primary-700">
+          ← {p.back.label}
+        </button>
+      )}
 
       <header className="spa-hero">
         <div className="flex min-w-0 flex-col justify-center gap-5 p-6 sm:p-10">
@@ -403,7 +422,7 @@ export default function SpaProfile(p: SpaProfileProps) {
             {p.spaId && mode && <span className="spa-chip spa-chip-open">{modeText[mode]}</span>}
           </div>
           <div className="flex flex-wrap gap-3 border-t border-primary-100 pt-5">
-            <Button as="a" href="#services">
+            <Button as="a" href="#services" onClick={jumpToSection}>
               {p.spaId ? 'Choose a treatment' : 'Services & prices'}
             </Button>
             <Button as="a" variant="secondary" href={directions} target="_blank" rel="noreferrer">
@@ -417,7 +436,7 @@ export default function SpaProfile(p: SpaProfileProps) {
 
       <nav aria-label="On this page" className="spa-tabs">
         {SECTIONS.map(([id, label]) => (
-          <a key={id} href={`#${id}`}>
+          <a key={id} href={`#${id}`} onClick={jumpToSection}>
             {label}
           </a>
         ))}

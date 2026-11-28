@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client, { errorMessage } from '../../api/client';
 import Button from '../../components/common/Button';
+import PlaceDetailsLink from './PlaceDetailsLink';
 import Input from '../../components/common/Input';
 
 type Point = { latitude: number; longitude: number };
@@ -66,7 +67,7 @@ export function DiscoveryCard({ place }: { place: GooglePlace }) {
             Book on Nirvana
           </Button>
         )}
-        <Button as={Link} to={`/discover/places/${encodeURIComponent(place.id)}`} variant={place.nirvanaSpaId ? 'secondary' : 'primary'}>
+        <Button as={PlaceDetailsLink} placeId={place.id} variant={place.nirvanaSpaId ? 'secondary' : 'primary'}>
           View details
         </Button>
       </div>

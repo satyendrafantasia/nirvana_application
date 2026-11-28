@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import client from '../../api/client';
+import PlaceDetailsLink from './PlaceDetailsLink';
 import type { GooglePlace, Photo, Author } from './Discovery';
 export const safeUrl = (url?: string) => (url && /^https?:\/\//i.test(url) ? url : undefined);
 export const mapsUrl = (place: GooglePlace) =>
@@ -106,6 +107,14 @@ export function SpaPhoto({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [photo.name, place.id, attempt, cover]);
+  const photoImage = url && (
+    <img
+      className={cover ? 'h-full w-full object-cover' : 'w-full rounded-lg object-contain max-h-72'}
+      src={url}
+      alt={`Photo of ${place.displayName?.text || 'this spa'}`}
+      onError={() => setFailed(true)}
+    />
+  );
   return (
     <figure ref={frame} className={cover ? 'relative h-full bg-primary-50' : 'space-y-1'}>
       {failed && cover ? (
@@ -118,24 +127,13 @@ export function SpaPhoto({
           </button>
         </p>
       ) : url ? (
-        <a
-          href={
-            cover
-              ? `/discover/places/${encodeURIComponent(place.id)}`
-              : safeUrl(photo.googleMapsUri) || mapsUrl(place)
-          }
-          target={cover ? undefined : '_blank'}
-          rel="noreferrer"
-        >
-          <img
-            className={
-              cover ? 'h-full w-full object-cover' : 'w-full rounded-lg object-contain max-h-72'
-            }
-            src={url}
-            alt={`Photo of ${place.displayName?.text || 'this spa'}`}
-            onError={() => setFailed(true)}
-          />
-        </a>
+        cover ? (
+          <PlaceDetailsLink placeId={place.id}>{photoImage}</PlaceDetailsLink>
+        ) : (
+          <a href={safeUrl(photo.googleMapsUri) || mapsUrl(place)} target="_blank" rel="noreferrer">
+            {photoImage}
+          </a>
+        )
       ) : cover ? null : (
         <p role="status">Loading photo…</p>
       )}
