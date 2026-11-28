@@ -14,6 +14,7 @@ import GroupBooking from './GroupBooking';
 import Button from '../../components/common/Button';
 import { useBookingFlow } from '../../hooks/useBookingFlow';
 import { BookingSummary } from '../../types/booking';
+import './appointment.css';
 
 const steps = ['Service', 'Time & therapist', 'Review', 'Payment', 'Done'];
 
@@ -66,18 +67,18 @@ const Booking = () => {
   if (pathname === '/booking/receipt' && !summary) return <Navigate replace to="/me/bookings" />;
   if (grouping && party > 1 && state.spaId)
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="booking-step rounded-3xl bg-white p-6 shadow-card">
+      <div className="appointment-shell">
+        <div className="booking-step appointment-panel">
           <GroupBooking spaId={state.spaId} spaName={state.spaName} size={party} firstService={state.service?.id}
             onBack={() => setGrouping(false)} />
         </div>
       </div>
     );
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="appointment-shell">
       {recovered.data?.reference && <p className="card p-4" role="status">Your previous checkout created booking {recovered.data.reference} · {recovered.data.status}. <a href="/me/bookings">Open My bookings</a></p>}
       <StepIndicator currentStep={currentStep>2?currentStep-1:currentStep} steps={steps} />
-      <div key={currentStep} ref={panel} className="booking-step mt-6 rounded-3xl bg-white p-6 shadow-card">
+      <div key={currentStep} ref={panel} className="booking-step appointment-panel">
         {currentStep === 1 && (
           <div className="space-y-6">
             <GuestCountPicker value={party} onChange={setParty} />

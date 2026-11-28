@@ -1,0 +1,100 @@
+.appointment-shell {
+  --ink: #213e34;
+  --muted: #55675d;
+  --line: #dce3d8;
+  width: min(100% - 2rem, 66rem);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 3.25rem) 0;
+  color: var(--ink);
+}
+.appointment-progress {
+  display: flex;
+  gap: clamp(.35rem, 2vw, 1.5rem);
+  margin: 0 0 clamp(1.25rem, 3vw, 2rem);
+  padding: 0;
+  list-style: none;
+}
+.appointment-progress li {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: 0 0 .7rem;
+  border-bottom: 3px solid var(--line);
+  color: var(--muted);
+  font-size: .85rem;
+  line-height: 1.25;
+}
+.progress-index {
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.55rem;
+  height: 1.55rem;
+  border: 1px solid #aab9ab;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+  font-size: .75rem;
+}
+.appointment-progress .is-complete { border-color: #9eaf98; }
+.is-complete > .progress-index { background: #e5ecdf; border-color: transparent; color: var(--ink); }
+.appointment-progress [aria-current="step"] { border-color: var(--ink); color: var(--ink); font-weight: 700; }
+[aria-current="step"] > .progress-index { background: var(--ink); border-color: var(--ink); color: white; }
+.appointment-panel {
+  padding: clamp(1.1rem, 3vw, 2.5rem);
+  background: #fffefa;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  box-shadow: 0 12px 40px #243b2610;
+}
+.review-heading { margin-bottom: clamp(1rem, 2.6vw, 1.85rem); }
+.review-heading h2, .review-treatment h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 400;
+  letter-spacing: -.045em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+.review-heading p { margin-top: .55rem; color: var(--muted); font-size: .95rem; }
+.review-layout { display: grid; grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: clamp(1.2rem, 4vw, 3rem); align-items: start; }
+.review-treatment {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border-radius: 1rem;
+  min-height: 18.5rem;
+  background: #234338;
+  color: #fffefa;
+}
+.review-treatment img, .review-treatment::after { position: absolute; inset: 0; width: 100%; height: 100%; }
+.review-treatment img { z-index: -2; object-fit: cover; object-position: 50% 40%; }
+.review-treatment::after { content: ''; z-index: -1; background: linear-gradient(180deg, transparent 0%, #10291f8a 42%, #0d241df2 100%); }
+.review-treatment-copy { width: 100%; padding: clamp(1.2rem, 3vw, 2rem); background: linear-gradient(0deg, #0e261fd9, #0e261f99 75%, transparent); overflow-wrap: anywhere; }
+.review-treatment-copy p { margin: 0 0 .5rem; font-size: .82rem; font-weight: 600; letter-spacing: .035em; }
+.review-treatment h3 { font-size: clamp(1.9rem, 3.6vw, 2.75rem); }
+.review-treatment-copy > span { display: inline-block; margin-top: .9rem; font-size: .83rem; }
+.review-itinerary { min-width: 0; overflow-wrap: anywhere; }
+.review-facts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 1.35rem; }
+.review-facts > div { border-bottom: 1px solid var(--line); padding: .8rem 0 1rem; }
+.review-facts dt { color: var(--muted); font-size: .76rem; }
+.review-facts dd { margin-top: .22rem; font-weight: 600; font-size: 1.04rem; }
+.review-pricing { background: #eef2e8; border-radius: .85rem; margin-top: 1.2rem; padding: 1rem 1.15rem; }
+.review-pricing h3 { font: inherit; font-weight: 650; letter-spacing: normal; }
+.review-pricing p, .review-pricing small { font-size: .81rem; color: var(--muted); }
+.review-pricing ul { display: grid; gap: .45rem; margin: .5rem 0; font-size: .9rem; }
+.review-pricing li, .review-subtotal { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .25rem .85rem; }
+.review-pricing ul ~ .review-subtotal { border-top: 1px solid #cbd7c5; margin-top: .85rem; padding-top: .85rem; }
+.review-subtotal strong { font-size: clamp(1.35rem, 2.6vw, 1.9rem); letter-spacing: -.045em; }
+.review-actions { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; }
+.review-actions button { min-height: 44px; }
+.review-actions button:last-child { background: var(--ink); border-radius: 999px; padding-inline: 1.6rem; gap: .85rem; }
+.review-actions button:last-child:hover { background: #345341; }
+@media (max-width: 700px) {
+  .review-layout { grid-template-columns: 1fr; gap: .7rem; }
+  .review-treatment { min-height: 11.5rem; }
+  .appointment-progress li { flex-direction: column; align-items: flex-start; justify-content: flex-start; font-size: .72rem; gap: .4rem; }
+  .progress-index { flex: 0 0 auto; width: 1.55rem; }
+}
