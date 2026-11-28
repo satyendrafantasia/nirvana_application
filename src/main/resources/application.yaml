@@ -328,6 +328,34 @@ guest-alerts:
       moved: ${GUEST_WHATSAPP_TEMPLATE_MOVED:nirvana_guest_booking_moved}
       cancelled: ${GUEST_WHATSAPP_TEMPLATE_CANCELLED:nirvana_guest_booking_cancelled}
 
+# Reminders for checkouts left unpaid (still waiting for payment, or expired unpaid). One per
+# checkout, at most one per guest per per-user-hours, never after the guest booked, cancelled on
+# purpose or opted out. See docs/checkout-recovery.md.
+checkout-recovery:
+  enabled: ${CHECKOUT_RECOVERY_ENABLED:true}
+  # Remind this long after the guest started the checkout...
+  delay-minutes: ${CHECKOUT_RECOVERY_DELAY_MINUTES:40}
+  # ...but not for checkouts older than this.
+  max-age-minutes: ${CHECKOUT_RECOVERY_MAX_AGE_MINUTES:360}
+  # The appointment must still be at least this far away.
+  min-lead-minutes: ${CHECKOUT_RECOVERY_MIN_LEAD_MINUTES:120}
+  per-user-hours: 24
+  # The "Finish booking" link stops working after this long; the unsubscribe link after unsubscribe-ttl-days.
+  link-ttl-hours: 48
+  unsubscribe-ttl-days: 365
+  # A booking at the same spa within this many days of the reminder counts as recovered.
+  attribution-days: 7
+  interval-ms: 300000
+  batch-size: 50
+  # Signs reminder links. Empty: a key derived from security.jwt.secret.
+  token-secret: ${CHECKOUT_RECOVERY_TOKEN_SECRET:}
+  # Where mail apps post one-click unsubscribes. Empty: app.frontend-url (nginx forwards /api).
+  api-base-url: ${CHECKOUT_RECOVERY_API_BASE_URL:}
+  whatsapp:
+    # Needs the approved nirvana_checkout_reminder template and guest-alerts.whatsapp.enabled.
+    enabled: ${CHECKOUT_RECOVERY_WHATSAPP_ENABLED:false}
+    template: ${CHECKOUT_RECOVERY_WHATSAPP_TEMPLATE:nirvana_checkout_reminder}
+
 # GST documents. The spa issues the guest's invoice (marketplace model); Nirvana invoices the spa
 # for its commission.
 gst:

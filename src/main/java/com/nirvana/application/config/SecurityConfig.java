@@ -76,6 +76,8 @@ public class SecurityConfig {
                                 // A spa answers its booking SMS from a private link, without an account.
                                 "/api/public/spa-bookings/**",
                                 "/api/public/support/**",
+                                // Unsubscribe from checkout reminders with the signed link in the email.
+                                "/api/public/checkout-reminders/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
