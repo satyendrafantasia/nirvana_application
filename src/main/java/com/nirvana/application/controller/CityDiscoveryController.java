@@ -58,7 +58,7 @@ public class CityDiscoveryController {
         Set<String> ids = new LinkedHashSet<>();
         response.path("places").forEach(place -> {
             String id = place.path("id").asText();
-            if (id.matches("[A-Za-z0-9_-]{1,255}") && com.nirvana.application.service.SpaPlaceFilter.isSpa(place)) ids.add(id);
+            if (id.matches("[A-Za-z0-9_-]{1,255}") && com.nirvana.application.service.SpaPlaceFilter.isDiscoverySpa(place)) ids.add(id);
         });
         references.record(ids, "TEXT", city, null, country);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of(

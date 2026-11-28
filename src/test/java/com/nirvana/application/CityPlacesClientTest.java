@@ -20,7 +20,7 @@ class CityPlacesClientTest {
   var builder=new RestTemplateBuilder(template -> {
    customizer.customize(template);
    customizer.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchText"))
-    .andExpect(method(HttpMethod.POST)).andExpect(header("X-Goog-FieldMask","places.id,places.primaryType,places.displayName,nextPageToken"))
+    .andExpect(method(HttpMethod.POST)).andExpect(header("X-Goog-FieldMask","places.id,places.primaryType,places.types,places.displayName,nextPageToken"))
     .andExpect(content().json("{\"textQuery\":\"spas in Bengaluru, IN\",\"includedType\":\"spa\",\"strictTypeFiltering\":true,\"pageSize\":20,\"regionCode\":\"IN\",\"pageToken\":\"next\"}"))
     .andRespond(withSuccess("{\"places\":[{\"id\":\"abc\"}]}",MediaType.APPLICATION_JSON));
   });
@@ -76,6 +76,9 @@ class CityPlacesClientTest {
    mock.customize(template);
    mock.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchText"))
     .andExpect(jsonPath("$.textQuery").value(expected))
+    .andExpect(jsonPath("$.strictTypeFiltering").value(true))
+    .andExpect(jsonPath("$.includedType").value("spa"))
+    .andExpect(header("X-Goog-FieldMask", org.hamcrest.Matchers.containsString("places.types")))
     .andRespond(withSuccess("{}",MediaType.APPLICATION_JSON));
   }));
   ReflectionTestUtils.setField(client,"apiKey","test-only");

@@ -34,7 +34,7 @@ public class PlaceDiscoveryController {
     @PostMapping("/search")
     public ResponseEntity<Map<String,Object>> search(@Valid @RequestBody PlaceDiscoveryRequest request) {
         JsonNode response = places.discover(request);
-        Map<String,ObjectNode> unique = summaries.summarize(response, request.mode());
+        Map<String,ObjectNode> unique = summaries.summarize(response);
         references.record(unique.keySet(), request.mode().name(), request.city(), request.locality(), request.countryCode());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of(
                 "places", unique.values(), "nextPageToken", response.path("nextPageToken").asText("")));

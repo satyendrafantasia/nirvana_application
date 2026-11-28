@@ -37,7 +37,13 @@ class CityDiscoveryTest {
         verifyNoInteractions(places);
     }
     @Test void repeatPagesDeduplicateAndPersistOnlyReferences() throws Exception {
-        when(places.search("discovery test city","IN",null)).thenReturn(json.readTree("{\"places\":[{\"id\":\"test_place_123\",\"displayName\":{\"text\":\"Never store this name\"}},{\"id\":\"test_place_123\"}],\"nextPageToken\":\"next\"}"));
+        when(places.search("discovery test city","IN",null)).thenReturn(json.readTree("""
+            {"places":[
+                {"id":"test_place_123","primaryType":"spa","displayName":{"text":"Lotus Day Spa"}},
+                {"id":"test_place_123","primaryType":"spa","displayName":{"text":"Lotus Day Spa"}},
+                {"id":"test_salon","primaryType":"spa","types":["beauty_salon"],"displayName":{"text":"Lotus"}}
+            ],"nextPageToken":"next"}
+            """));
         for(int i=0;i<2;i++) mvc.perform(post("/api/admin/city-discovery/search").with(authentication(auth("ROLE_PLATFORM_ADMIN"))).contentType("application/json").content("{\"city\":\" Discovery  Test City \",\"countryCode\":\"in\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.found").value(1)).andExpect(jsonPath("$.nextPageToken").value("next"));
         assertEquals(1L,jdbc.queryForObject("SELECT COUNT(*) FROM city_place_discovery WHERE city='discovery test city'",Long.class));
@@ -64,7 +70,12 @@ class CityDiscoveryTest {
     }
     @Test void liveResultsPersistReferencesAndDetailsAreNoStore() throws Exception {
         long before=jdbc.queryForObject("SELECT COUNT(*) FROM city_place_discovery",Long.class);
-        when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_live_only\",\"displayName\":{\"text\":\"Live spa\"}},{\"id\":\"discovery_live_only\"}],\"nextPageToken\":\"next\"}"));
+        when(places.discover(any())).thenReturn(json.readTree("""
+            {"places":[
+                {"id":"discovery_live_only","primaryType":"spa","displayName":{"text":"Live spa"}},
+                {"id":"discovery_live_only","primaryType":"spa","displayName":{"text":"Live spa"}}
+            ],"nextPageToken":"next"}
+            """));
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content("{\"mode\":\"TEXT\",\"city\":\"Delhi\",\"countryCode\":\"IN\"}"))
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
             .andExpect(jsonPath("$.places.length()").value(1)).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist()).andExpect(jsonPath("$.nextPageToken").value("next"));
@@ -83,7 +94,10 @@ class CityDiscoveryTest {
         jdbc.update("INSERT INTO spa (created_at,updated_at,name,google_place_id,commission_pct,default_currency,is_active,is_featured,is_verified,kyc_status,tax_percent) VALUES (NOW(),NOW(),'Discovery fixture','discovery_bookable_test',0,'INR',true,false,true,'VERIFIED',0)");
         Long id=jdbc.queryForObject("SELECT id FROM spa WHERE google_place_id='discovery_bookable_test'",Long.class);
         String request="{\"mode\":\"TEXT\",\"city\":\"Delhi\",\"countryCode\":\"IN\"}";
-        when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"OPERATIONAL\"}]}"));
+        var listing = json.readTree("""
+            {"places":[{"id":"discovery_bookable_test","primaryType":"spa","displayName":{"text":"Discovery Spa"},"businessStatus":"OPERATIONAL"}]}
+            """);
+        when(places.discover(any())).thenReturn(listing);
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").value(id));
         // The spa page reads the same link from the place's details.
         when(places.details("discovery_bookable_test")).thenReturn(json.readTree("{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"OPERATIONAL\"}"));
@@ -95,8 +109,46 @@ class CityDiscoveryTest {
         jdbc.update("UPDATE spa SET is_active=true,is_verified=false WHERE id=?",id);
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist());
         jdbc.update("UPDATE spa SET is_verified=true WHERE id=?",id);
-        when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"discovery_bookable_test\",\"businessStatus\":\"CLOSED_TEMPORARILY\"}]}"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) listing.path("places").get(0)).put("businessStatus", "CLOSED_TEMPORARILY");
         mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk()).andExpect(jsonPath("$.places[0].nirvanaSpaId").doesNotExist());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "{\"city\":\"Gurugram\"}", "{\"spaName\":\"Lotus\"}", "{\"city\":\"Gurugram\",\"spaName\":\"Lotus\"}"})
+    void textSearchUsesStrictSpaFilterOnEveryPage(String criteria) throws Exception {
+        var request = json.readValue(criteria, com.fasterxml.jackson.databind.node.ObjectNode.class);
+        request.put("mode", "TEXT").put("countryCode", "IN");
+        var rejectedPage = json.readTree("""
+            {"places":[
+                {"id":"text_salon","primaryType":"spa","types":["spa","beauty_salon"],"displayName":{"text":"Lotus Beauty"}},
+                {"id":"text_clinic","primaryType":"doctor","types":["spa"],"displayName":{"text":"Lotus Wellness"}},
+                {"id":"text_shop","primaryType":"spa","displayName":{"text":"Lotus Shop"}},
+                {"id":"text_unknown","displayName":{"text":"Lotus Spa"}}
+            ],"nextPageToken":"next"}
+            """);
+        var nextPage = json.readTree("""
+            {"places":[
+                {"id":"text_massage","primaryType":"massage_spa","displayName":{"text":"Lotus Massage"},"formattedAddress":"Shop 31, Gurugram"},
+                {"id":"text_retail","primaryType":"spa","types":["cosmetics_store"],"displayName":{"text":"Lotus Care"}},
+                {"id":"text_spa","primaryType":"spa","displayName":{"text":"Lotus Day Spa"}}
+            ]}
+            """);
+        when(places.discover(any())).thenReturn(rejectedPage, nextPage);
+        mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER")))
+                .contentType("application/json").content(request.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.places").isEmpty())
+                .andExpect(jsonPath("$.nextPageToken").value("next"));
+        request.put("pageToken", "next");
+        mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER")))
+                .contentType("application/json").content(request.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.places.length()").value(2))
+                .andExpect(jsonPath("$.places[0].id").value("text_massage"))
+                .andExpect(jsonPath("$.places[1].id").value("text_spa"));
+        assertEquals(0L, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM place_discovery_reference WHERE place_id IN
+                ('text_salon','text_clinic','text_shop','text_unknown','text_retail')
+                """, Long.class));
     }
 
     @Test void nearbyResultsDeduplicateAndTrackRepeatSearchesWithoutCity() throws Exception {

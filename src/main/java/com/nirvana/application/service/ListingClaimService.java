@@ -64,7 +64,7 @@ public class ListingClaimService {
     public List<Map<String, Object>> search(String query, String country) {
         List<JsonNode> found = new ArrayList<>();
         places.claimSearch(query, country).path("places").forEach(place -> {
-            if (place.path("id").asText().matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isSpa(place)) found.add(place);
+            if (place.path("id").asText().matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isDiscoverySpa(place)) found.add(place);
         });
         var listed = inventory.lookup(found.stream().map(p -> p.path("id").asText()).toList());
         List<Map<String, Object>> results = new ArrayList<>();

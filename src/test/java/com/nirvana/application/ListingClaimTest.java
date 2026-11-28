@@ -107,6 +107,7 @@ class ListingClaimTest {
         when(places.claimSearch("Lotus Bengaluru", "IN")).thenReturn(json.readTree("{\"places\":["
                 + "{\"id\":\"claim_place_1\",\"primaryType\":\"spa\",\"displayName\":{\"text\":\"Lotus Day Spa\"}},"
                 + "{\"id\":\"claim_listed\",\"primaryType\":\"spa\",\"displayName\":{\"text\":\"Listed\"}},"
+                + "{\"id\":\"claim_mixed\",\"primaryType\":\"spa\",\"types\":[\"hair_salon\"],\"displayName\":{\"text\":\"Lotus\"}},"
                 + "{\"id\":\"claim_salon\",\"primaryType\":\"hair_salon\",\"displayName\":{\"text\":\"Lotus Hair & Spa\"}}]}"));
         mvc.perform(post("/api/owner/claims/search").with(authentication(auth(1, "ROLE_SPA_OWNER"))).contentType("application/json")
                         .content("{\"query\":\" Lotus Bengaluru \",\"countryCode\":\"IN\"}"))

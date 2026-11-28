@@ -470,7 +470,9 @@ export default function Discovery({
             spas.
           </p>
           {results.length === 0 && (
-            <p>No spas found. Try another spa name, city, locality, address or radius.</p>
+            <p>{cursor
+              ? 'No matching spas on this page. Try the next page.'
+              : 'No spas found. Try another spa name, city, locality, address or radius.'}</p>
           )}
           <div className="grid gap-6 md:grid-cols-3">
             {results.map((place) => (

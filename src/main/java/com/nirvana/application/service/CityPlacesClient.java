@@ -61,7 +61,7 @@ public class CityPlacesClient {
         body.put("regionCode", country);
         if (token != null && !token.isBlank()) body.put("pageToken", token);
         // Type and name let SpaPlaceFilter drop salons and gyms Google also tags "spa"; neither is stored.
-        return call("/places:searchText", HttpMethod.POST, body, "places.id,places.primaryType,places.displayName,nextPageToken");
+        return call("/places:searchText", HttpMethod.POST, body, SPA_SEARCH_FIELDS + ",nextPageToken");
     }
 
     public JsonNode details(String placeId) {
@@ -125,7 +125,9 @@ public class CityPlacesClient {
     // Google bills a request at the price of its most expensive field. Lists ask only for Pro
     // fields: rating, review count, phone and website are Enterprise and come with the details
     // page, where they are actually read.
-    private static final String SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus,places.googleMapsUri,places.attributions,places.photos.name,places.photos.authorAttributions";
+    private static final String SPA_SEARCH_FIELDS = "places.id,places.primaryType,places.types,places.displayName";
+    private static final String PUBLIC_SUMMARY = SPA_SEARCH_FIELDS + ",places.formattedAddress,places.businessStatus,places.googleMapsUri,places.attributions";
+    private static final String SUMMARY = PUBLIC_SUMMARY + ",places.photos.name,places.photos.authorAttributions";
 
     public JsonNode discover(PlaceDiscoveryRequest request) {
         if (!request.isSearchValid() || !request.isBoundsValid())
@@ -154,8 +156,6 @@ public class CityPlacesClient {
 
     public static final int PUBLIC_RADIUS_METERS = 5000;
     public static final int PUBLIC_RESULTS = 6;
-    // No photos: each photo is a further paid call, and the photo endpoints need sign-in.
-    private static final String PUBLIC_SUMMARY = "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus,places.googleMapsUri,places.attributions";
     @Value("${google.places.public-requests-per-minute:20}") private int publicRequestsPerMinute = 20;
     private long publicWindow;
     private int publicRequests;
@@ -176,13 +176,13 @@ public class CityPlacesClient {
 
     private JsonNode nearby(double latitude, double longitude, int radius, int limit, String rank, String fields) {
         Map<String,Object> body = new LinkedHashMap<>();
-        body.put("includedPrimaryTypes", SpaPlaceFilter.NEARBY_PRIMARY_TYPES);
-        body.put("excludedTypes", SpaPlaceFilter.NEARBY_EXCLUDED_TYPES);
+        body.put("includedPrimaryTypes", SpaPlaceFilter.DISCOVERY_PRIMARY_TYPES);
+        body.put("excludedTypes", SpaPlaceFilter.DISCOVERY_EXCLUDED_TYPES);
         body.put("maxResultCount", limit);
         body.put("rankPreference", rank);
         body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(
                 "latitude", latitude, "longitude", longitude), "radius", radius)));
-        return call("/places:searchNearby", HttpMethod.POST, body, fields + ",places.types");
+        return call("/places:searchNearby", HttpMethod.POST, body, fields);
     }
 
     /** An owner looking for their own listing: name and address only, no photos or contact details. */
@@ -194,7 +194,7 @@ public class CityPlacesClient {
         body.put("pageSize", 10);
         body.put("regionCode", country.toUpperCase(Locale.ROOT));
         return call("/places:searchText", HttpMethod.POST, body,
-                "places.id,places.primaryType,places.displayName,places.formattedAddress,places.businessStatus");
+                SPA_SEARCH_FIELDS + ",places.formattedAddress,places.businessStatus");
     }
 
     /** Live details used only to pre-fill the owner's claim form; the owner confirms each field before anything is saved. */
