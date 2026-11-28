@@ -2,6 +2,7 @@ import axios from 'axios';
 import client from './client';
 import { BookingPayload, BookingSummary, Slot } from '../types/booking';
 import { PaymentIntent } from '../types/payment';
+import { addOnParams, BookedAddOn } from './addOnApi';
 
 // The availability service returns this message for room, capacity and therapist conflicts.
 // Other 409s (e.g. package eligibility) can be resolved on the payment step.
@@ -17,7 +18,10 @@ export const getSlots = async (
   spaId: string,
   serviceId: string,
   date: string,
-  guests = 1
+  guests = 1,
+  addOnIds: number[] = [],
+  /** For moving a booking: the add-on minutes it already has. */
+  extraMinutes = 0
 ): Promise<Slot[]> => {
   const { data } = await client.get<
     Array<{
@@ -37,7 +41,9 @@ export const getSlots = async (
       }[];
       therapistTypes?: { type: string; availableCount: number }[];
     }>
-  >(`/api/spas/${spaId}/services/${serviceId}/slots`, { params: { date, guests } });
+  >(`/api/spas/${spaId}/services/${serviceId}/slots`, {
+    params: { date, guests, ...addOnParams(addOnIds), ...(extraMinutes > 0 ? { extraMinutes } : {}) }
+  });
   return data.map((s) => ({
     ...s,
     id: String(s.slotId),
@@ -70,6 +76,12 @@ export interface CreatedBooking {
   walletCents?: number;
   giftCardCents?: number;
   loyaltyPointsRedeemed?: number;
+  /** The treatment for all guests; priceCents adds the add-ons. */
+  priceCents?: number;
+  serviceCents?: number;
+  taxCents?: number;
+  discountCents?: number;
+  addOns?: BookedAddOn[];
   razorpay?: PaymentIntent;
 }
 export const createBooking = async (payload: BookingPayload): Promise<CreatedBooking> => {
@@ -105,6 +117,7 @@ interface BookingWire {
   invoiceAvailable?: boolean;
   spaAcknowledged?: boolean;
   refundStatus?: string;
+  addOns?: BookedAddOn[];
 }
 export const getUserBookings = async (
   page = 0
@@ -137,7 +150,8 @@ export const getUserBookings = async (
       invoiceAvailable: b.invoiceAvailable,
       canCancel: b.canCancel,
       spaAcknowledged: b.spaAcknowledged,
-      refundStatus: b.refundStatus
+      refundStatus: b.refundStatus,
+      addOns: b.addOns ?? []
     }))
   };
 };

@@ -1,5 +1,6 @@
 import { Service } from './spa';
 import { PaymentIntent } from './payment';
+import { BookedAddOn } from '../api/addOnApi';
 export interface Therapist {
   id: string;
   name: string;
@@ -25,6 +26,8 @@ export interface BookingPayload {
   serviceId: string;
   slotId: string;
   guests: number;
+  /** The server checks and prices them; never send a price. */
+  addOnIds?: number[];
   therapistId?: string;
   therapistType?: string;
   specialRequest?: string;
@@ -57,5 +60,7 @@ export interface BookingSummary {
   payAtSpaCheckoutCents?: number;
   totalCents?: number;
   currency?: string;
+  /** Each add-on on its own line, as sold. */
+  addOns?: BookedAddOn[];
   razorpay?: PaymentIntent;
 }

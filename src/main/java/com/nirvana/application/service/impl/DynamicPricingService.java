@@ -58,25 +58,29 @@ public class DynamicPricingService implements PricingService {
                                          Slot slot,
                                          int guestCount,
                                          int basePriceCents,
+                                         int addOnCents,
                                          String couponCode,
                                          boolean redeemLoyaltyPoints) {
+        int addOns = Math.max(0, addOnCents);
         int discountCents = 0;
         Coupon coupon = null;
         if (couponCode != null && !couponCode.isBlank()) {
-            coupon = requireUsableCoupon(couponCode.trim(), user, spa, service, basePriceCents);
+            // The minimum order is the whole booking; the discount itself is on the treatment only.
+            coupon = requireUsableCoupon(couponCode.trim(), user, spa, service, basePriceCents + addOns);
             discountCents += couponDiscount(coupon, basePriceCents);
         }
 
         discountCents += evaluateOffPeakDiscount(slot, spa, basePriceCents - discountCents);
 
         // Points come after coupon and off-peak, capped at a share of what is left (see CheckoutMath).
+        // They are a way to pay, so they may pay for add-ons too.
         int loyaltyRedeemed = 0;
         if (redeemLoyaltyPoints) {
-            loyaltyRedeemed = CheckoutMath.pointsToRedeem(availablePoints(user), basePriceCents - discountCents, rules);
+            loyaltyRedeemed = CheckoutMath.pointsToRedeem(availablePoints(user), basePriceCents + addOns - discountCents, rules);
             discountCents += CheckoutMath.pointsValue(loyaltyRedeemed, rules);
         }
 
-        discountCents = clampDiscount(basePriceCents, discountCents);
+        discountCents = clampDiscount(basePriceCents + addOns, discountCents);
 
         return new PricingResult(discountCents, coupon != null ? coupon.getCode() : null, loyaltyRedeemed, coupon);
     }

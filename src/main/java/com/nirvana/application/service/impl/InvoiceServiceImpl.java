@@ -33,6 +33,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final PaymentRepository paymentRepository;
     private final EmailService emailService;   // you can provide a NoOp impl for now
     private final com.nirvana.application.service.gst.GstInvoiceService gstInvoices;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
 
     @Override
@@ -169,6 +170,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .sgstCents(gst == null ? null : gst.sgstCents())
                 .igstCents(gst == null ? null : gst.igstCents())
                 .rateLabel(gst == null ? null : com.nirvana.application.service.gst.GstMath.percent(gst.rateBps()))
+                .addOns(addOns.forBooking(b.getId()).lines())
                 .id(invoice.getId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .bookingId(b.getId())

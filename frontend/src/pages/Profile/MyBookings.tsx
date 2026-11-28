@@ -13,6 +13,7 @@ import { replacementTimes } from '../Booking/availableTimes';
 import HealthForm from '../../components/health/HealthForm';
 import InvoiceLinks from './InvoiceLinks';
 import AddToCalendar from '../../components/booking/AddToCalendar';
+import BookedAddOnLines from '../../components/booking/BookedAddOnLines';
 export default function MyBookings() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<BookingSummary>();
@@ -45,7 +46,8 @@ export default function MyBookings() {
   const slots = useQuery({
     queryKey: ['reschedule', editing?.id, date],
     enabled: !!editing && !!date,
-    queryFn: () => getSlots(editing!.spaId!, editing!.service.id, date)
+    queryFn: () => getSlots(editing!.spaId!, editing!.service.id, date, 1, [],
+      (editing!.addOns ?? []).reduce((sum, a) => sum + a.extraMinutes, 0))
   });
   const eligibleSlots = replacementTimes(slots.data || [], preference, editing?.originalPreference);
   const action = useMutation({
@@ -99,8 +101,9 @@ export default function MyBookings() {
           </p>
           <h2 className="text-xl font-semibold">{b.service.name}</h2>
           <p>
-            {new Date(b.slot).toLocaleString()} · {b.service.durationMinutes} minutes
+            {new Date(b.slot).toLocaleString()} · {b.service.durationMinutes + (b.addOns ?? []).reduce((sum, a) => sum + a.extraMinutes, 0)} minutes
           </p>
+          <BookedAddOnLines addOns={b.addOns} />
           <p>
             {b.status.replaceAll('_', ' ')} ·{' '}
             {b.paymentMode === 'OFFLINE' ? 'Pay at spa' : 'Online payment'}

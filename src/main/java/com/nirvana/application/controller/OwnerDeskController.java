@@ -39,6 +39,7 @@ public class OwnerDeskController {
     private final OwnerFinance finance;
     private final com.nirvana.application.service.SpaBookingReplies replies;
     private final OwnerCapacityReport capacity;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
     private static final String JOINS = """
         FROM booking b JOIN app_user u ON u.id=b.user_id JOIN service s ON s.id=b.service_id
         LEFT JOIN therapist t ON t.id=b.therapist_id LEFT JOIN spa_room r ON r.id=b.room_id
@@ -207,6 +208,12 @@ public class OwnerDeskController {
                 + who+" ORDER BY x.purchase_date DESC,x.id";
         };
         var rows=view==View.TRANSACTIONS ? finance.entries(args,26,page*25) : db.queryForList(sql+" LIMIT 26 OFFSET :offset",args);
+        if(view==View.APPOINTMENTS && !rows.isEmpty()){
+            // Each add-on on its own line; payable already includes them.
+            var lines=addOns.forBookings(rows.stream().map(r->((Number)r.get("id")).longValue()).toList());
+            for(var row:rows) row.put("addOns",lines.getOrDefault(((Number)row.get("id")).longValue(),
+                com.nirvana.application.service.addons.BookingAddOns.Selection.NONE).lines());
+        }
         // JDBC returns SQL DATETIME without an offset. Normalize all instants before serialization.
         for(var row:rows) for(var field:row.entrySet()) if(field.getKey().endsWith("Utc") && field.getValue()!=null)
             field.setValue(com.nirvana.application.service.SpaBookingAlerts.fromUtc(field.getValue()).atZone(zone).toOffsetDateTime());

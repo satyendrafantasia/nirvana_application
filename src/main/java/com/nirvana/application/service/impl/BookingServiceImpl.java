@@ -90,6 +90,7 @@ public class BookingServiceImpl implements BookingService {
     private final SlotAvailabilityService availability;
     private final PackageSubscriptionService packageSubscriptionService;
     private final com.nirvana.application.service.SpaPackageUsageService spaPackageUsageService;
+    private final com.nirvana.application.service.addons.BookingAddOns addOns;
 
     @Override
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -149,6 +150,9 @@ public class BookingServiceImpl implements BookingService {
         if (guests < service.getMinPersons() || guests > service.getMaxPersons()) {
             throw new IllegalArgumentException("guests must be between minPersons and maxPersons for the service");
         }
+        // Checked and priced here from the spa's menu, never from the client.
+        var chosenAddOns = addOns.select(spa, service, request.getAddOnIds(), guests);
+        int extraMinutes = chosenAddOns.extraMinutes();
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
@@ -182,7 +186,7 @@ public class BookingServiceImpl implements BookingService {
 
         int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(slot.getId(), now)).orElse(0);
         int holdsToIgnore = hold != null && hold.getHoldUnits() != null ? hold.getHoldUnits() : 0;
-        validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore));
+        validateSlot(spa, service, slot, guests, Math.max(0, activeHolds - holdsToIgnore), extraMinutes);
 
         log.info("event=booking.allocate_therapist");
         Long preferred = request.getTherapistId();
@@ -203,13 +207,17 @@ public class BookingServiceImpl implements BookingService {
             if(preferred!=null && !preferred.equals(hold.getTherapist().getId())) throw new IllegalStateException("Choose the therapist reserved by this hold");
             preferred=hold.getTherapist().getId();
         }
-        Therapist therapist=allocation.choose(slot,preferred,label,hold==null?null:hold.getId(),null);
+        Therapist therapist=allocation.choose(slot,preferred,label,hold==null?null:hold.getId(),null,extraMinutes);
         String requestedTherapistType=therapist.getType();
 
         PaymentMode paymentMode = PaymentMode.valueOf(request.getPaymentMode().toUpperCase());
         boolean spaPackage = Boolean.TRUE.equals(request.getPayWithSpaPackage());
         if (spaPackage && Boolean.TRUE.equals(request.getPayWithPackage())) throw new IllegalArgumentException("Choose one package payment option");
         boolean payWithPackage = spaPackage || Boolean.TRUE.equals(request.getPayWithPackage());
+        // A package session pays for the treatment alone, and nothing would collect the add-ons' price.
+        if (payWithPackage && !chosenAddOns.isEmpty())
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Add-ons can't be paid with a package session. Remove them or pay for this booking another way.");
         if (payWithPackage) {
             paymentMode = PaymentMode.OFFLINE;
             if (spaPackage) {
@@ -232,7 +240,9 @@ public class BookingServiceImpl implements BookingService {
         int unitPrice = service.getPriceCents() != null
                 ? service.getPriceCents()
                 : (service.getBasePriceCents() != null ? service.getBasePriceCents() : 0);
-        int priceCents = unitPrice * guests;
+        int serviceCents = unitPrice * guests;
+        // The booking's price is the treatment plus its add-ons, so tax, payment, refunds and payouts include them.
+        int priceCents = Math.addExact(serviceCents, chosenAddOns.totalCents());
 
         boolean redeemLoyalty = Boolean.TRUE.equals(request.getRedeemLoyaltyPoints());
         PricingService.PricingResult pricing = pricingService.evaluatePricing(
@@ -241,7 +251,8 @@ public class BookingServiceImpl implements BookingService {
                 service,
                 slot,
                 guests,
-                priceCents,
+                serviceCents,
+                chosenAddOns.totalCents(),
                 request.getCouponCode(),
                 redeemLoyalty);
 
@@ -286,7 +297,7 @@ public class BookingServiceImpl implements BookingService {
                 ? service.getCancellationPolicyJson()
                 : "{\"defaultCutoffMinutes\":" + CANCELLATION_CUTOFF_MINUTES + ",\"defaultFeePercent\":0,\"defaultRoute\":\"ORIGINAL_METHOD\"}");
         booking.setStartTs(slot.getStartTs());
-        booking.setEndTs(TherapistRoster.end(slot));
+        booking.setEndTs(TherapistRoster.end(slot).plusMinutes(extraMinutes));
         booking.setScheduledBy(desk ? CancellationActor.SPA : CancellationActor.USER);
         booking.setLastStatusChangedAt(now);
         booking.setPaymentMode(paymentMode);
@@ -305,6 +316,7 @@ public class BookingServiceImpl implements BookingService {
 
         log.info("event=booking.persist");
         Booking saved = bookingRepository.save(booking);
+        addOns.record(saved.getId(), chosenAddOns);
         if (desk) {
             operationsDb.update("INSERT INTO spa_booking_confirmation(booking_id,spa_id,token,status,responded_at,created_at,updated_at) VALUES(?,?,?,'CONFIRMED',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())",
                     saved.getId(),spa.getId(),UUID.randomUUID().toString().replace("-",""));
@@ -377,8 +389,10 @@ public class BookingServiceImpl implements BookingService {
                 WHERE c.booking_id IN (:ids) AND c.status='CONFIRMED' AND c.delivery_revision=b.notification_revision
                 """, java.util.Map.of("ids", ids), Long.class));
         }
+        var bookedAddOns = addOns.forBookings(ids);
         List<BookingSummaryResponse> content = bookings.stream()
-                .map(booking -> toSummaryResponse(booking, acknowledged.contains(booking.getId()), CancellationEvaluator.evaluateCancellation(booking, now, CANCELLATION_CUTOFF_MINUTES)))
+                .map(booking -> toSummaryResponse(booking, acknowledged.contains(booking.getId()), CancellationEvaluator.evaluateCancellation(booking, now, CANCELLATION_CUTOFF_MINUTES),
+                        bookedAddOns.getOrDefault(booking.getId(), com.nirvana.application.service.addons.BookingAddOns.Selection.NONE)))
                 .toList();
 
         PagedResponse<BookingSummaryResponse> page = new PagedResponse<>(
@@ -445,14 +459,16 @@ public class BookingServiceImpl implements BookingService {
         com.nirvana.application.model.Service service = booking.getService();
 
         int activeHolds = Optional.ofNullable(bookingHoldRepository.findActiveHoldUnits(targetSlot.getId(), now)).orElse(0);
-        validateSlot(spa, service, targetSlot, booking.getGuestCount(), activeHolds);
+        // The add-on minutes go with the appointment to its new time.
+        int extraMinutes = addOns.extraMinutes(booking.getId());
+        validateSlot(spa, service, targetSlot, booking.getGuestCount(), activeHolds, extraMinutes);
 
         boolean change=Boolean.TRUE.equals(request.getChangeTherapistPreference());
         String mode=change?SessionAllocation.preference(request.getTherapistId(),request.getTherapistType()):booking.getTherapistPreference();
         Long named=change?request.getTherapistId():("NAMED".equals(mode)||mode==null) && booking.getTherapist()!=null?booking.getTherapist().getId():null;
         String label=change?request.getTherapistType():"LABEL".equals(mode)?booking.getTherapistType():null;
         if(change)allocation.validatePreference(spa,named,label);
-        var replacement=allocation.choose(targetSlot,named,label,null,booking.getId());
+        var replacement=allocation.choose(targetSlot,named,label,null,booking.getId(),extraMinutes);
         booking.setTherapistPreference(mode);
         booking.setRoom(targetSlot.getRoom());
         booking.setTherapist(replacement);
@@ -466,7 +482,7 @@ public class BookingServiceImpl implements BookingService {
 
         booking.setSlot(targetSlot);
         booking.setStartTs(targetSlot.getStartTs());
-        booking.setEndTs(TherapistRoster.end(targetSlot));
+        booking.setEndTs(TherapistRoster.end(targetSlot).plusMinutes(extraMinutes));
         booking.setNotificationRevision(booking.getNotificationRevision() + 1);
         if (byGuest) booking.setRescheduleCount((booking.getRescheduleCount() == null ? 0 : booking.getRescheduleCount()) + 1);
         booking.setLastStatusChangedAt(now);
@@ -657,7 +673,8 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    private BookingSummaryResponse toSummaryResponse(Booking booking, boolean spaAcknowledged, CancellationEligibility eligibility) {
+    private BookingSummaryResponse toSummaryResponse(Booking booking, boolean spaAcknowledged, CancellationEligibility eligibility,
+                                                     com.nirvana.application.service.addons.BookingAddOns.Selection bookedAddOns) {
         String mode = booking.getTherapistPreference();
         String original = "";
         if ((mode == null || "NAMED".equals(mode)) && booking.getTherapist() != null)
@@ -686,17 +703,18 @@ public class BookingServiceImpl implements BookingService {
                 .spaAcknowledged(spaAcknowledged)
                 .refundStatus(booking.getRefundStatus().name())
                 .cancellationReason(eligibility.reason())
+                .addOns(bookedAddOns.lines())
                 .build();
     }
 
-    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests, int activeHolds) {
+    private void validateSlot(Spa spa, com.nirvana.application.model.Service service, Slot slot, int guests, int activeHolds, int extraMinutes) {
         if (!slot.getSpa().getId().equals(spa.getId())) {
             throw new IllegalArgumentException("Slot does not belong to Spa");
         }
         if (!slot.getService().getId().equals(service.getId())) {
             throw new IllegalArgumentException("Slot does not belong to Service");
         }
-        availability.requireBookable(slot,guests,activeHolds);
+        availability.requireBookable(slot,guests,activeHolds,extraMinutes);
     }
 
     private void releaseCapacity(Slot slot, int guests) {
@@ -715,6 +733,9 @@ public class BookingServiceImpl implements BookingService {
         response.setStatus(booking.getStatus().name());
         response.setPaymentMode(booking.getPaymentMode() != null ? booking.getPaymentMode().name() : null);
         response.setPriceCents(booking.getPriceCents());
+        var bookedAddOns = addOns.forBooking(booking.getId());
+        response.setAddOns(bookedAddOns.lines());
+        response.setServiceCents(booking.getPriceCents() - bookedAddOns.totalCents());
         response.setTaxCents(booking.getTaxCents());
         response.setDiscountCents(booking.getDiscountCents());
         response.setGiftCardCents(booking.getGiftCardCents());

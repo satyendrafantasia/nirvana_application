@@ -39,6 +39,20 @@ class InvoicePdfTest {
         }
     }
 
+    @Test void addOnsAreSeparateLinesThatAddUpToTheSubtotal() throws Exception {
+        var stones = new com.nirvana.application.service.addons.BookingAddOns.Line(3L, "Hot stones", 50000, 1, 50000, "INR", 0);
+        var extension = new com.nirvana.application.service.addons.BookingAddOns.Line(7L, "Extension", 40000, 1, 40000, "INR", 30);
+        String t = text(invoice().amountCents(102000).taxCents(18252).discountCents(600).totalCents(119652)
+                .paymentMode("ONLINE").paymentStatus("CAPTURED").bookingStatus("CONFIRMED")
+                .addOns(java.util.List.of(stones, extension)).build(), "add-ons");
+        assertTrue(t.contains("INR 120.00"), t);   // the treatment alone
+        assertTrue(t.contains("Hot stones"), t);
+        assertTrue(t.contains("INR 500.00"), t);
+        assertTrue(t.contains("Extension"), t);
+        assertTrue(t.contains("INR 400.00"), t);
+        assertTrue(t.contains("INR 1,020.00"), t); // the subtotal is all three
+    }
+
     @Test void paidOnline() throws Exception {
         String t = text(invoice().paymentMode("ONLINE").paymentStatus("CAPTURED").bookingStatus("CONFIRMED")
                 .paymentReference("pay_U3666ubie3mWA2").paidAt(OffsetDateTime.parse("2026-11-22T04:58:00Z")).build(), "paid-online");

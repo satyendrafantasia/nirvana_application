@@ -160,10 +160,22 @@ public final class InvoicePdf {
             text(inv.serviceName(), BOLD, 10.5f, INK, M + 12, y);
             text("Treatment at " + inv.spaName() + (blank(inv.sacCode()) ? "" : "  |  SAC " + inv.sacCode())
                     + (blank(inv.placeOfSupply()) ? "" : "  |  Place of supply " + inv.placeOfSupply()), REGULAR, 9, MUTED, M + 12, y - 13);
+            var extras = inv.addOns() == null ? java.util.List.<com.nirvana.application.service.addons.BookingAddOns.Line>of() : inv.addOns();
+            int extrasCents = extras.stream().mapToInt(com.nirvana.application.service.addons.BookingAddOns.Line::amountCents).sum();
             textRight(String.valueOf(inv.guestCount() == null ? 1 : inv.guestCount()), REGULAR, 10.5f, INK, qtyX, y);
-            textRight(money(inv.amountCents()), REGULAR, 10.5f, INK, right - 12, y);
+            textRight(money(cents(inv.amountCents()) - extrasCents), REGULAR, 10.5f, INK, right - 12, y);
             hr(y - 26);
-            return y - 26;
+            y -= 26;
+            // Each add-on on its own line.
+            for (var extra : extras) {
+                y -= 18;
+                text(extra.name(), REGULAR, 10.5f, INK, M + 12, y);
+                textRight(String.valueOf(extra.quantity()), REGULAR, 10.5f, INK, qtyX, y);
+                textRight(money(extra.amountCents()), REGULAR, 10.5f, INK, right - 12, y);
+                hr(y - 8);
+                y -= 8;
+            }
+            return y;
         }
 
         private void totals(float top) throws IOException {

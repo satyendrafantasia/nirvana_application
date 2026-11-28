@@ -5,6 +5,7 @@ import client, { errorMessage } from '../../api/client';
 import { getSlots } from '../../api/bookingApi';
 import { bookingActions, canSpaCancel } from './bookingActions';
 import HealthFormPanel from './HealthFormPanel';
+import { BookedAddOn } from '../../api/addOnApi';
 
 const periods = {
   TODAY: 'Today',
@@ -82,6 +83,8 @@ type Row = {
   payment: string;
   currency: string;
   payable: number;
+  /** Add-ons on the appointment, each its own line; payable already includes them. */
+  addOns?: BookedAddOn[];
   startUtc: string;
   endUtc: string;
   lastUtc: string;
@@ -1130,6 +1133,17 @@ function Appointment({
             {!!b.deskTips && ' + ' + money(b.deskTips, b.currency) + ' tip'}
             {b.payment === 'DUE_AT_SPA' && ' · ' + money(b.payable, b.currency) + ' due'}
           </p>
+          {!!b.addOns?.length && (
+            <ul aria-label="Add-ons" className="text-sm">
+              {b.addOns.map((a, i) => (
+                <li key={i}>
+                  + {a.name}
+                  {a.quantity > 1 && ' × ' + a.quantity}
+                  {a.extraMinutes > 0 && ' (' + a.extraMinutes + ' min)'} · {money(a.amountCents, a.currency)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

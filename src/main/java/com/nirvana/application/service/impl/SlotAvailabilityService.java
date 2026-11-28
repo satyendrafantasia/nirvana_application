@@ -61,7 +61,32 @@ public class SlotAvailabilityService {
             int days,
             int guests
     ) {
-        return getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, false);
+        return getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, false, 0);
+    }
+
+    /** extraMinutes: the chosen add-ons' time, for which the therapist and room must also be free. */
+    @Transactional
+    public WeekSlotsResponse getAvailableSlotsForServiceRange(
+            Long spaId,
+            Long serviceId,
+            LocalDate startDate,
+            int days,
+            int guests,
+            int extraMinutes
+    ) {
+        return getAvailableSlotsForServiceRange(spaId, serviceId, startDate, days, guests, false, extraMinutes);
+    }
+
+    @Transactional
+    public List<SlotAvailabilityResponse> getAvailableSlotsForServiceOnDate(
+            Long spaId,
+            Long serviceId,
+            LocalDate date,
+            int guests,
+            int extraMinutes
+    ) {
+        WeekSlotsResponse week = getAvailableSlotsForServiceRange(spaId, serviceId, date, 1, guests, false, extraMinutes);
+        return week.days().isEmpty() ? List.of() : week.days().get(0).slots();
     }
 
     @Transactional
@@ -70,7 +95,7 @@ public class SlotAvailabilityService {
             Long serviceId,
             LocalDate date
     ) {
-        WeekSlotsResponse week = getAvailableSlotsForServiceRange(spaId, serviceId, date, 1, 1, true);
+        WeekSlotsResponse week = getAvailableSlotsForServiceRange(spaId, serviceId, date, 1, 1, true, 0);
         return week.days().isEmpty() ? List.of() : week.days().get(0).slots();
     }
 
@@ -80,8 +105,10 @@ public class SlotAvailabilityService {
             LocalDate startDate,
             int days,
             int guests,
-            boolean forceTherapistVisibility
+            boolean forceTherapistVisibility,
+            int extraMinutes
     ) {
+        int extra = Math.max(0, extraMinutes);
         if (guests <= 0) {
             throw new IllegalArgumentException("guests must be > 0");
         }
@@ -125,7 +152,7 @@ public class SlotAvailabilityService {
         boolean therapistSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistSelection());
         boolean therapistTypeSelectionEnabled = forceTherapistVisibility || Boolean.TRUE.equals(spa.getAllowTherapistTypeSelection());
 
-        OffsetDateTime latest = slots.stream().map(TherapistRoster::end).max(Comparator.naturalOrder()).orElse(to);
+        OffsetDateTime latest = slots.stream().map(TherapistRoster::end).max(Comparator.naturalOrder()).orElse(to).plusMinutes(extra);
         var resources=allocation.snapshot(spa,serviceId,from,latest,null,null);
 
         // Fetch all closures overlapping the whole range
@@ -146,13 +173,14 @@ public class SlotAvailabilityService {
                 })
                 .filter(entry -> {
                     Slot slot = entry.getKey();
-                    var team=resources.eligible(slot);
+                    var team=resources.eligible(slot,extra);
                     eligible.put(slot.getId(),team);
                     if(team.isEmpty()) return false;
-                    return isSlotBookable(slot, openingHours, closures, guests, holdMap.getOrDefault(slot.getId(), 0));
+                    return isSlotBookable(slot, openingHours, closures, guests, holdMap.getOrDefault(slot.getId(), 0), extra);
                 })
                 .map(entry -> Map.entry(entry.getValue(), toDto(
                         entry.getKey(),
+                        extra,
                         guests,
                         holdMap.getOrDefault(entry.getKey().getId(), 0),
                         therapistSelectionEnabled,
@@ -227,12 +255,19 @@ public class SlotAvailabilityService {
     }
 
     public void requireBookable(Slot slot,int guests,int heldUnits) {
+        requireBookable(slot,guests,heldUnits,0);
+    }
+
+    /** The spa must also be open, and not closed, for the add-on minutes after the slot. */
+    public void requireBookable(Slot slot,int guests,int heldUnits,int extraMinutes) {
+        int extra=Math.max(0,extraMinutes);
         ZoneId zone=TherapistRoster.zone(slot.getSpa());
         LocalDate day=slot.getStartTs().atZoneSameInstant(zone).toLocalDate();
         long spa=slot.getSpa().getId();
-        var hours=openingHours(spa,day,TherapistRoster.end(slot).atZoneSameInstant(zone).toLocalDate(),zone);
-        var closures=closureRepository.findClosuresOverlapping(spa,slot.getStartTs(),TherapistRoster.end(slot));
-        if(!isSlotBookable(slot,hours,closures,guests,heldUnits))
+        var end=TherapistRoster.end(slot).plusMinutes(extra);
+        var hours=openingHours(spa,day,end.atZoneSameInstant(zone).toLocalDate(),zone);
+        var closures=closureRepository.findClosuresOverlapping(spa,slot.getStartTs(),end);
+        if(!isSlotBookable(slot,hours,closures,guests,heldUnits,extra))
             throw new IllegalStateException(SessionAllocation.TAKEN);
     }
 
@@ -241,8 +276,10 @@ public class SlotAvailabilityService {
             List<TherapistRoster.Interval> openingHours,
             List<Closure> closures,
             int guests,
-            int heldUnits
+            int heldUnits,
+            int extraMinutes
     ) {
+        OffsetDateTime end = TherapistRoster.end(slot).plusMinutes(extraMinutes);
         if (slot.getStartTs().isBefore(OffsetDateTime.now()) || Boolean.TRUE.equals(slot.getIsBlocked())) {
             return false;
         }
@@ -257,21 +294,16 @@ public class SlotAvailabilityService {
             return false;
         }
 
-        if (!TherapistRoster.coversDay(openingHours, slot.getStartTs(), TherapistRoster.end(slot))) {
+        if (!TherapistRoster.coversDay(openingHours, slot.getStartTs(), end)) {
             return false;
         }
 
         for (Closure c : closures) {
-            if (overlaps(slot, c)) {
+            if (slot.getStartTs().isBefore(c.getEndTs()) && end.isAfter(c.getStartTs())) {
                 return false;
             }
         }
         return true;
-    }
-
-    private boolean overlaps(Slot slot, Closure closure) {
-        return slot.getStartTs().isBefore(closure.getEndTs()) &&
-                TherapistRoster.end(slot).isAfter(closure.getStartTs());
     }
 
     private String resolveTimezone(Spa spa) {
@@ -317,6 +349,7 @@ public class SlotAvailabilityService {
 
     private SlotAvailabilityResponse toDto(
             Slot slot,
+            int extraMinutes,
             int guests,
             int heldUnits,
             boolean therapistSelectionEnabled,
@@ -340,7 +373,7 @@ public class SlotAvailabilityService {
         return new SlotAvailabilityResponse(
                 slot.getId(),
                 slot.getStartTs(),
-                slot.getEndTs(),
+                slot.getEndTs().plusMinutes(extraMinutes),
                 remaining,
                 slot.getRoomNumber(),
                 uiStatus,
@@ -379,6 +412,6 @@ public class SlotAvailabilityService {
 
         slotRepository.save(slot);
         boolean therapistSelectionEnabled = Boolean.TRUE.equals(slot.getSpa().getAllowTherapistSelection());
-        return toDto(slot, 1, held, therapistSelectionEnabled, true, List.of(), List.of());
+        return toDto(slot, 0, 1, held, therapistSelectionEnabled, true, List.of(), List.of());
     }
 }

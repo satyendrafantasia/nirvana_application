@@ -59,6 +59,10 @@ public class BookingHold extends BaseEntity {
     @Column(name = "hold_units", nullable = false)
     private Integer holdUnits = 1;
 
+    /** Add-on minutes the reservation keeps the therapist and room for after the treatment. */
+    @Column(name = "extra_minutes", nullable = false)
+    private int extraMinutes = 0;
+
     @Column(name = "converted_to_booking", nullable = false)
     private boolean convertedToBooking = false;
 

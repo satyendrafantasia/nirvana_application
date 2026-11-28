@@ -21,6 +21,9 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
   const preferred = state.therapistType ? 'type:' + state.therapistType : state.therapistId || '';
   const date = state.availabilityDate ?? new Date().toLocaleDateString('en-CA');
   const reserving = useRef(false);
+  const chosen = state.addOns ?? [];
+  const addOnIds = chosen.map((a) => a.id);
+  const extraMinutes = chosen.reduce((sum, a) => sum + a.extraMinutes, 0);
 
   const {
     data: slots,
@@ -28,8 +31,8 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
     isError,
     refetch
   } = useQuery({
-    queryKey: ['slots', state.spaId, state.service?.id, date, state.guests],
-    queryFn: () => getSlots(state.spaId || '', state.service?.id || '', date, state.guests),
+    queryKey: ['slots', state.spaId, state.service?.id, date, state.guests, addOnIds],
+    queryFn: () => getSlots(state.spaId || '', state.service?.id || '', date, state.guests, addOnIds),
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
     staleTime: 0,
@@ -50,6 +53,7 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
           serviceId: state.service?.id,
           slotId: state.selectedSlot?.id,
           guests: state.guests,
+          addOnIds,
           therapistId: preferred && !preferred.startsWith('type:') ? Number(preferred) : undefined,
           therapistType: preferred.startsWith('type:') ? preferred.slice(5) : undefined,
           holdMinutes: 10
@@ -97,6 +101,11 @@ const SelectSlot = ({ onNext, onBack }: SelectSlotProps) => {
             Pick a date and slot for your visit. Times shown in{' '}
             {Intl.DateTimeFormat().resolvedOptions().timeZone}.
           </p>
+          {extraMinutes > 0 && state.service && (
+            <p className="text-sm text-slate-600">
+              Showing times with room for your {state.service.durationMinutes + extraMinutes}-minute appointment, add-ons included.
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" disabled={hold.isPending} onClick={onBack} size="sm">
