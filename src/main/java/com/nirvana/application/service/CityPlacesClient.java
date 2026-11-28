@@ -130,17 +130,12 @@ public class CityPlacesClient {
     public JsonNode discover(PlaceDiscoveryRequest request) {
         if (!request.isSearchValid() || !request.isBoundsValid())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid discovery search.");
-        Map<String,Object> body = new LinkedHashMap<>();
         if (request.mode() == PlaceDiscoveryRequest.Mode.NEARBY) {
-            body.put("includedTypes", List.of("spa"));
-            body.put("excludedPrimaryTypes", SpaPlaceFilter.EXCLUDED_PRIMARY_TYPES);
-            body.put("maxResultCount", 20);
-            body.put("rankPreference", request.rank() == null ? "DISTANCE" : request.rank().name());
-            body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(
-                    "latitude", request.latitude(), "longitude", request.longitude()), "radius", request.radiusMeters())));
-            return call("/places:searchNearby", HttpMethod.POST, body, SUMMARY);
+            return nearby(request.latitude(), request.longitude(), request.radiusMeters(), 20,
+                    request.rank() == null ? "DISTANCE" : request.rank().name(), SUMMARY);
         }
         String area = request.locality() == null || request.locality().isBlank() ? "" : request.locality().strip() + ", ";
+        Map<String,Object> body = new LinkedHashMap<>();
         String query = request.spaName() == null || request.spaName().isBlank() ? "spas" : request.spaName().strip();
         if (request.city() != null && !request.city().isBlank()) {
             query += " in " + area + request.city().strip() + ", " + request.countryCode().toUpperCase(Locale.ROOT);
@@ -176,14 +171,18 @@ public class CityPlacesClient {
     /** Nearest spas for a visitor who is not signed in: fixed radius, count and fields. */
     public JsonNode publicNearby(double latitude, double longitude) {
         if (configured()) reservePublicRequest();
+        return nearby(latitude, longitude, PUBLIC_RADIUS_METERS, PUBLIC_RESULTS, "DISTANCE", PUBLIC_SUMMARY);
+    }
+
+    private JsonNode nearby(double latitude, double longitude, int radius, int limit, String rank, String fields) {
         Map<String,Object> body = new LinkedHashMap<>();
-        body.put("includedTypes", List.of("spa"));
-        body.put("excludedPrimaryTypes", SpaPlaceFilter.EXCLUDED_PRIMARY_TYPES);
-        body.put("maxResultCount", PUBLIC_RESULTS);
-        body.put("rankPreference", "DISTANCE");
+        body.put("includedPrimaryTypes", SpaPlaceFilter.NEARBY_PRIMARY_TYPES);
+        body.put("excludedTypes", SpaPlaceFilter.NEARBY_EXCLUDED_TYPES);
+        body.put("maxResultCount", limit);
+        body.put("rankPreference", rank);
         body.put("locationRestriction", Map.of("circle", Map.of("center", Map.of(
-                "latitude", latitude, "longitude", longitude), "radius", PUBLIC_RADIUS_METERS)));
-        return call("/places:searchNearby", HttpMethod.POST, body, PUBLIC_SUMMARY);
+                "latitude", latitude, "longitude", longitude), "radius", radius)));
+        return call("/places:searchNearby", HttpMethod.POST, body, fields + ",places.types");
     }
 
     /** An owner looking for their own listing: name and address only, no photos or contact details. */

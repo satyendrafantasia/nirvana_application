@@ -17,10 +17,28 @@ public final class SpaPlaceFilter {
     /** Primary types we treat as a spa business. */
     static final Set<String> SPA_TYPES = Set.of("spa", "massage", "massage_spa", "day_spa", "sauna", "wellness_center");
 
-    /** Primary types sent to Google as excludedPrimaryTypes on nearby searches. All are Places API (New) Table A types. */
-    public static final List<String> EXCLUDED_PRIMARY_TYPES = List.of(
+    static final List<String> NEARBY_PRIMARY_TYPES = List.of("spa", "massage_spa");
+    static final List<String> NEARBY_EXCLUDED_TYPES = List.of(
             "beauty_salon", "hair_salon", "hair_care", "nail_salon", "barber_shop", "beautician", "makeup_artist",
-            "gym", "fitness_center", "hotel", "lodging");
+            "gym", "fitness_center", "doctor", "medical_clinic", "medical_center", "medical_lab", "hospital",
+            "general_hospital", "skin_care_clinic", "dentist", "dental_clinic", "pharmacy", "physiotherapist",
+            "store", "shopping_mall");
+
+    private static final Pattern NON_SPA_BUSINESS_NAME = Pattern.compile(
+            "\\b(?:salons?|saloons?|parlou?rs?|barber(?:s|shops?)?|clinics?|hospitals?|doctors?|dr|dermatolog(?:y|ists?)|shops?|stores?)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /** Nearby discovery requires a positive primary category, even when a listing is linked to Nirvana. */
+    static boolean isNearbySpa(JsonNode place) {
+        if (!NEARBY_PRIMARY_TYPES.contains(place.path("primaryType").asText())) return false;
+        String name = place.path("displayName").path("text").asText("");
+        if (name.isBlank() || NON_SPA_BUSINESS_NAME.matcher(name).find()) return false;
+        for (JsonNode type : place.path("types")) {
+            String category = type.asText();
+            if (NEARBY_EXCLUDED_TYPES.contains(category) || category.endsWith("_shop") || category.endsWith("_store")) return false;
+        }
+        return true;
+    }
 
     private static final Set<String> NON_SPA_TYPES = Set.of(
             "beauty_salon", "hair_salon", "hair_care", "nail_salon", "barber_shop", "beautician", "makeup_artist",

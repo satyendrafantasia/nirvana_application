@@ -19,7 +19,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** The key is blanked so these tests can never reach Google, whatever the machine's environment holds. */
@@ -30,7 +29,7 @@ class PublicDiscoveryTest {
 
     @Test void signedOutVisitorsReachThePublicEndpointsButNotTheFullSearch() throws Exception {
         mvc.perform(get("/api/public/discovery/status")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.configured").value(false));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.configured").value(false));
         // 503 (no key) rather than 401 shows the request got past sign-in.
         mvc.perform(post("/api/public/discovery/nearby").contentType("application/json")
                 .content("{\"latitude\":12.97,\"longitude\":77.59}")).andExpect(status().isServiceUnavailable());
@@ -53,7 +52,8 @@ class PublicDiscoveryTest {
             mock.getServer(template).expect(requestTo("https://places.googleapis.com/v1/places:searchNearby"))
                     .andExpect(method(HttpMethod.POST))
                     .andExpect(header("X-Goog-FieldMask", org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("photos"))))
-                    .andExpect(content().json("{\"includedTypes\":[\"spa\"],\"maxResultCount\":6,\"rankPreference\":\"DISTANCE\",\"locationRestriction\":{\"circle\":{\"center\":{\"latitude\":12.97,\"longitude\":77.59},\"radius\":5000}}}"))
+                    .andExpect(jsonPath("$.excludedTypes", org.hamcrest.Matchers.hasItems("beauty_salon", "medical_clinic", "store")))
+                    .andExpect(content().json("{\"includedPrimaryTypes\":[\"spa\",\"massage_spa\"],\"maxResultCount\":6,\"rankPreference\":\"DISTANCE\",\"locationRestriction\":{\"circle\":{\"center\":{\"latitude\":12.97,\"longitude\":77.59},\"radius\":5000}}}"))
                     .andRespond(withSuccess("{\"places\":[]}", MediaType.APPLICATION_JSON));
         }));
         ReflectionTestUtils.setField(client, "apiKey", "test-only");

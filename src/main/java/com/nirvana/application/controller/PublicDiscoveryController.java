@@ -1,5 +1,6 @@
 package com.nirvana.application.controller;
 
+import com.nirvana.application.model.dto.PlaceDiscoveryRequest.Mode;
 import com.nirvana.application.service.CityPlacesClient;
 import com.nirvana.application.service.PlaceSummaryService;
 import jakarta.validation.Valid;
@@ -34,7 +35,7 @@ public class PublicDiscoveryController {
 
     @PostMapping("/nearby")
     public ResponseEntity<Map<String, Object>> nearby(@Valid @RequestBody NearbyRequest request) {
-        var found = summaries.summarize(places.publicNearby(request.latitude(), request.longitude()));
+        var found = summaries.summarize(places.publicNearby(request.latitude(), request.longitude()), Mode.NEARBY);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("places", found.values()));
     }
 }

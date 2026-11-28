@@ -2,6 +2,7 @@ package com.nirvana.application.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nirvana.application.model.dto.PlaceDiscoveryRequest.Mode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,12 @@ public class PlaceSummaryService {
     private final JdbcTemplate jdbc;
 
     /** Summaries keyed by Place ID, in provider order, each with at most one photo. */
-    public Map<String, ObjectNode> summarize(JsonNode response) {
+    public Map<String, ObjectNode> summarize(JsonNode response, Mode mode) {
         Map<String, ObjectNode> unique = new LinkedHashMap<>();
         response.path("places").forEach(place -> {
             String id = place.path("id").asText();
-            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}") && SpaPlaceFilter.isSpa(place)) {
+            if (place instanceof ObjectNode object && id.matches("[A-Za-z0-9_-]{1,255}")
+                    && (mode == Mode.NEARBY ? SpaPlaceFilter.isNearbySpa(place) : SpaPlaceFilter.isSpa(place))) {
                 ObjectNode summary = object.deepCopy();
                 JsonNode photos = summary.remove("photos");
                 if (photos != null && photos.isArray() && !photos.isEmpty()) {

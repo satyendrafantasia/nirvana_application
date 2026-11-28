@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -99,14 +100,38 @@ class CityDiscoveryTest {
     }
 
     @Test void nearbyResultsDeduplicateAndTrackRepeatSearchesWithoutCity() throws Exception {
-        when(places.discover(any())).thenReturn(json.readTree("{\"places\":[{\"id\":\"nearby_saved_test\",\"displayName\":{\"text\":\"Live only\"}},{\"id\":\"nearby_saved_test\"},{\"id\":\"invalid/id\"}]}"));
+        var nearby = json.readTree("""
+            {"places":[
+              {"id":"nearby_clinic","primaryType":"doctor","types":["doctor","spa"],"displayName":{"text":"Nathupur Wellness"}},
+              {"id":"nearby_mistag","primaryType":"spa","displayName":{"text":"Dr. Priyanka Agarwal | Consultant | Dermatology | Narayana Hospital, Gurugram"}},
+              {"id":"nearby_saved_test","primaryType":"spa","displayName":{"text":"Royal Health Spa"},"formattedAddress":"Shop Number 31, Balveer Market"},
+              {"id":"nearby_shop","primaryType":"spa","displayName":{"text":"No longer Shop"}},
+              {"id":"nearby_mixed","primaryType":"spa","types":["spa","beauty_salon"],"displayName":{"text":"Lotus"}},
+              {"id":"nearby_salon","primaryType":"spa","displayName":{"text":"Lotus Spa & Salon"}},
+              {"id":"nearby_store","primaryType":"spa","types":["spa","store"],"displayName":{"text":"Lotus"}},
+              {"id":"nearby_unknown","displayName":{"text":"Unclassified Spa"}},
+              {"id":"nearby_massage","primaryType":"massage_spa","displayName":{"text":"Zoveya Spa & Home Massage Services"}},
+              {"id":"nearby_saved_test","primaryType":"spa","displayName":{"text":"Royal Health Spa"}},
+              {"id":"invalid/id","primaryType":"spa","displayName":{"text":"Royal Health Spa"}}
+            ]}
+            """);
+        when(places.discover(any())).thenReturn(nearby);
+        when(places.publicNearby(12,77)).thenReturn(nearby);
+        ResultMatcher[] onlyExpectedSpas = {
+                jsonPath("$.places.length()").value(2),
+                jsonPath("$.places[0].id").value("nearby_saved_test"),
+                jsonPath("$.places[1].id").value("nearby_massage")};
+        mvc.perform(post("/api/public/discovery/nearby").contentType("application/json").content("{\"latitude\":12,\"longitude\":77}"))
+                .andExpect(status().isOk()).andExpectAll(onlyExpectedSpas);
         String request = "{\"mode\":\"NEARBY\",\"countryCode\":\"in\",\"latitude\":12,\"longitude\":77,\"radiusMeters\":3000}";
-        for (int i=0;i<2;i++) mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request)).andExpect(status().isOk());
+        for (int i=0;i<2;i++) mvc.perform(post("/api/discovery/search").with(authentication(auth("ROLE_USER"))).contentType("application/json").content(request))
+                .andExpect(status().isOk()).andExpectAll(onlyExpectedSpas);
         var row=jdbc.queryForMap("SELECT * FROM place_discovery_reference WHERE place_id='nearby_saved_test'");
         assertEquals(2L, ((Number)row.get("search_count")).longValue());
         assertEquals("NEARBY", row.get("search_mode"));
         assertEquals("IN", row.get("country_code"));
         assertNull(row.get("search_city"));
+        assertEquals(0L,jdbc.queryForObject("SELECT COUNT(*) FROM place_discovery_reference WHERE place_id IN ('nearby_clinic','nearby_mistag','nearby_shop','nearby_mixed','nearby_salon','nearby_store','nearby_unknown')",Long.class));
         assertEquals(0L,jdbc.queryForObject("SELECT COUNT(*) FROM place_discovery_reference WHERE place_id='invalid/id'",Long.class));
     }
 }
